@@ -36,7 +36,8 @@ jobs:
           printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/azs-release.jks"
           echo "AZS_KEYSTORE_FILE=$RUNNER_TEMP/azs-release.jks" >> "$GITHUB_ENV"
       - name: Install Android SDK platform
-        run: "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'platforms;android-36' 'build-tools;36.0.0'
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'platforms;android-36' 'build-tools;36.0.0'
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
