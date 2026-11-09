@@ -19,19 +19,20 @@ export function StationCanvas({ pumps, gameSeconds }: Props) {
     let disposed = false;
     let observer: ResizeObserver | undefined;
     let removeGestures = () => undefined;
-    const scene = createStationScene(pumps);
 
     async function mount() {
-      await app.init({ width: SCENE_WIDTH, height: SCENE_HEIGHT, background: 0x24433e, antialias: true, resolution: Math.min(devicePixelRatio, 2), autoDensity: true });
+      await app.init({ width: SCENE_WIDTH, height: SCENE_HEIGHT, background: 0x1a211b, antialias: true, resolution: Math.min(devicePixelRatio, 2), autoDensity: true });
       if (disposed || !host) { app.destroy(true); return; }
+      const scene = await createStationScene(pumps);
+      if (disposed) { scene.root.destroy({ children: true }); app.destroy(true); return; }
       host.appendChild(app.canvas);
       app.stage.addChild(scene.root);
       updateTimeRef.current = scene.setTime;
       scene.setTime(gameSeconds);
       const sceneSize = { x: SCENE_WIDTH, y: SCENE_HEIGHT };
       const viewport = (): Point => ({ x: host.clientWidth, y: host.clientHeight });
-      const baseScale = () => Math.min(host.clientWidth / SCENE_WIDTH, host.clientHeight / SCENE_HEIGHT);
-      let camera: Camera = { ...INITIAL_CAMERA };
+      const baseScale = () => Math.max(host.clientWidth / SCENE_WIDTH, host.clientHeight / SCENE_HEIGHT);
+      let camera: Camera = { ...INITIAL_CAMERA, panY: -24 };
       const applyCamera = () => {
         camera = limitPan(camera, baseScale(), viewport(), sceneSize);
         const transform = cameraTransform(camera, baseScale(), viewport(), sceneSize);

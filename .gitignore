@@ -5,3 +5,4 @@ dist/
 *.jks
 *.keystore
 signing/
+preview/

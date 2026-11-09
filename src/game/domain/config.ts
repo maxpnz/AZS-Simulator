@@ -6,19 +6,19 @@ export const MAX_FUEL_TYPES_PER_TRIP = 3;
 
 export const FUEL_IDS: readonly FuelId[] = ['ai92', 'ai95', 'ai95plus', 'ai98', 'ai100', 'diesel'];
 
-const fuel = (id: FuelId, name: string, wholesaleKopeks: number, retailKopeks: number, baseDemand: number): FuelStock => ({
-  id, name, wholesaleKopeks, retailKopeks, litres: 4000, capacityLitres: 12000, baseDemand,
+const fuel = (id: FuelId, name: string, wholesaleKopeks: number, retailKopeks: number, baseDemand: number, litres: number): FuelStock => ({
+  id, name, wholesaleKopeks, retailKopeks, litres, capacityLitres: 12000, baseDemand,
 });
 
 export const INITIAL_STATION: StationState = {
   balanceKopeks: 2_500_000_00,
   fuels: {
-    ai92: fuel('ai92', 'АИ-92', 4350, 5190, 0.8),
-    ai95: fuel('ai95', 'АИ-95', 4800, 5790, 1),
-    ai95plus: fuel('ai95plus', 'АИ-95+', 5100, 6190, 0.45),
-    ai98: fuel('ai98', 'АИ-98', 5750, 6890, 0.3),
-    ai100: fuel('ai100', 'АИ-100', 6500, 7690, 0.2),
-    diesel: fuel('diesel', 'ДТ', 4950, 5950, 0.7),
+    ai92: fuel('ai92', 'АИ-92', 4350, 5190, 0.8, 8600),
+    ai95: fuel('ai95', 'АИ-95', 4800, 5790, 1, 8200),
+    ai95plus: fuel('ai95plus', 'АИ-95+', 5100, 6190, 0.45, 6600),
+    ai98: fuel('ai98', 'АИ-98', 5750, 6890, 0.3, 5200),
+    ai100: fuel('ai100', 'АИ-100', 6500, 7690, 0.2, 4400),
+    diesel: fuel('diesel', 'ДТ', 4950, 5950, 0.7, 9400),
   },
   pumps: [
     { id: 'pump-1', slot: 0, fuels: ['ai92', 'ai95', 'diesel'] },
