@@ -1,86 +1,57 @@
 import { Assets, Container, Graphics, Sprite, Text } from 'pixi.js';
-import stationBackground from '../../assets/station-concept-v011.png';
-import type { Pump } from '../../game/domain/types';
+import sceneArt from '../../assets/station-scene-v02a.png';
+import type { FuelId, Pump } from '../../game/domain/types';
 import { getHour } from '../../game/simulation/time';
-import { getVehicles } from '../../game/simulation/traffic';
-import { createVehicleSprite } from './vehicleSprite';
 
-export const SCENE_WIDTH = 1672;
-export const SCENE_HEIGHT = 941;
-
-function project(x: number, y: number): { x: number; y: number } {
-  // Fixed world-to-art projection. Traffic remains simulation data, independent of the background image.
-  return { x: 988 + 120 * x - 110 * y, y: 180 + 18 * x + 80 * y };
-}
-
-function pumpMarker(slot: number): Container {
-  const marker = new Container();
-  const x = slot === 0 ? 749 : slot === 1 ? 1045 : 660 + (slot % 4) * 150;
-  const y = slot < 2 ? 436 : 430 + Math.floor(slot / 4) * 104;
-  marker.position.set(x, y);
-  if (slot >= 2) {
-    marker.addChild(new Graphics().roundRect(-23, -20, 46, 48, 5).fill(0xd4e3e0));
-    marker.addChild(new Graphics().roundRect(-24, -27, 48, 27, 3).fill(0xc72c24));
+export const SCENE_WIDTH = 2000, SCENE_HEIGHT = 1200;
+export type ObjectId = 'price-sign' | 'pump-1' | 'pump-2' | 'tank' | 'shop' | 'delivery' | 'expansion';
+export interface Hotspot { id: ObjectId; polygon: readonly [number, number][] }
+/** Polygons follow the actual painted objects in the new, full-scene artwork. */
+export const HOTSPOTS: readonly Hotspot[] = [
+  { id:'price-sign', polygon:[[145,275],[260,275],[265,650],[130,650]] },
+  { id:'pump-1', polygon:[[755,440],[910,440],[910,650],[755,650]] },
+  { id:'pump-2', polygon:[[1265,440],[1420,440],[1420,650],[1265,650]] },
+  { id:'tank', polygon:[[1360,75],[1685,75],[1685,335],[1360,335]] },
+  { id:'shop', polygon:[[420,100],[1225,100],[1225,425],[420,425]] },
+  { id:'delivery', polygon:[[1515,345],[1690,345],[1690,435],[1515,435]] },
+  { id:'expansion', polygon:[[965,635],[1220,635],[1220,710],[965,710]] },
+];
+export function hitTest(x:number,y:number):ObjectId|null {
+  for (const {id,polygon} of HOTSPOTS) {
+    let inside=false;
+    for(let i=0,j=polygon.length-1;i<polygon.length;j=i++) {
+      const [xi,yi]=polygon[i],[xj,yj]=polygon[j];
+      if((yi>y)!==(yj>y) && x<(xj-xi)*(y-yi)/(yj-yi)+xi) inside=!inside;
+    }
+    if(inside) return id;
   }
-  const badge = new Text({ text: String(slot + 1), style: { fontFamily: 'Arial', fontSize: 16, fontWeight: 'bold', fill: 0xffffff } });
-  badge.anchor.set(0.5);
-  badge.position.set(0, -13);
-  marker.addChild(badge);
-  return marker;
+  return null;
 }
-
-export interface StationScene {
-  root: Container;
-  setTime: (gameSeconds: number) => void;
+function label(value:string,x:number,y:number,size:number,color=0xffffff) {
+  const t=new Text({text:value,style:{fontFamily:'Arial',fontSize:size,fontWeight:'bold',fill:color,stroke:{color:0x152325,width:4}}});
+  t.anchor.set(.5);t.position.set(x,y);return t;
 }
-
-export async function createStationScene(pumps: readonly Pump[]): Promise<StationScene> {
-  const root = new Container();
-  const background = new Sprite(await Assets.load(stationBackground));
-  background.width = SCENE_WIDTH;
-  background.height = SCENE_HEIGHT;
+export interface StationScene { root:Container; setTime:(gameSeconds:number)=>void; setPrices:(prices:Record<FuelId,number>)=>void }
+export async function createStationScene(_pumps:readonly Pump[]):Promise<StationScene> {
+  const root=new Container();
+  const background=new Sprite(await Assets.load(sceneArt));
+  background.width=SCENE_WIDTH;background.height=SCENE_HEIGHT;
   root.addChild(background);
-
-  const pumpLayer = new Container();
-  for (const pump of pumps) pumpLayer.addChild(pumpMarker(pump.slot));
-  root.addChild(pumpLayer);
-
-  const vehicleLayer = new Container();
-  const vehicleSprites = new Map<number, Container>();
-  root.addChild(vehicleLayer);
-
-  const daylightWash = new Graphics().rect(0, 0, SCENE_WIDTH, SCENE_HEIGHT).fill(0xfff3cf);
-  const night = new Graphics().rect(0, 0, SCENE_WIDTH, SCENE_HEIGHT).fill(0x081729);
-  root.addChild(daylightWash, night);
-
-  return {
-    root,
-    setTime(gameSeconds) {
-      const vehicles = getVehicles(gameSeconds);
-      const active = new Set(vehicles.map((vehicle) => vehicle.id));
-      for (const [id, sprite] of vehicleSprites) {
-        if (!active.has(id)) {
-          vehicleLayer.removeChild(sprite);
-          sprite.destroy({ children: true });
-          vehicleSprites.delete(id);
-        }
-      }
-      for (const vehicle of vehicles) {
-        let sprite = vehicleSprites.get(vehicle.id);
-        if (!sprite) {
-          sprite = createVehicleSprite(vehicle.color);
-          sprite.scale.set(2.4);
-          vehicleSprites.set(vehicle.id, sprite);
-          vehicleLayer.addChild(sprite);
-        }
-        const point = project(vehicle.x, vehicle.y);
-        sprite.position.set(point.x, point.y);
-        sprite.rotation = vehicle.angle;
-      }
-      const hour = getHour(gameSeconds);
-      const daylight = Math.max(0, Math.sin(((hour - 5) / 14) * Math.PI));
-      daylightWash.alpha = daylight * 0.16;
-      night.alpha = 0.64 * (1 - daylight);
-    },
-  };
+  // Separate road-space layers share coordinates with the route nodes. The visual artwork
+  // supplies detailed asphalt; these transparent polygons define the actual lane geometry.
+  const roadGeometry=new Graphics();
+  roadGeometry.rect(0,744,2000,140).fill({color:0x263038,alpha:.001});
+  roadGeometry.rect(0,949,2000,150).fill({color:0x263038,alpha:.001});
+  roadGeometry.poly([250,744,400,735,515,660,540,600,445,610,340,700]).fill({color:0x263038,alpha:.001});
+  roadGeometry.poly([1570,600,1715,630,1810,735,1930,744,1770,744,1680,690]).fill({color:0x263038,alpha:.001});
+  root.addChild(roadGeometry);
+  const overlays=new Container();
+  overlays.addChild(label('ВЪЕЗД',355,725,22),label('ВЫЕЗД',1790,725,22));
+  const signText=new Text({text:'АЗС\n92   57\n95   63\nДТ   68',style:{fontFamily:'Arial',fontSize:17,fontWeight:'bold',fill:0x20323a,align:'center',lineHeight:29}});
+  signText.anchor.set(.5);signText.position.set(197,407);overlays.addChild(signText);
+  root.addChild(overlays);
+  const night=new Graphics().rect(0,0,SCENE_WIDTH,SCENE_HEIGHT).fill(0x071525);
+  root.addChild(night);
+  return {root,setTime(gameSeconds){const daylight=Math.max(0,Math.sin(((getHour(gameSeconds)-5)/14)*Math.PI));night.alpha=.28*(1-daylight);},
+    setPrices(prices){signText.text='АЗС\\n92   '+Math.round(prices.ai92/100)+'\\n95   '+Math.round(prices.ai95/100)+'\\nДТ   '+Math.round(prices.diesel/100);}};
 }

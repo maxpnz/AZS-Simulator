@@ -2,7 +2,6 @@ import { FUEL_IDS, INITIAL_STATION } from '../game/domain/config';
 import type { ClockSnapshot, TimeSpeed } from '../game/domain/types';
 import { Icon } from './Icon';
 
-const speeds: readonly TimeSpeed[] = [1, 2, 5, 10];
 const rubles = new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 });
 const litres = new Intl.NumberFormat('ru-RU');
 
@@ -14,7 +13,7 @@ interface Props {
   speed: TimeSpeed;
   fuelOpen: boolean;
   onPause: () => void;
-  onSpeed: (speed: TimeSpeed) => void;
+  onSpeed: () => void;
   onFuel: () => void;
   onMenu: () => void;
 }
@@ -25,15 +24,15 @@ export function TopBar({ clock, time, traffic, paused, speed, fuelOpen, onPause,
 
   return (
     <header className="game-topbar">
-      <div className="game-brand" aria-label="АЗС Simulator версия 0.1.1">
+      <div className="game-brand" aria-label="АЗС Simulator версия 0.2.1">
         <span className="brand-emblem"><span>АЗС</span></span>
-        <span className="brand-name"><strong>АЗС</strong><small>Simulator <em>v0.1.1</em></small></span>
+        <span className="brand-name"><strong>АЗС</strong><small>Simulator <em>v0.2.1</em></small></span>
       </div>
       <div className="top-chip day-chip"><Icon name="calendar" /><span>День {clock.day}</span></div>
       <div className="top-chip clock-chip"><Icon name="clock" /><strong>{time}</strong></div>
       <div className="time-controls" aria-label="Управление временем">
         <button type="button" className="control-pause" onClick={onPause} aria-label={paused ? 'Продолжить игру' : 'Пауза'} aria-pressed={paused}><Icon name={paused ? 'play' : 'pause'} /></button>
-        {speeds.map((value) => <button key={value} type="button" className={speed === value && !paused ? 'speed active' : 'speed'} onClick={() => onSpeed(value)} aria-pressed={speed === value && !paused}>{value}×</button>)}
+        <button type="button" className="speed active" onClick={onSpeed} aria-label={'Скорость ' + speed + '×. Следующая скорость'}>{speed}×</button>
       </div>
       <div className="top-grow" />
       <div className="top-chip money-chip"><Icon name="wallet" /><strong>{rubles.format(INITIAL_STATION.balanceKopeks / 100)}</strong></div>
@@ -55,7 +54,7 @@ export function TopBar({ clock, time, traffic, paused, speed, fuelOpen, onPause,
           <p>Продажи и поставки появятся в следующих версиях.</p>
         </div>}
       </div>
-      <div className="top-chip traffic-chip"><Icon name="traffic" /><span>Трафик</span><strong>{trafficText}</strong></div>
+      <div className="top-chip traffic-chip"><Icon name="traffic" /><span>Поток · демо</span><strong>{trafficText}</strong></div>
       <div className="top-chip pumps-chip"><Icon name="pumps" /><strong>2/8</strong></div>
       <button type="button" className="menu-trigger" onClick={onMenu} aria-label="Открыть меню"><Icon name="menu" /></button>
     </header>

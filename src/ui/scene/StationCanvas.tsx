@@ -1,16 +1,20 @@
 import { useEffect, useRef } from 'react';
 import { Application } from 'pixi.js';
-import type { Pump } from '../../game/domain/types';
-import { createStationScene, SCENE_HEIGHT, SCENE_WIDTH } from './createStationScene';
+import type { FuelId, Pump } from '../../game/domain/types';
+import { createStationScene, hitTest, type ObjectId, SCENE_HEIGHT, SCENE_WIDTH } from './createStationScene';
 import { cameraTransform, INITIAL_CAMERA, limitPan, zoomAround, type Camera, type Point } from './camera';
 
-interface Props { pumps: readonly Pump[]; gameSeconds: number }
+interface Props { pumps: readonly Pump[]; gameSeconds: number; prices: Record<FuelId,number>; onObject: (id: ObjectId) => void }
 
-export function StationCanvas({ pumps, gameSeconds }: Props) {
+export function StationCanvas({ pumps, gameSeconds, prices, onObject }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const updateTimeRef = useRef<(seconds: number) => void>(() => undefined);
+  const updatePricesRef = useRef<(prices: Record<FuelId,number>) => void>(() => undefined);
+  const onObjectRef = useRef(onObject);
+  useEffect(() => { onObjectRef.current = onObject; }, [onObject]);
 
   useEffect(() => { updateTimeRef.current(gameSeconds); }, [gameSeconds]);
+  useEffect(() => { updatePricesRef.current(prices); }, [prices]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -28,11 +32,15 @@ export function StationCanvas({ pumps, gameSeconds }: Props) {
       host.appendChild(app.canvas);
       app.stage.addChild(scene.root);
       updateTimeRef.current = scene.setTime;
+      updatePricesRef.current = scene.setPrices;
+      scene.setPrices(prices);
       scene.setTime(gameSeconds);
       const sceneSize = { x: SCENE_WIDTH, y: SCENE_HEIGHT };
       const viewport = (): Point => ({ x: host.clientWidth, y: host.clientHeight });
       const baseScale = () => Math.max(host.clientWidth / SCENE_WIDTH, host.clientHeight / SCENE_HEIGHT);
-      let camera: Camera = { ...INITIAL_CAMERA, panY: -24 };
+      let camera: Camera = { ...INITIAL_CAMERA };
+      let tapStart: Point | null = null;
+      let dragged = false;
       const applyCamera = () => {
         camera = limitPan(camera, baseScale(), viewport(), sceneSize);
         const transform = cameraTransform(camera, baseScale(), viewport(), sceneSize);
@@ -66,6 +74,8 @@ export function StationCanvas({ pumps, gameSeconds }: Props) {
       const onPointerDown = (event: PointerEvent) => {
         host.setPointerCapture(event.pointerId);
         pointers.set(event.pointerId, local(event));
+        tapStart = pointers.size === 1 ? local(event) : null;
+        dragged = false;
         lastSingle = pointers.size === 1 ? local(event) : null;
         lastPinch = pointers.size === 2 ? pinch() : null;
       };
@@ -73,6 +83,8 @@ export function StationCanvas({ pumps, gameSeconds }: Props) {
         if (!pointers.has(event.pointerId)) return;
         const point = local(event);
         pointers.set(event.pointerId, point);
+        if (tapStart && Math.hypot(point.x-tapStart.x, point.y-tapStart.y) > 8) dragged = true;
+        if (pointers.size > 1) dragged = true;
         if (pointers.size === 1 && lastSingle) {
           camera = { ...camera, panX: camera.panX + point.x - lastSingle.x, panY: camera.panY + point.y - lastSingle.y };
           lastSingle = point;
@@ -86,7 +98,14 @@ export function StationCanvas({ pumps, gameSeconds }: Props) {
         applyCamera();
       };
       const onPointerEnd = (event: PointerEvent) => {
+        if (event.type === 'pointerup' && pointers.size === 1 && tapStart && !dragged) {
+          const point = local(event);
+          const transform = cameraTransform(camera, baseScale(), viewport(), sceneSize);
+          const id = hitTest((point.x-transform.x)/transform.scale, (point.y-transform.y)/transform.scale);
+          if (id) onObjectRef.current(id);
+        }
         pointers.delete(event.pointerId);
+        tapStart = null;
         if (host.hasPointerCapture(event.pointerId)) host.releasePointerCapture(event.pointerId);
         lastSingle = pointers.size === 1 ? [...pointers.values()][0] : null;
         lastPinch = pointers.size === 2 ? pinch() : null;
@@ -117,6 +136,7 @@ export function StationCanvas({ pumps, gameSeconds }: Props) {
       observer?.disconnect();
       removeGestures();
       updateTimeRef.current = () => undefined;
+      updatePricesRef.current = () => undefined;
       if (app.renderer) app.destroy(true, { children: true });
     };
   }, [pumps]);
