@@ -1,8 +1,10 @@
 import { Assets, Container, Graphics, Sprite, Text } from 'pixi.js';
-import sceneArt from '../../assets/station-scene-v02a.png';
+import sceneArt from '../../assets/station-scene-v023.png';
+import carArt from '../../assets/vehicle-car-v023.png';
+import truckArt from '../../assets/vehicle-truck-v023.png';
 import type { FuelId, Pump, Vehicle } from '../../game/domain/types';
 import { getHour } from '../../game/simulation/time';
-import { createVehicleSprite } from './vehicleSprite';
+import { createVehicleVisual, type VehicleVisual } from './vehicleSprite';
 
 export const SCENE_WIDTH = 2000, SCENE_HEIGHT = 1200;
 export type ObjectId = 'price-sign' | 'pump-1' | 'pump-2' | 'tank' | 'shop' | 'delivery' | 'expansion';
@@ -35,7 +37,8 @@ function label(value:string,x:number,y:number,size:number,color=0xffffff) {
 export interface StationScene { root:Container; setTime:(gameSeconds:number)=>void; setPrices:(prices:Record<FuelId,number>)=>void; setVehicles:(vehicles:readonly Vehicle[])=>void }
 export async function createStationScene(_pumps:readonly Pump[]):Promise<StationScene> {
   const root=new Container();
-  const background=new Sprite(await Assets.load(sceneArt));
+  const [sceneTexture,carTexture,truckTexture]=await Promise.all([Assets.load(sceneArt),Assets.load(carArt),Assets.load(truckArt)]);
+  const background=new Sprite(sceneTexture);
   background.width=SCENE_WIDTH;background.height=SCENE_HEIGHT;
   root.addChild(background);
   // Separate road-space layers share coordinates with the route nodes. The visual artwork
@@ -48,23 +51,24 @@ export async function createStationScene(_pumps:readonly Pump[]):Promise<Station
   root.addChild(roadGeometry);
   const overlays=new Container();
   overlays.addChild(label('ВЪЕЗД',355,725,22),label('ВЫЕЗД',1790,725,22));
-  const signText=new Text({text:'АЗС\n92   57\n95   63\nДТ   68',style:{fontFamily:'Arial',fontSize:17,fontWeight:'bold',fill:0x20323a,align:'center',lineHeight:29}});
-  signText.anchor.set(.5);signText.position.set(197,407);overlays.addChild(signText);
+  const signText=new Text({text:'АЗС\n92  57.00\n95  63.00',style:{fontFamily:'Arial',fontSize:15,fontWeight:'bold',fill:0xf9f4dc,align:'center',lineHeight:34,
+    stroke:{color:0x13232a,width:2}}});
+  signText.anchor.set(.5);signText.position.set(210,405);overlays.addChild(signText);
   root.addChild(overlays);
   const vehicleLayer=new Container();
-  const vehicleSprites=new Map<number,Container>();
+  const vehicleSprites=new Map<number,VehicleVisual>();
   root.addChild(vehicleLayer);
   const night=new Graphics().rect(0,0,SCENE_WIDTH,SCENE_HEIGHT).fill(0x071525);
   root.addChild(night);
   return {root,setTime(gameSeconds){const daylight=Math.max(0,Math.sin(((getHour(gameSeconds)-5)/14)*Math.PI));night.alpha=.28*(1-daylight);},
-    setPrices(prices){signText.text='АЗС\n92   '+Math.round(prices.ai92/100)+'\n95   '+Math.round(prices.ai95/100)+'\nДТ   '+Math.round(prices.diesel/100);},
+    setPrices(prices){signText.text='АЗС\n92  '+(prices.ai92/100).toFixed(2)+'\n95  '+(prices.ai95/100).toFixed(2);},
     setVehicles(vehicles){
       const active=new Set(vehicles.map((vehicle)=>vehicle.id));
-      for(const [id,sprite] of vehicleSprites) if(!active.has(id)) {vehicleLayer.removeChild(sprite);sprite.destroy({children:true});vehicleSprites.delete(id);}
+      for(const [id,visual] of vehicleSprites) if(!active.has(id)) {vehicleLayer.removeChild(visual.root);visual.root.destroy({children:true});vehicleSprites.delete(id);}
       for(const vehicle of vehicles) {
-        let sprite=vehicleSprites.get(vehicle.id);
-        if(!sprite) {sprite=createVehicleSprite(vehicle.color);sprite.scale.set(vehicle.category==='truck'?2.4:1.8);vehicleSprites.set(vehicle.id,sprite);vehicleLayer.addChild(sprite);}
-        sprite.position.set(vehicle.x,vehicle.y);sprite.rotation=vehicle.angle;
+        let visual=vehicleSprites.get(vehicle.id);
+        if(!visual) {visual=createVehicleVisual(vehicle,carTexture,truckTexture);vehicleSprites.set(vehicle.id,visual);vehicleLayer.addChild(visual.root);}
+        visual.update(vehicle);
       }
     }};
 }

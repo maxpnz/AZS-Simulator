@@ -16,9 +16,18 @@ export interface Pump {
   fuels: FuelId[];
 }
 
+export interface FuelTank {
+  id: string;
+  fuel: FuelId;
+  capacityMl: number;
+  stockMl: number;
+  status: 'active';
+}
+
 export interface StationState {
   balanceKopeks: number;
   fuels: Record<FuelId, FuelStock>;
+  tanks: FuelTank[];
   pumps: Pump[];
 }
 
@@ -59,6 +68,7 @@ export interface Vehicle {
   serviceRemainingSeconds: number;
   setupRemainingSeconds: number;
   deliveredMl: number;
+  chargedKopeks: number;
   route: string[];
   laneId: string;
   x: number;

@@ -38,14 +38,13 @@ export function App() {
     else setNotice(name==='Настройки'?'Камера: сдвиг одним пальцем, масштаб двумя пальцами. Колесо мыши меняет масштаб.':name+' — раздел будет доступен в следующих версиях.');
   };
   return <div className="app-shell">
-    <TopBar clock={clock} time={time} station={gameState.station} stats={gameState.stats} paused={paused} speed={speed} fuelOpen={fuelOpen}
+    <TopBar clock={clock} time={time} station={gameState.station} stats={gameState.stats} queueCount={gameState.queueIds.length} paused={paused} speed={speed} fuelOpen={fuelOpen}
       onPause={togglePause} onSpeed={cycleSpeed} onFuel={()=>setFuelOpen((v)=>!v)} onMenu={()=>{setFuelOpen(false);setMenuOpen((v)=>!v);}} />
     <main className="game-stage" aria-label="Территория АЗС">
       <StationCanvas pumps={INITIAL_STATION.pumps} gameSeconds={gameState.gameSeconds} prices={prices} engine={engine}
         onObject={(id)=>{setNotice('');setOverviewOpen(false);setObjectId(id);}} />
       {objectId&&<ObjectPanel id={objectId} prices={prices} pumpFuels={pumpFuels} station={gameState.station} vehicles={gameState.vehicles}
         onPrice={(fuel,kopeks)=>{engine.setRetailPrice(fuel,kopeks);setGameState(engine.getState());}}
-        onPump={(id,fuels)=>{const result=engine.setPumpFuels(id,fuels);setGameState(engine.getState());return result;}}
         onClose={()=>setObjectId(null)} />}
       {overviewOpen&&<OverviewPanel state={gameState} onClose={()=>setOverviewOpen(false)} />}
       {notice&&<div className="section-notice" role="status">{notice}<button type="button" onClick={()=>setNotice('')} aria-label="Закрыть">×</button></div>}

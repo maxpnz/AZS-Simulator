@@ -5,37 +5,44 @@ export const MAX_FUELS_PER_PUMP = 3;
 export const MAX_FUEL_TYPES_PER_TRIP = 3;
 export const FUEL_IDS: readonly FuelId[] = ['ai92', 'ai95', 'ai95plus', 'ai98', 'ai100', 'diesel'];
 
-const fuel = (id: FuelId, name: string, wholesaleKopeks: number, retailKopeks: number, baseDemand: number): FuelStock => ({
-  id, name, wholesaleKopeks, retailKopeks, stockMl: 2_000_000, capacityMl: 10_000_000, baseDemand,
+export const START_TANK_CAPACITY_ML = 2_500_000;
+export const START_TANK_STOCK_ML = 2_000_000;
+const fuel = (id: FuelId, name: string, wholesaleKopeks: number, retailKopeks: number, baseDemand: number, connected = false): FuelStock => ({
+  id, name, wholesaleKopeks, retailKopeks, stockMl: connected ? START_TANK_STOCK_ML : 0,
+  capacityMl: connected ? START_TANK_CAPACITY_ML : 0, baseDemand,
 });
 
 export const INITIAL_STATION: StationState = {
   balanceKopeks: 500_000_00,
   fuels: {
-    ai92: fuel('ai92', 'АИ-92', 4900, 5700, 0.32),
-    ai95: fuel('ai95', 'АИ-95', 5400, 6300, 0.43),
+    ai92: fuel('ai92', 'АИ-92', 4900, 5700, 0.32, true),
+    ai95: fuel('ai95', 'АИ-95', 5400, 6300, 0.43, true),
     ai95plus: fuel('ai95plus', 'АИ-95+', 5700, 6700, 0.12),
     ai98: fuel('ai98', 'АИ-98', 6200, 7300, 0.05),
     ai100: fuel('ai100', 'АИ-100', 6700, 7900, 0.03),
     diesel: fuel('diesel', 'ДТ', 5800, 6800, 0.05),
   },
+  tanks: [
+    { id: 'tank-ai92-1', fuel: 'ai92', capacityMl: START_TANK_CAPACITY_ML, stockMl: START_TANK_STOCK_ML, status: 'active' },
+    { id: 'tank-ai95-1', fuel: 'ai95', capacityMl: START_TANK_CAPACITY_ML, stockMl: START_TANK_STOCK_ML, status: 'active' },
+  ],
   pumps: [
-    { id: 'pump-1', slot: 0, fuels: ['ai92', 'ai95', 'diesel'] },
-    { id: 'pump-2', slot: 1, fuels: ['ai95plus', 'ai98', 'ai100'] },
+    { id: 'pump-1', slot: 0, fuels: ['ai92', 'ai95'] },
+    { id: 'pump-2', slot: 1, fuels: ['ai92', 'ai95'] },
   ],
 };
 
 export const TRAFFIC_CONFIG = {
   seed: 0x41a25,
   spawnSlotSeconds: 90,
-  baseSpawnChance: 0.4,
-  baseVisitChance: 0.48,
+  baseSpawnChance: 0.75,
+  baseVisitChance: 0.75,
   roadSpeed: 1.45,
   stationSpeed: 0.8,
   decisionX: 1.0,
-  maxQueue: 6,
+  maxQueue: 3,
   serviceSetupSeconds: 90,
-  fuelFlowMlPerSecond: 120,
+  fuelFlowMlPerSecond: 35,
   maxRecentSales: 5,
   categoryWeights: { compact: 0.19, sedan: 0.34, crossover: 0.19, suv: 0.10, van: 0.10, truck: 0.08 } satisfies Record<VehicleCategory, number>,
   category: {
@@ -53,6 +60,7 @@ export function cloneInitialStation(): StationState {
   return {
     balanceKopeks: INITIAL_STATION.balanceKopeks,
     fuels: Object.fromEntries(FUEL_IDS.map((id) => [id, { ...INITIAL_STATION.fuels[id] }])) as Record<FuelId, FuelStock>,
+    tanks: INITIAL_STATION.tanks.map((tank) => ({ ...tank })),
     pumps: INITIAL_STATION.pumps.map((pump) => ({ ...pump, fuels: [...pump.fuels] })),
   };
 }

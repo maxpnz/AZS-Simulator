@@ -1,4 +1,3 @@
-import { FUEL_IDS } from '../game/domain/config';
 import type { ClockSnapshot, StationState, TrafficStats, TimeSpeed } from '../game/domain/types';
 import { Icon } from './Icon';
 
@@ -10,6 +9,7 @@ interface Props {
   time: string;
   station: StationState;
   stats: TrafficStats;
+  queueCount: number;
   paused: boolean;
   speed: TimeSpeed;
   fuelOpen: boolean;
@@ -19,14 +19,14 @@ interface Props {
   onMenu: () => void;
 }
 
-export function TopBar({ clock, time, station, stats, paused, speed, fuelOpen, onPause, onSpeed, onFuel, onMenu }: Props) {
-  const totalFuel = FUEL_IDS.reduce((total, id) => total + station.fuels[id].stockMl / 1000, 0);
+export function TopBar({ clock, time, station, stats, queueCount, paused, speed, fuelOpen, onPause, onSpeed, onFuel, onMenu }: Props) {
+  const totalFuel = station.tanks.reduce((total, tank) => total + tank.stockMl / 1000, 0);
 
   return (
     <header className="game-topbar">
-      <div className="game-brand" aria-label="АЗС Simulator версия 0.2.2">
+      <div className="game-brand" aria-label="АЗС Simulator версия 0.2.3">
         <span className="brand-emblem"><span>АЗС</span></span>
-        <span className="brand-name"><strong>АЗС</strong><small>Simulator <em>v0.2.2</em></small></span>
+        <span className="brand-name"><strong>АЗС</strong><small>Simulator <em>v0.2.3</em></small></span>
       </div>
       <div className="top-chip day-chip"><Icon name="calendar" /><span>День {clock.day}</span></div>
       <div className="top-chip clock-chip"><Icon name="clock" /><strong>{time}</strong></div>
@@ -42,19 +42,19 @@ export function TopBar({ clock, time, station, stats, paused, speed, fuelOpen, o
         </button>
         {fuelOpen && <div id="fuel-popover" className="fuel-popover" role="region" aria-label="Остатки топлива">
           <div className="popover-title"><Icon name="fuel" /> Топливо в резервуарах <button type="button" onClick={onFuel} aria-label="Закрыть остатки топлива"><Icon name="close" /></button></div>
-          {FUEL_IDS.map((id) => {
-            const stock = station.fuels[id];
-            const percent = Math.round(stock.stockMl / stock.capacityMl * 100);
-            return <div className="fuel-row" key={id}>
+          {station.tanks.map((tank) => {
+            const stock = station.fuels[tank.fuel];
+            const percent = Math.round(tank.stockMl / tank.capacityMl * 100);
+            return <div className="fuel-row" key={tank.id}>
               <strong>{stock.name}</strong>
               <span className={`fuel-track ${percent < 40 ? 'level-low' : percent < 60 ? 'level-mid' : 'level-good'}`}><span style={{ width: `${percent}%` }} /></span>
-              <span>{percent}%</span><b>{litres.format(stock.stockMl / 1000)} л</b>
+              <span>{percent}%</span><b>{litres.format(tank.stockMl / 1000)} л</b>
             </div>;
           })}
           <p>Остатки меняются после фактической заправки. Поставки появятся в v0.3.</p>
         </div>}
       </div>
-      <div className="top-chip traffic-chip"><Icon name="traffic" /><span>Поток</span><strong>{stats.passed} мимо</strong></div>
+      <div className="top-chip traffic-chip"><Icon name="traffic" /><span>{queueCount ? 'Очередь' : 'Поток'}</span><strong>{queueCount ? queueCount+' ждут' : stats.passed+' мимо'}</strong></div>
       <div className="top-chip pumps-chip"><Icon name="pumps" /><strong>{station.pumps.length}/8</strong></div>
       <button type="button" className="menu-trigger" onClick={onMenu} aria-label="Открыть меню"><Icon name="menu" /></button>
     </header>
