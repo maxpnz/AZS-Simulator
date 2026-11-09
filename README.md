@@ -21,7 +21,7 @@ npm test
 npm run android:sync
 ```
 
-`npm run dev` запускает локальную браузерную версию. Команда `npm run android:sync` собирает игру и копирует ресурсы в `android/`. Для локальной сборки APK нужен Android SDK API 36 и Java 17; после их установки выполните `npm run android:apk:debug`.
+`npm run dev` запускает локальную браузерную версию. Команда `npm run android:sync` собирает игру и копирует ресурсы в `android/`. Для локальной сборки APK нужен Android SDK API 36 и Java 21; после их установки выполните `npm run android:apk:debug`.
 
 ## Сборка APK на GitHub
 
