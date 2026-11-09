@@ -5,8 +5,8 @@ export interface FuelStock {
   name: string;
   wholesaleKopeks: number;
   retailKopeks: number;
-  litres: number;
-  capacityLitres: number;
+  stockMl: number;
+  capacityMl: number;
   baseDemand: number;
 }
 
@@ -35,4 +35,66 @@ export interface ClockSnapshot {
   day: number;
   hour: number;
   minute: number;
+}
+
+export type VehicleCategory = 'compact' | 'sedan' | 'crossover' | 'suv' | 'van' | 'truck';
+export type VehicleStatus = 'road' | 'entering' | 'queued' | 'toPump' | 'fueling' | 'leaving';
+export type FillBehavior = 'full' | 'amount' | 'volume';
+
+export interface Vehicle {
+  id: number;
+  category: VehicleCategory;
+  fuel: FuelId;
+  tankCapacityMl: number;
+  currentFuelMl: number;
+  budgetKopeks: number;
+  behavior: FillBehavior;
+  requestedMl: number;
+  patienceSeconds: number;
+  waitedSeconds: number;
+  status: VehicleStatus;
+  pumpId?: string;
+  reservedMl: number;
+  salePriceKopeks: number;
+  serviceRemainingSeconds: number;
+  setupRemainingSeconds: number;
+  deliveredMl: number;
+  route: string[];
+  laneId: string;
+  x: number;
+  y: number;
+  angle: number;
+  color: number;
+  westbound: boolean;
+  routeIndex: number;
+}
+
+export interface Sale {
+  vehicleId: number;
+  category: VehicleCategory;
+  fuel: FuelId;
+  volumeMl: number;
+  revenueKopeks: number;
+  costKopeks: number;
+  gameSeconds: number;
+}
+
+export interface TrafficStats {
+  passed: number;
+  visited: number;
+  purchases: number;
+  leftQueue: number;
+  unserved: number;
+  soldMl: number;
+  revenueKopeks: number;
+  costKopeks: number;
+}
+
+export interface GameState {
+  gameSeconds: number;
+  station: StationState;
+  vehicles: Vehicle[];
+  queueIds: number[];
+  stats: TrafficStats;
+  recentSales: Sale[];
 }

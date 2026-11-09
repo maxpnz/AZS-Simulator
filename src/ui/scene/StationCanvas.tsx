@@ -1,15 +1,17 @@
 import { useEffect, useRef } from 'react';
 import { Application } from 'pixi.js';
-import type { FuelId, Pump } from '../../game/domain/types';
+import type { GameEngine } from '../../game/simulation/GameEngine';
+import type { FuelId, Pump, Vehicle } from '../../game/domain/types';
 import { createStationScene, hitTest, type ObjectId, SCENE_HEIGHT, SCENE_WIDTH } from './createStationScene';
 import { cameraTransform, INITIAL_CAMERA, limitPan, zoomAround, type Camera, type Point } from './camera';
 
-interface Props { pumps: readonly Pump[]; gameSeconds: number; prices: Record<FuelId,number>; onObject: (id: ObjectId) => void }
+interface Props { pumps: readonly Pump[]; gameSeconds: number; prices: Record<FuelId,number>; engine: GameEngine; onObject: (id: ObjectId) => void }
 
-export function StationCanvas({ pumps, gameSeconds, prices, onObject }: Props) {
+export function StationCanvas({ pumps, gameSeconds, prices, engine, onObject }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const updateTimeRef = useRef<(seconds: number) => void>(() => undefined);
   const updatePricesRef = useRef<(prices: Record<FuelId,number>) => void>(() => undefined);
+  const updateVehiclesRef = useRef<(vehicles: readonly Vehicle[]) => void>(() => undefined);
   const onObjectRef = useRef(onObject);
   useEffect(() => { onObjectRef.current = onObject; }, [onObject]);
 
@@ -23,6 +25,7 @@ export function StationCanvas({ pumps, gameSeconds, prices, onObject }: Props) {
     let disposed = false;
     let observer: ResizeObserver | undefined;
     let removeGestures = () => undefined;
+    let unsubscribeVehicles: () => void = () => undefined;
 
     async function mount() {
       await app.init({ width: SCENE_WIDTH, height: SCENE_HEIGHT, background: 0x1a211b, antialias: true, resolution: Math.min(devicePixelRatio, 2), autoDensity: true });
@@ -33,6 +36,9 @@ export function StationCanvas({ pumps, gameSeconds, prices, onObject }: Props) {
       app.stage.addChild(scene.root);
       updateTimeRef.current = scene.setTime;
       updatePricesRef.current = scene.setPrices;
+      updateVehiclesRef.current = scene.setVehicles;
+      scene.setVehicles(engine.getState().vehicles);
+      unsubscribeVehicles = engine.subscribeState((state) => updateVehiclesRef.current(state.vehicles), 50);
       scene.setPrices(prices);
       scene.setTime(gameSeconds);
       const sceneSize = { x: SCENE_WIDTH, y: SCENE_HEIGHT };
@@ -135,11 +141,13 @@ export function StationCanvas({ pumps, gameSeconds, prices, onObject }: Props) {
       disposed = true;
       observer?.disconnect();
       removeGestures();
+      unsubscribeVehicles();
+      updateVehiclesRef.current = () => undefined;
       updateTimeRef.current = () => undefined;
       updatePricesRef.current = () => undefined;
       if (app.renderer) app.destroy(true, { children: true });
     };
-  }, [pumps]);
+  }, [pumps, engine]);
 
   return <div className="station-canvas" ref={hostRef} aria-label="Изометрическая карта АЗС" role="img" />;
 }

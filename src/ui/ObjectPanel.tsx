@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { FUEL_IDS, INITIAL_STATION } from '../game/domain/config';
-import type { FuelId } from '../game/domain/types';
+import type { FuelId, StationState, Vehicle } from '../game/domain/types';
 import type { ObjectId } from './scene/createStationScene';
 
 const names: Record<ObjectId,string> = {
@@ -11,11 +11,13 @@ interface Props {
   id: ObjectId;
   prices: Record<FuelId, number>;
   pumpFuels: Record<'pump-1'|'pump-2', FuelId[]>;
+  station: StationState;
+  vehicles: readonly Vehicle[];
   onPrice: (fuel: FuelId, kopeks: number) => void;
-  onPump: (id: 'pump-1'|'pump-2', fuels: FuelId[]) => void;
+  onPump: (id: 'pump-1'|'pump-2', fuels: FuelId[]) => boolean;
   onClose: () => void;
 }
-export function ObjectPanel({ id, prices, pumpFuels, onPrice, onPump, onClose }: Props) {
+export function ObjectPanel({ id, prices, pumpFuels, station, vehicles, onPrice, onPump, onClose }: Props) {
   const [error, setError] = useState('');
   const isPump = id === 'pump-1' || id === 'pump-2';
   const toggleFuel = (fuel: FuelId) => {
@@ -23,12 +25,13 @@ export function ObjectPanel({ id, prices, pumpFuels, onPrice, onPump, onClose }:
     const current = pumpFuels[id];
     const next = current.includes(fuel) ? current.filter((item) => item !== fuel) : [...current, fuel];
     if (!next.length || next.length > 3) { setError('Выберите от 1 до 3 видов топлива.'); return; }
-    setError(''); onPump(id,next);
+    if (!onPump(id,next)) {setError('Колонка занята: дождитесь окончания обслуживания.'); return;}
+    setError('');
   };
   return <div className="object-panel" role="dialog" aria-label={names[id]}>
-    <div className="object-heading"><div><small>ДЕМО · v0.2-A</small><h2>{names[id]}</h2></div><button type="button" onClick={onClose} aria-label="Закрыть карточку">×</button></div>
+    <div className="object-heading"><div><small>v0.2-B · ЖИВАЯ СИМУЛЯЦИЯ</small><h2>{names[id]}</h2></div><button type="button" onClick={onClose} aria-label="Закрыть карточку">×</button></div>
     {id === 'price-sign' && <>
-      <p>Редактор демонстрационных розничных цен. Изменения видны здесь и не запускают продажи.</p>
+      <p>Розничные цены влияют на сумму продажи. Влияние цены на спрос появится в v0.4.</p>
       {FUEL_IDS.map((fuel) => <label className="price-row" key={fuel}>
         <span>{INITIAL_STATION.fuels[fuel].name}</span>
         <input type="number" min="1" max="999" step=".01" defaultValue={(prices[fuel]/100).toFixed(2)}
@@ -38,15 +41,15 @@ export function ObjectPanel({ id, prices, pumpFuels, onPrice, onPump, onClose }:
       {error && <p className="panel-error">{error}</p>}
     </>}
     {isPump && <>
-      <p>Состояние: готова · демонстрационная конфигурация. Выберите до трёх сортов.</p>
+      <p>{vehicles.some((vehicle)=>vehicle.pumpId===id&&(vehicle.status==='toPump'||vehicle.status==='fueling'))?'Состояние: занята':'Состояние: готова'} · выберите до трёх сортов. Изменение во время обслуживания недоступно.</p>
       <div className="fuel-choice">{FUEL_IDS.map((fuel) => <label key={fuel}><input type="checkbox" checked={pumpFuels[id].includes(fuel)} onChange={() => toggleFuel(fuel)} />{INITIAL_STATION.fuels[fuel].name}</label>)}</div>
       {error && <p className="panel-error">{error}</p>}
-      <p>Закрытие, ремонт и фактическая заправка появятся позже.</p>
+      <p>Закрытие и ремонт появятся позже. Машины заправляются только совместимым сортом.</p>
     </>}
     {id === 'tank' && <>
-      <p>Начальные данные из конфигурации станции. Остатки пока не меняются.</p>
-      {FUEL_IDS.map((fuel) => { const stock=INITIAL_STATION.fuels[fuel]; return <div className="tank-row" key={fuel}>
-        <strong>{stock.name}</strong><span>{stock.litres} л</span><span>из {stock.capacityLitres} л</span><small>свободно {(stock.capacityLitres-stock.litres)} л · исправен</small>
+      <p>Текущие остатки. Во время заправки топливо списывается по мере выдачи.</p>
+      {FUEL_IDS.map((fuel) => { const stock=station.fuels[fuel]; return <div className="tank-row" key={fuel}>
+        <strong>{stock.name}</strong><span>{stock.stockMl/1000} л</span><span>из {stock.capacityMl/1000} л</span><small>свободно {(stock.capacityMl-stock.stockMl)/1000} л · исправен</small>
       </div>; })}
     </>}
     {id === 'shop' && <p>Управление магазином будет доступно в v0.7.</p>}

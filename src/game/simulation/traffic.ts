@@ -1,75 +1,81 @@
-import { getTrafficMultiplier, INITIAL_GAME_SECONDS } from './time';
+import { FUEL_IDS, TRAFFIC_CONFIG } from '../domain/config';
+import type { FuelId, FillBehavior, Vehicle, VehicleCategory } from '../domain/types';
+import { getHour, getTrafficMultiplier } from './time';
 
-export interface VehiclePosition {
-  id: number;
-  x: number;
-  y: number;
-  angle: number;
-  color: number;
-  visiting: boolean;
-}
+const CATEGORY_ORDER: readonly VehicleCategory[] = ['compact', 'sedan', 'crossover', 'suv', 'van', 'truck'];
+const CAR_FUELS: readonly FuelId[] = ['ai92', 'ai95', 'ai95plus', 'ai98', 'ai100', 'diesel'];
+const CAR_WEIGHTS = [0.32, 0.43, 0.12, 0.05, 0.03, 0.05];
 
-type Waypoint = readonly [seconds: number, x: number, y: number];
-
-const SPAWN_INTERVAL = 210;
-const ROAD_DURATION = 900;
-const VISIT_DURATION = 1600;
-const COLORS = [0x4eabe0, 0xe3bc52, 0xe56859, 0x83ca79, 0xc8b4e8, 0xe9eee1] as const;
-
-function random(index: number): number {
-  let value = (index + 1) * 0x9e3779b1;
-  value = Math.imul(value ^ (value >>> 16), 0x85ebca6b);
-  value = Math.imul(value ^ (value >>> 13), 0xc2b2ae35);
-  return ((value ^ (value >>> 16)) >>> 0) / 0x100000000;
-}
-
-function routePosition(route: readonly Waypoint[], elapsed: number): { x: number; y: number; angle: number } {
-  for (let i = 1; i < route.length; i++) {
-    const [endTime, endX, endY] = route[i];
-    const [startTime, startX, startY] = route[i - 1];
-    if (elapsed > endTime && i < route.length - 1) continue;
-    const duration = endTime - startTime;
-    const fraction = duration > 0 ? Math.max(0, Math.min(1, (elapsed - startTime) / duration)) : 0;
-    const dx = endX - startX;
-    const dy = endY - startY;
-    return {
-      x: startX + dx * fraction,
-      y: startY + dy * fraction,
-      angle: dx === 0 && dy === 0 ? Math.atan2(18, 120) : Math.atan2(dx * 18 + dy * 80, dx * 120 - dy * 110),
-    };
+/** Small deterministic generator; its state belongs to the simulation, never to Pixi. */
+export class RandomSource {
+  private state: number;
+  constructor(seed: number) { this.state = seed >>> 0 || 1; }
+  next(): number {
+    let x = this.state;
+    x ^= x << 13; x ^= x >>> 17; x ^= x << 5;
+    this.state = x >>> 0;
+    return this.state / 0x100000000;
   }
-  return { x: route[0][1], y: route[0][2], angle: 0 };
-}
-
-function vehicleRoute(visiting: boolean, westbound: boolean, pump: number): readonly Waypoint[] {
-  if (!visiting) return westbound
-    ? [[0, 10.8, 8], [ROAD_DURATION, -1.2, 8]]
-    : [[0, -1.2, 6.75], [ROAD_DURATION, 10.8, 6.75]];
-
-  const pumpX = pump === 0 ? 2.05 : 4.3;
-  return [
-    [0, -1.2, 6.75], [250, 1.7, 6.75], [420, 1.7, 5.35],
-    [570, pumpX, 4.2], [860, pumpX, 4.2],
-    [1040, 4.5, 5.4], [1230, 6.25, 6.75], [VISIT_DURATION, 10.8, 6.75],
-  ];
-}
-
-/** Vehicle positions depend only on game time, so pausing and frame rate cannot change traffic. */
-export function getVehicles(gameSeconds: number): VehiclePosition[] {
-  const latest = Math.floor((gameSeconds - INITIAL_GAME_SECONDS) / SPAWN_INTERVAL);
-  if (latest < 0) return [];
-  const vehicles: VehiclePosition[] = [];
-  for (let id = Math.max(0, latest - Math.ceil(VISIT_DURATION / SPAWN_INTERVAL)); id <= latest; id++) {
-    const startedAt = INITIAL_GAME_SECONDS + id * SPAWN_INTERVAL;
-    const traffic = getTrafficMultiplier(startedAt);
-    if (id !== 0 && random(id * 5) >= Math.min(0.94, 0.3 + traffic * 0.5)) continue;
-    const visiting = random(id * 5 + 1) < 0.29;
-    const westbound = !visiting && random(id * 5 + 2) < 0.45;
-    const duration = visiting ? VISIT_DURATION : ROAD_DURATION;
-    const elapsed = gameSeconds - startedAt;
-    if (elapsed < 0 || elapsed >= duration) continue;
-    const position = routePosition(vehicleRoute(visiting, westbound, id % 2), elapsed);
-    vehicles.push({ id, ...position, color: COLORS[id % COLORS.length], visiting });
+  between(min: number, max: number): number { return min + this.next() * (max - min); }
+  pickWeighted<T>(items: readonly T[], weights: readonly number[]): T {
+    let value = this.next() * weights.reduce((sum, weight) => sum + weight, 0);
+    for (let i = 0; i < items.length; i++) { value -= weights[i]; if (value < 0) return items[i]; }
+    return items[items.length - 1];
   }
-  return vehicles;
 }
+
+/** Trucks keep a distinct, less volatile night profile. */
+export function truckTrafficMultiplier(gameSeconds: number): number {
+  const hour = getHour(gameSeconds);
+  return 0.72 + 0.18 * Math.cos(((hour - 2) / 24) * 2 * Math.PI);
+}
+
+export function passengerTrafficMultiplier(gameSeconds: number): number { return getTrafficMultiplier(gameSeconds); }
+
+export function chooseCategory(rng: RandomSource, gameSeconds: number): VehicleCategory {
+  const weights = CATEGORY_ORDER.map((category) => TRAFFIC_CONFIG.categoryWeights[category] *
+    (category === 'truck' ? truckTrafficMultiplier(gameSeconds) : passengerTrafficMultiplier(gameSeconds)));
+  return rng.pickWeighted(CATEGORY_ORDER, weights);
+}
+
+export function chooseFuel(rng: RandomSource, category: VehicleCategory): FuelId {
+  if (category === 'truck') return 'diesel';
+  if (category === 'van') return rng.next() < 0.65 ? 'diesel' : 'ai95';
+  if (category === 'suv') return rng.pickWeighted(CAR_FUELS, [0.08, 0.35, 0.22, 0.15, 0.1, 0.1]);
+  return rng.pickWeighted(CAR_FUELS, CAR_WEIGHTS);
+}
+
+export function createVehicle(id: number, gameSeconds: number, rng: RandomSource): Vehicle {
+  const category = chooseCategory(rng, gameSeconds);
+  const fuel = chooseFuel(rng, category);
+  const config = TRAFFIC_CONFIG.category[category];
+  const tankCapacityMl = Math.round(rng.between(config.tankLitres[0], config.tankLitres[1]) * 1000);
+  const currentFuelMl = Math.round(tankCapacityMl * rng.between(0.12, 0.55));
+  const behavior = rng.pickWeighted<FillBehavior>(['full', 'amount', 'volume'], [0.45, 0.35, 0.2]);
+  const typicalMl = Math.round(rng.between(config.purchaseLitres[0], config.purchaseLitres[1]) * 1000);
+  const budgetKopeks = Math.round(typicalMl / 1000 * rng.between(85, 125) * 100);
+  const westbound = rng.next() < 0.42;
+  return {
+    id, category, fuel, tankCapacityMl, currentFuelMl, budgetKopeks, behavior,
+    requestedMl: behavior === 'full' ? tankCapacityMl - currentFuelMl : typicalMl,
+    patienceSeconds: Math.round(rng.between(config.patienceMinutes[0], config.patienceMinutes[1]) * 60),
+    waitedSeconds: 0, status: 'road', reservedMl: 0, salePriceKopeks: 0, serviceRemainingSeconds: 0, setupRemainingSeconds: 0, deliveredMl: 0, route: [], laneId: '',
+    x: 0, y: 0, angle: 0,
+    color: TRAFFIC_CONFIG.colors[id % TRAFFIC_CONFIG.colors.length], westbound, routeIndex: 0,
+  };
+}
+
+/** Money is charged for actual delivered millilitres, once when service finishes. */
+export function priceForVolume(volumeMl: number, priceKopeksPerLitre: number): number {
+  return Math.round(volumeMl * priceKopeksPerLitre / 1000);
+}
+
+export function purchaseLimitMl(vehicle: Vehicle, retailKopeks: number, availableMl: number): number {
+  if (retailKopeks <= 0 || availableMl <= 0) return 0;
+  const tankRoom = Math.max(0, vehicle.tankCapacityMl - vehicle.currentFuelMl);
+  const affordable = Math.floor(vehicle.budgetKopeks * 1000 / retailKopeks);
+  const desired = vehicle.behavior === 'amount' ? affordable : vehicle.requestedMl;
+  return Math.max(0, Math.floor(Math.min(desired, tankRoom, affordable, availableMl)));
+}
+
+export function isKnownFuel(id: string): id is FuelId { return FUEL_IDS.includes(id as FuelId); }

@@ -1,7 +1,7 @@
 {
   "name": "azs-simulator",
   "private": true,
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Изометрический симулятор автозаправочной станции",
   "author": "AZS Simulator",
   "type": "module",

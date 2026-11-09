@@ -70,3 +70,11 @@ button:focus-visible{outline:2px solid #8cb8ff;outline-offset:2px}
 .object-panel p{margin:5px 0 13px;color:#b8c9c7;font-size:12px;line-height:1.4}.price-row{display:grid;grid-template-columns:65px 72px 30px 1fr;gap:6px;align-items:center;margin:7px 0;font-size:13px}.price-row input{width:72px;padding:6px;border:1px solid #6f8b8b;border-radius:5px;background:#10212a;color:#fff}.price-row small{color:#a7b7b6;font-size:10px}.fuel-choice{display:grid;grid-template-columns:1fr 1fr;gap:9px}.fuel-choice label{display:flex;gap:5px;align-items:center;min-height:36px;font-size:13px}.fuel-choice input{width:19px;height:19px}.object-panel .panel-error{color:#f2a99c}.tank-row{display:grid;grid-template-columns:50px 60px 1fr;gap:5px;padding:5px 0;border-bottom:1px solid #ffffff20;font-size:12px}.tank-row small{grid-column:1/-1;color:#adc6c3}.section-notice{position:absolute;right:15px;top:15px;z-index:7;display:flex;align-items:center;max-width:340px;padding:8px 12px;border:1px solid #60727a;border-radius:12px;background:#15242bee;font-size:13px}
 @media(max-width:850px){.traffic-chip,.pumps-chip{display:none}.game-brand{min-width:65px}.object-panel{width:min(330px,60vw)}}
 @media(max-height:500px){.menu-backdrop{padding-top:60px}.menu-card{max-height:calc(100dvh - 68px)}.object-panel{top:5px;max-height:calc(100% - 10px)}}
+.overview-panel{width:min(400px,calc(100% - 20px))}
+.overview-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:13px}
+.overview-grid>div{display:flex;flex-direction:column;gap:2px;padding:8px;border:1px solid #496064;border-radius:9px;background:#18343b}
+.overview-grid strong{font-size:19px;color:#e9fff1}.overview-grid span{font-size:11px;color:#b5c8c8}
+.overview-total,.overview-sale{display:flex;justify-content:space-between;gap:10px;margin:7px 0;font-size:12px}
+.overview-total strong,.overview-sale strong{white-space:nowrap;color:#8be1a6}
+.overview-panel h3{margin:14px 0 7px;font-size:14px}
+.overview-fuels{display:grid;grid-template-columns:1fr 1fr;gap:5px;font-size:11px;color:#bbd0cc}

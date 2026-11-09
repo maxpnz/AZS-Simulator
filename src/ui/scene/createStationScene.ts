@@ -1,7 +1,8 @@
 import { Assets, Container, Graphics, Sprite, Text } from 'pixi.js';
 import sceneArt from '../../assets/station-scene-v02a.png';
-import type { FuelId, Pump } from '../../game/domain/types';
+import type { FuelId, Pump, Vehicle } from '../../game/domain/types';
 import { getHour } from '../../game/simulation/time';
+import { createVehicleSprite } from './vehicleSprite';
 
 export const SCENE_WIDTH = 2000, SCENE_HEIGHT = 1200;
 export type ObjectId = 'price-sign' | 'pump-1' | 'pump-2' | 'tank' | 'shop' | 'delivery' | 'expansion';
@@ -31,7 +32,7 @@ function label(value:string,x:number,y:number,size:number,color=0xffffff) {
   const t=new Text({text:value,style:{fontFamily:'Arial',fontSize:size,fontWeight:'bold',fill:color,stroke:{color:0x152325,width:4}}});
   t.anchor.set(.5);t.position.set(x,y);return t;
 }
-export interface StationScene { root:Container; setTime:(gameSeconds:number)=>void; setPrices:(prices:Record<FuelId,number>)=>void }
+export interface StationScene { root:Container; setTime:(gameSeconds:number)=>void; setPrices:(prices:Record<FuelId,number>)=>void; setVehicles:(vehicles:readonly Vehicle[])=>void }
 export async function createStationScene(_pumps:readonly Pump[]):Promise<StationScene> {
   const root=new Container();
   const background=new Sprite(await Assets.load(sceneArt));
@@ -50,8 +51,20 @@ export async function createStationScene(_pumps:readonly Pump[]):Promise<Station
   const signText=new Text({text:'АЗС\n92   57\n95   63\nДТ   68',style:{fontFamily:'Arial',fontSize:17,fontWeight:'bold',fill:0x20323a,align:'center',lineHeight:29}});
   signText.anchor.set(.5);signText.position.set(197,407);overlays.addChild(signText);
   root.addChild(overlays);
+  const vehicleLayer=new Container();
+  const vehicleSprites=new Map<number,Container>();
+  root.addChild(vehicleLayer);
   const night=new Graphics().rect(0,0,SCENE_WIDTH,SCENE_HEIGHT).fill(0x071525);
   root.addChild(night);
   return {root,setTime(gameSeconds){const daylight=Math.max(0,Math.sin(((getHour(gameSeconds)-5)/14)*Math.PI));night.alpha=.28*(1-daylight);},
-    setPrices(prices){signText.text='АЗС\\n92   '+Math.round(prices.ai92/100)+'\\n95   '+Math.round(prices.ai95/100)+'\\nДТ   '+Math.round(prices.diesel/100);}};
+    setPrices(prices){signText.text='АЗС\n92   '+Math.round(prices.ai92/100)+'\n95   '+Math.round(prices.ai95/100)+'\nДТ   '+Math.round(prices.diesel/100);},
+    setVehicles(vehicles){
+      const active=new Set(vehicles.map((vehicle)=>vehicle.id));
+      for(const [id,sprite] of vehicleSprites) if(!active.has(id)) {vehicleLayer.removeChild(sprite);sprite.destroy({children:true});vehicleSprites.delete(id);}
+      for(const vehicle of vehicles) {
+        let sprite=vehicleSprites.get(vehicle.id);
+        if(!sprite) {sprite=createVehicleSprite(vehicle.color);sprite.scale.set(vehicle.category==='truck'?2.4:1.8);vehicleSprites.set(vehicle.id,sprite);vehicleLayer.addChild(sprite);}
+        sprite.position.set(vehicle.x,vehicle.y);sprite.rotation=vehicle.angle;
+      }
+    }};
 }
