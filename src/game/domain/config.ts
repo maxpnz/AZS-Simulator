@@ -1,7 +1,7 @@
 import type { FuelId, FuelStock, Pump, StationState, VehicleCategory } from './types';
 
-export const MAX_PUMPS = 8;
-export const MAX_FUELS_PER_PUMP = 3;
+export const MAX_PUMPS = 10;
+export const MAX_FUELS_PER_PUMP = 4;
 export const MAX_FUEL_TYPES_PER_TRIP = 3;
 export const FUEL_IDS: readonly FuelId[] = ['ai92', 'ai95', 'ai95plus', 'ai98', 'ai100', 'diesel'];
 
@@ -26,9 +26,10 @@ export const INITIAL_STATION: StationState = {
     { id: 'tank-ai92-1', fuel: 'ai92', capacityMl: START_TANK_CAPACITY_ML, stockMl: START_TANK_STOCK_ML, status: 'active' },
     { id: 'tank-ai95-1', fuel: 'ai95', capacityMl: START_TANK_CAPACITY_ML, stockMl: START_TANK_STOCK_ML, status: 'active' },
   ],
+  jobs: [],
   pumps: [
-    { id: 'pump-1', slot: 0, fuels: ['ai92', 'ai95'] },
-    { id: 'pump-2', slot: 1, fuels: ['ai92', 'ai95'] },
+    { id: 'pump-1', slot: 0, fuels: ['ai92', 'ai95'], status: 'ready', flowMultiplier: 1 },
+    { id: 'pump-2', slot: 1, fuels: ['ai92', 'ai95'], status: 'ready', flowMultiplier: 1 },
   ],
 };
 
@@ -62,6 +63,7 @@ export function cloneInitialStation(): StationState {
     fuels: Object.fromEntries(FUEL_IDS.map((id) => [id, { ...INITIAL_STATION.fuels[id] }])) as Record<FuelId, FuelStock>,
     tanks: INITIAL_STATION.tanks.map((tank) => ({ ...tank })),
     pumps: INITIAL_STATION.pumps.map((pump) => ({ ...pump, fuels: [...pump.fuels] })),
+    jobs: [],
   };
 }
 

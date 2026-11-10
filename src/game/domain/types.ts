@@ -14,6 +14,8 @@ export interface Pump {
   id: string;
   slot: number;
   fuels: FuelId[];
+  status?: 'ready' | 'building' | 'upgrading';
+  flowMultiplier?: number;
 }
 
 export interface FuelTank {
@@ -21,7 +23,13 @@ export interface FuelTank {
   fuel: FuelId;
   capacityMl: number;
   stockMl: number;
-  status: 'active';
+  status: 'active' | 'building' | 'upgrading';
+}
+
+export interface ConstructionJob {
+  id: string; kind: 'pump' | 'pump-upgrade' | 'tank' | 'tank-upgrade' | 'rewire';
+  targetId: string; totalSeconds: number; remainingSeconds: number; status: 'queued' | 'active';
+  fuels?: FuelId[];
 }
 
 export interface StationState {
@@ -29,12 +37,17 @@ export interface StationState {
   fuels: Record<FuelId, FuelStock>;
   tanks: FuelTank[];
   pumps: Pump[];
+  jobs?: ConstructionJob[];
 }
 
 export interface DeliveryTrip {
   id: string;
   cargo: Partial<Record<FuelId, number>>;
   arrivalGameSeconds: number;
+  status?: 'enroute' | 'waiting' | 'approaching' | 'connecting' | 'unloading' | 'disconnecting' | 'leaving';
+  phaseSeconds?: number;
+  remainingMl?: number;
+  totalMl?: number;
 }
 
 export type TimeSpeed = 1 | 2 | 5 | 10;
@@ -47,12 +60,13 @@ export interface ClockSnapshot {
 }
 
 export type VehicleCategory = 'compact' | 'sedan' | 'crossover' | 'suv' | 'van' | 'truck';
-export type VehicleStatus = 'road' | 'entering' | 'queued' | 'toPump' | 'fueling' | 'leaving';
+export type VehicleStatus = 'road' | 'entering' | 'queued' | 'toPump' | 'fueling' | 'finishing' | 'leaving';
 export type FillBehavior = 'full' | 'amount' | 'volume';
 
 export interface Vehicle {
   id: number;
   category: VehicleCategory;
+  modelId?: string;
   fuel: FuelId;
   tankCapacityMl: number;
   currentFuelMl: number;
@@ -77,11 +91,13 @@ export interface Vehicle {
   color: number;
   westbound: boolean;
   routeIndex: number;
+  speed?: number;
 }
 
 export interface Sale {
   vehicleId: number;
   category: VehicleCategory;
+  modelId?: string;
   fuel: FuelId;
   volumeMl: number;
   revenueKopeks: number;
@@ -107,4 +123,5 @@ export interface GameState {
   queueIds: number[];
   stats: TrafficStats;
   recentSales: Sale[];
+  deliveries?: DeliveryTrip[];
 }

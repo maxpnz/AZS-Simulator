@@ -2,7 +2,7 @@ import type { ClockSnapshot, StationState, TrafficStats, TimeSpeed } from '../ga
 import { Icon } from './Icon';
 
 const rubles = new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 });
-const litres = new Intl.NumberFormat('ru-RU');
+const litres = new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0});
 
 interface Props {
   clock: ClockSnapshot;
@@ -24,9 +24,9 @@ export function TopBar({ clock, time, station, stats, queueCount, paused, speed,
 
   return (
     <header className="game-topbar">
-      <div className="game-brand" aria-label="АЗС Simulator версия 0.2.3">
+      <div className="game-brand" aria-label="АЗС Simulator версия 0.2.4">
         <span className="brand-emblem"><span>АЗС</span></span>
-        <span className="brand-name"><strong>АЗС</strong><small>Simulator <em>v0.2.3</em></small></span>
+        <span className="brand-name"><strong>АЗС</strong><small>Simulator <em>v0.2.4</em></small></span>
       </div>
       <div className="top-chip day-chip"><Icon name="calendar" /><span>День {clock.day}</span></div>
       <div className="top-chip clock-chip"><Icon name="clock" /><strong>{time}</strong></div>
@@ -51,11 +51,11 @@ export function TopBar({ clock, time, station, stats, queueCount, paused, speed,
               <span>{percent}%</span><b>{litres.format(tank.stockMl / 1000)} л</b>
             </div>;
           })}
-          <p>Остатки меняются после фактической заправки. Поставки появятся в v0.3.</p>
+          <p>Остатки меняются после фактической заправки. Поставки доступны в зоне разгрузки.</p>
         </div>}
       </div>
-      <div className="top-chip traffic-chip"><Icon name="traffic" /><span>{queueCount ? 'Очередь' : 'Поток'}</span><strong>{queueCount ? queueCount+' ждут' : stats.passed+' мимо'}</strong></div>
-      <div className="top-chip pumps-chip"><Icon name="pumps" /><strong>{station.pumps.length}/8</strong></div>
+      <div className="top-chip traffic-chip"><Icon name="traffic" /><span>{queueCount ? 'Очередь' : 'Поток'}</span><strong>{queueCount ? queueCount+' ждут' : stats.passed+' проехали'}</strong></div>
+      <div className="top-chip pumps-chip"><Icon name="pumps" /><strong>{station.pumps.filter(p=>p.status!=='building').length}/10</strong></div>
       <button type="button" className="menu-trigger" onClick={onMenu} aria-label="Открыть меню"><Icon name="menu" /></button>
     </header>
   );

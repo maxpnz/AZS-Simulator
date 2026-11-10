@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FUEL_IDS, INITIAL_STATION } from '../game/domain/config';
+import { FUEL_IDS } from '../game/domain/config';
 import type { FuelId } from '../game/domain/types';
 import { GameEngine } from '../game/simulation/GameEngine';
 import { getClock } from '../game/simulation/time';
@@ -26,12 +26,11 @@ export function App() {
   const clock=getClock(gameState.gameSeconds);
   const time=String(clock.hour).padStart(2,'0')+':'+String(clock.minute).padStart(2,'0');
   const prices=Object.fromEntries(FUEL_IDS.map((id)=>[id,gameState.station.fuels[id].retailKopeks])) as Record<FuelId,number>;
-  const pumpFuels={
-    'pump-1':gameState.station.pumps.find((pump)=>pump.id==='pump-1')?.fuels??[],
-    'pump-2':gameState.station.pumps.find((pump)=>pump.id==='pump-2')?.fuels??[],
-  };
   const openSection=(name:string)=>{
-    if(name==='Цены') {setOverviewOpen(false);setObjectId('price-sign');}
+    if(name==='Сохранить'){engine.save();setNotice('Игра сохранена.');}
+    else if(name==='Загрузить'){const ok=engine.loadSaved();if(ok){setGameState(engine.getState());setObjectId(null);setOverviewOpen(false);}setNotice(ok?'Сохранение загружено.':'Сохранение не найдено или повреждено.');}
+    else if(name==='Цены') {setOverviewOpen(false);setObjectId('price-sign');}
+    else if(name==='Закупки') {setOverviewOpen(false);setObjectId('delivery');}
     else if(name==='Топливо') {setOverviewOpen(false);setObjectId('tank');}
     else if(name==='Строительство'||name==='Развитие') {setOverviewOpen(false);setObjectId('expansion');}
     else if(name==='Обзор'||name==='Отчёты') {setObjectId(null);setOverviewOpen(true);}
@@ -41,10 +40,16 @@ export function App() {
     <TopBar clock={clock} time={time} station={gameState.station} stats={gameState.stats} queueCount={gameState.queueIds.length} paused={paused} speed={speed} fuelOpen={fuelOpen}
       onPause={togglePause} onSpeed={cycleSpeed} onFuel={()=>setFuelOpen((v)=>!v)} onMenu={()=>{setFuelOpen(false);setMenuOpen((v)=>!v);}} />
     <main className="game-stage" aria-label="Территория АЗС">
-      <StationCanvas pumps={INITIAL_STATION.pumps} gameSeconds={gameState.gameSeconds} prices={prices} engine={engine}
+      <StationCanvas pumps={gameState.station.pumps} jobs={gameState.station.jobs??[]} tanks={gameState.station.tanks} deliveries={gameState.deliveries??[]} stocks={Object.fromEntries(FUEL_IDS.map(id=>[id,gameState.station.fuels[id].stockMl])) as Record<FuelId,number>} gameSeconds={gameState.gameSeconds} prices={prices} engine={engine}
         onObject={(id)=>{setNotice('');setOverviewOpen(false);setObjectId(id);}} />
-      {objectId&&<ObjectPanel id={objectId} prices={prices} pumpFuels={pumpFuels} station={gameState.station} vehicles={gameState.vehicles}
+      {objectId&&<ObjectPanel key={objectId} id={objectId} state={gameState} prices={prices} vehicles={gameState.vehicles}
         onPrice={(fuel,kopeks)=>{engine.setRetailPrice(fuel,kopeks);setGameState(engine.getState());}}
+        onBuildPump={(slot)=>{const ok=engine.buildPump(slot);setGameState(engine.getState());return ok;}}
+        onUpgradePump={(id)=>{const ok=engine.upgradePump(id);setGameState(engine.getState());return ok;}}
+        onSetPumpFuels={(id,fuels)=>{const ok=engine.setPumpFuels(id,fuels);setGameState(engine.getState());return ok;}}
+        onBuildTank={(fuel)=>{const ok=engine.buildTank(fuel);setGameState(engine.getState());return ok;}}
+        onUpgradeTank={(id)=>{const ok=engine.upgradeTank(id);setGameState(engine.getState());return ok;}}
+        onDelivery={(fuel,litres)=>{const ok=engine.orderDelivery(fuel,litres);setGameState(engine.getState());return ok;}}
         onClose={()=>setObjectId(null)} />}
       {overviewOpen&&<OverviewPanel state={gameState} onClose={()=>setOverviewOpen(false)} />}
       {notice&&<div className="section-notice" role="status">{notice}<button type="button" onClick={()=>setNotice('')} aria-label="Закрыть">×</button></div>}

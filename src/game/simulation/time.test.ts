@@ -31,7 +31,8 @@ describe('game clock', () => {
 describe('station configuration limits', () => {
   it('enforces fuel and delivery type limits', () => {
     expect(isValidPumpFuels(['ai92', 'ai95', 'diesel'])).toBe(true);
-    expect(isValidPumpFuels(['ai92', 'ai95', 'diesel', 'ai98'])).toBe(false);
+    expect(isValidPumpFuels(['ai92', 'ai95', 'diesel', 'ai98'])).toBe(true);
+    expect(isValidPumpFuels(['ai92', 'ai95', 'diesel', 'ai98', 'ai100'])).toBe(false);
     expect(isValidDeliveryCargo({ ai92: 1000, ai95: 1000, diesel: 1000 })).toBe(true);
     expect(isValidDeliveryCargo({ ai92: 1000, ai95: 1000, diesel: 1000, ai98: 1000 })).toBe(false);
     expect(canPlacePump([{ id: 'pump-1', slot: 0, fuels: ['ai92'] }], 0)).toBe(false);

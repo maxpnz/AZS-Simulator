@@ -78,3 +78,19 @@ button:focus-visible{outline:2px solid #8cb8ff;outline-offset:2px}
 .overview-total strong,.overview-sale strong{white-space:nowrap;color:#8be1a6}
 .overview-panel h3{margin:14px 0 7px;font-size:14px}
 .overview-fuels{display:grid;grid-template-columns:1fr 1fr;gap:5px;font-size:11px;color:#bbd0cc}
+.object-panel h3{font-size:13px;margin:14px 0 6px;color:#d8ede6}
+.object-panel select,.object-panel input[type=number]{max-width:100%;padding:7px;margin:4px 5px 7px 0;border:1px solid #6f8b8b;border-radius:5px;background:#10212a;color:#fff}
+.panel-action{display:block;width:100%;margin:7px 0 12px;padding:9px;border:1px solid #57ab87;border-radius:8px;background:#245a4a;color:#effff6;font-weight:700;cursor:pointer}
+.panel-action:hover{background:#31715b}.pump-readout{display:grid;gap:4px;margin:8px 0;padding:9px;border:1px solid #5d9780;border-radius:8px;background:#0d2925;color:#abf1c6;font:12px monospace}
+.tank-card{display:grid;gap:4px;margin:9px 0;padding:9px;border:1px solid #4a6464;border-radius:9px;background:#19313a;font-size:12px}.tank-card small{color:#9ecab7}.tank-cutaway{height:16px;border:2px solid #a4b5b3;border-radius:12px;background:#12242b;overflow:hidden}.tank-cutaway div{height:100%;background:linear-gradient(90deg,#2d9db3,#74d3b3)}
+
+.camera-reset{position:absolute;left:12px;bottom:12px;z-index:5;padding:7px 10px;border:1px solid #779294;border-radius:7px;background:#15242bd9;color:#e5f1ed;font-size:12px;cursor:pointer}
+.panel-action:disabled{opacity:.45;cursor:not-allowed}
+@media(max-width:600px){
+  .game-topbar{height:auto;min-height:96px;flex-wrap:wrap;align-content:center;justify-content:space-between;gap:3px 4px}
+  .game-topbar .top-grow{display:none}
+  .game-brand{min-width:62px}
+  .money-chip{margin-left:0}
+  .fuel-popover{right:-48px;width:min(354px,calc(100vw - 20px))}
+  .object-panel{width:min(330px,calc(100% - 20px))}
+}

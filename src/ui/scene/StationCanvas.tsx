@@ -1,22 +1,27 @@
 import { useEffect, useRef } from 'react';
 import { Application } from 'pixi.js';
 import type { GameEngine } from '../../game/simulation/GameEngine';
-import type { FuelId, Pump, Vehicle } from '../../game/domain/types';
+import type { ConstructionJob, DeliveryTrip, FuelId, FuelTank, Pump, Vehicle } from '../../game/domain/types';
 import { createStationScene, hitTest, type ObjectId, SCENE_HEIGHT, SCENE_WIDTH } from './createStationScene';
 import { cameraTransform, INITIAL_CAMERA, limitPan, zoomAround, type Camera, type Point } from './camera';
 
-interface Props { pumps: readonly Pump[]; gameSeconds: number; prices: Record<FuelId,number>; engine: GameEngine; onObject: (id: ObjectId) => void }
+interface Props { pumps: readonly Pump[]; stocks: Record<FuelId,number>; jobs: readonly ConstructionJob[]; tanks: readonly FuelTank[]; deliveries: readonly DeliveryTrip[]; gameSeconds: number; prices: Record<FuelId,number>; engine: GameEngine; onObject: (id: ObjectId) => void }
 
-export function StationCanvas({ pumps, gameSeconds, prices, engine, onObject }: Props) {
+export function StationCanvas({ pumps, stocks, jobs, tanks, deliveries, gameSeconds, prices, engine, onObject }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
+  const resetCameraRef=useRef<()=>void>(()=>undefined);
   const updateTimeRef = useRef<(seconds: number) => void>(() => undefined);
   const updatePricesRef = useRef<(prices: Record<FuelId,number>) => void>(() => undefined);
+  const updatePumpsRef = useRef<(pumps: readonly Pump[], stocks: Record<FuelId,number>, jobs: readonly ConstructionJob[], tanks: readonly FuelTank[]) => void>(() => undefined);
+  const updateDeliveriesRef = useRef<(deliveries: readonly DeliveryTrip[]) => void>(() => undefined);
   const updateVehiclesRef = useRef<(vehicles: readonly Vehicle[]) => void>(() => undefined);
   const onObjectRef = useRef(onObject);
   useEffect(() => { onObjectRef.current = onObject; }, [onObject]);
 
   useEffect(() => { updateTimeRef.current(gameSeconds); }, [gameSeconds]);
   useEffect(() => { updatePricesRef.current(prices); }, [prices]);
+  useEffect(() => { updatePumpsRef.current(pumps, stocks, jobs, tanks); }, [pumps, stocks, jobs, tanks]);
+  useEffect(() => { updateDeliveriesRef.current(deliveries); }, [deliveries]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -37,14 +42,20 @@ export function StationCanvas({ pumps, gameSeconds, prices, engine, onObject }: 
       updateTimeRef.current = scene.setTime;
       updatePricesRef.current = scene.setPrices;
       updateVehiclesRef.current = scene.setVehicles;
+      updatePumpsRef.current = scene.setPumps;
+      updateDeliveriesRef.current = scene.setDeliveries;
+      app.ticker.add((ticker)=>scene.tick(ticker.deltaMS));
+      scene.setPumps(pumps, stocks, jobs, tanks);
+      scene.setDeliveries(deliveries);
       scene.setVehicles(engine.getState().vehicles);
-      unsubscribeVehicles = engine.subscribeState((state) => updateVehiclesRef.current(state.vehicles), 50);
+      unsubscribeVehicles = engine.subscribeState((state) => {updateVehiclesRef.current(state.vehicles);updateDeliveriesRef.current(state.deliveries??[]);}, 50);
       scene.setPrices(prices);
       scene.setTime(gameSeconds);
       const sceneSize = { x: SCENE_WIDTH, y: SCENE_HEIGHT };
       const viewport = (): Point => ({ x: host.clientWidth, y: host.clientHeight });
       const baseScale = () => Math.max(host.clientWidth / SCENE_WIDTH, host.clientHeight / SCENE_HEIGHT);
-      let camera: Camera = { ...INITIAL_CAMERA };
+      const initialCamera = ():Camera => ({...INITIAL_CAMERA,panX:host.clientWidth<600?(SCENE_WIDTH/2-750)*baseScale():0});
+      let camera: Camera = initialCamera();
       let tapStart: Point | null = null;
       let dragged = false;
       const applyCamera = () => {
@@ -53,6 +64,7 @@ export function StationCanvas({ pumps, gameSeconds, prices, engine, onObject }: 
         scene.root.scale.set(transform.scale);
         scene.root.position.set(transform.x, transform.y);
       };
+      resetCameraRef.current=()=>{camera=initialCamera();applyCamera();};
       const resize = () => {
         const width = host.clientWidth;
         const height = host.clientHeight;
@@ -143,11 +155,14 @@ export function StationCanvas({ pumps, gameSeconds, prices, engine, onObject }: 
       removeGestures();
       unsubscribeVehicles();
       updateVehiclesRef.current = () => undefined;
+      updatePumpsRef.current = () => undefined;
+      updateDeliveriesRef.current = () => undefined;
       updateTimeRef.current = () => undefined;
+      resetCameraRef.current = () => undefined;
       updatePricesRef.current = () => undefined;
       if (app.renderer) app.destroy(true, { children: true });
     };
-  }, [pumps, engine]);
+  }, [engine]);
 
-  return <div className="station-canvas" ref={hostRef} aria-label="Изометрическая карта АЗС" role="img" />;
+  return <><div className="station-canvas" ref={hostRef} aria-label="Объектная карта АЗС" role="img"/><button type="button" className="camera-reset" onClick={()=>resetCameraRef.current()} aria-label="Сбросить камеру">Центр · 1×</button></>;
 }

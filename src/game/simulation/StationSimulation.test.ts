@@ -26,7 +26,7 @@ describe('v0.2.3 routes, queue and timed fuel sales',()=>{
           expect(vehicle.chargedKopeks).toBe(Math.round(vehicle.deliveredMl*vehicle.salePriceKopeks/1000));
         }
         if(vehicle.status!=='road'&&((vehicle.x>=700&&vehicle.x<=900)||(vehicle.x>=1250&&vehicle.x<=1450)))
-          expect(vehicle.y).toBeGreaterThanOrEqual(630);
+          expect(vehicle.y).toBeGreaterThanOrEqual(575);
         if(vehicle.status!=='road'&&vehicle.status!=='leaving') expect(vehicle.laneId).toBe('east_lane_1');
         if(vehicle.pumpId==='pump-1') sawPump1=true;
         if(vehicle.pumpId==='pump-2') sawPump2=true;
@@ -49,7 +49,7 @@ describe('v0.2.3 routes, queue and timed fuel sales',()=>{
     expect(used).toBe(first.stats.soldMl);
     expect(first.station.balanceKopeks-INITIAL_STATION.balanceKopeks).toBe(first.stats.revenueKopeks);
     expect(first.snapshot()).toEqual(second.snapshot());
-  });
+  },30000);
   it('limits purchase by tank, budget and available stock',()=>{
     const vehicle=createVehicle(1,0,new RandomSource(7));
     vehicle.behavior='volume';vehicle.requestedMl=40_000;

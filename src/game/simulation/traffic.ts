@@ -1,3 +1,4 @@
+import { VEHICLE_MODELS } from '../domain/vehicleModels';
 import { FUEL_IDS, TRAFFIC_CONFIG } from '../domain/config';
 import type { FuelId, FillBehavior, Vehicle, VehicleCategory } from '../domain/types';
 import { getHour, getTrafficMultiplier } from './time';
@@ -10,6 +11,8 @@ const CAR_WEIGHTS = [0.32, 0.43, 0.12, 0.05, 0.03, 0.05];
 export class RandomSource {
   private state: number;
   constructor(seed: number) { this.state = seed >>> 0 || 1; }
+  getState():number { return this.state; }
+  setState(state:number):void { this.state=state>>>0||1; }
   next(): number {
     let x = this.state;
     x ^= x << 13; x ^= x >>> 17; x ^= x << 5;
@@ -47,7 +50,11 @@ export function chooseFuel(rng: RandomSource, category: VehicleCategory): FuelId
 
 export function createVehicle(id: number, gameSeconds: number, rng: RandomSource): Vehicle {
   const category = chooseCategory(rng, gameSeconds);
-  const fuel = chooseFuel(rng, category);
+  let fuel = chooseFuel(rng, category);
+  const categoryModels=VEHICLE_MODELS.filter(model=>model.category===category);
+  let compatibleModels = categoryModels.filter(model=>model.fuels.includes(fuel));
+  if(!compatibleModels.length){fuel=categoryModels[0].fuels[0];compatibleModels=categoryModels.filter(model=>model.fuels.includes(fuel));}
+  const selectedModel = compatibleModels[Math.floor(rng.next() * compatibleModels.length)];
   const config = TRAFFIC_CONFIG.category[category];
   const tankCapacityMl = Math.round(rng.between(config.tankLitres[0], config.tankLitres[1]) * 1000);
   const currentFuelMl = Math.round(tankCapacityMl * rng.between(0.12, 0.55));
@@ -56,12 +63,12 @@ export function createVehicle(id: number, gameSeconds: number, rng: RandomSource
   const budgetKopeks = Math.round(typicalMl / 1000 * rng.between(85, 125) * 100);
   const westbound = rng.next() < 0.42;
   return {
-    id, category, fuel, tankCapacityMl, currentFuelMl, budgetKopeks, behavior,
+    id, category, modelId: selectedModel.id, fuel, tankCapacityMl, currentFuelMl, budgetKopeks, behavior,
     requestedMl: behavior === 'full' ? tankCapacityMl - currentFuelMl : typicalMl,
     patienceSeconds: Math.round(rng.between(config.patienceMinutes[0], config.patienceMinutes[1]) * 60),
     waitedSeconds: 0, status: 'road', reservedMl: 0, salePriceKopeks: 0, serviceRemainingSeconds: 0, setupRemainingSeconds: 0, deliveredMl: 0, chargedKopeks: 0, route: [], laneId: '',
     x: 0, y: 0, angle: 0,
-    color: TRAFFIC_CONFIG.colors[id % TRAFFIC_CONFIG.colors.length], westbound, routeIndex: 0,
+    color: TRAFFIC_CONFIG.colors[id % TRAFFIC_CONFIG.colors.length], westbound, routeIndex: 0, speed: 0,
   };
 }
 

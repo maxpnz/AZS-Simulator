@@ -5,6 +5,10 @@ const FIXED_STEP_MS=50;
 const GAME_SECONDS_PER_REAL_SECOND=60;
 export class GameEngine {
   private simulation=new StationSimulation();
+  private lastSaved=0;
+  constructor(){
+    if(typeof localStorage!=='undefined')try{const data=localStorage.getItem('azs-simulator-save');if(data)this.simulation=StationSimulation.importSave(JSON.parse(data));}catch{this.simulation=new StationSimulation();}
+  }
   private speed:TimeSpeed=1;
   private paused=false;
   private accumulator=0;
@@ -24,6 +28,16 @@ export class GameEngine {
   }
   setRetailPrice(fuel:FuelId,kopeks:number):boolean {return this.simulation.setRetailPrice(fuel,kopeks);}
   setPumpFuels(pumpId:string,fuels:readonly FuelId[]):boolean {return this.simulation.setPumpFuels(pumpId,fuels);}
+  buildPump(slot:number):boolean {return this.simulation.buildPump(slot);}
+  upgradePump(id:string):boolean {return this.simulation.upgradePump(id);}
+  buildTank(fuel:FuelId):boolean {return this.simulation.buildTank(fuel);}
+  upgradeTank(id:string):boolean {return this.simulation.upgradeTank(id);}
+  orderDelivery(fuel:FuelId,litres:number):boolean {return this.simulation.orderDelivery(fuel,litres);}
+  exportSave():string {return JSON.stringify(this.simulation.exportSave());}
+  importSave(json:string):void {this.simulation=StationSimulation.importSave(JSON.parse(json));this.publishState();}
+  save():void {if(typeof localStorage!=='undefined')localStorage.setItem('azs-simulator-save',this.exportSave());}
+  loadSaved():boolean {if(typeof localStorage==='undefined')return false;const data=localStorage.getItem('azs-simulator-save');if(!data)return false;try{this.importSave(data);return true;}catch{return false;}}
+  private publishState():void {const state=this.simulation.snapshot();for(const listener of this.stateListeners.keys())listener(state);}
   setControls(paused:boolean,speed:TimeSpeed):void {this.paused=paused;this.speed=speed;}
   start():void {
     if(this.timer) return;
@@ -45,6 +59,7 @@ export class GameEngine {
       this.lastPublished=now;
       for(const listener of this.listeners) listener(this.simulation.gameSeconds);
     }
+    if(now-this.lastSaved>=5000){this.lastSaved=now;this.save();}
     for(const [listener,meta] of this.stateListeners) if(now-meta.last>=meta.interval) {
       meta.last=now;listener(this.simulation.snapshot());
     }
