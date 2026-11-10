@@ -1,4 +1,22 @@
 import { PUMP_SLOTS } from './world';
+export const ROAD_SURFACE_RECTS = [
+  [0,840,2000,360],[1900,160,100,680],[430,405,1450,175],[270,574,1630,182],
+] as const;
+export const ROAD_SURFACE_POLYGONS = [
+  [[115,840],[300,840],[425,756],[505,574],[380,574],[195,705]],
+  [[1680,574],[1805,574],[1940,840],[1730,840],[1690,710]],
+] as const;
+export function roadContainsPoint(x:number,y:number):boolean {
+  if(ROAD_SURFACE_RECTS.some(([left,top,width,height])=>x>=left&&x<=left+width&&y>=top&&y<=top+height))return true;
+  return ROAD_SURFACE_POLYGONS.some(polygon=>{
+    let inside=false;
+    for(let i=0,j=polygon.length-1;i<polygon.length;j=i++){
+      const a=polygon[i],b=polygon[j];
+      if((a[1]>y)!==(b[1]>y)&&x<(b[0]-a[0])*(y-a[1])/(b[1]-a[1])+a[0])inside=!inside;
+    }
+    return inside;
+  });
+}
 export interface RoadNode {id:string;x:number;y:number;next:readonly string[]}
 export const ROAD_NODES:readonly RoadNode[]=[
   {id:'west_lane_1_east',x:2000,y:885,next:['entrance_decision']},
@@ -20,11 +38,11 @@ export const ROAD_NODES:readonly RoadNode[]=[
     {id:`pump_${slot.slot+1}`,x:slot.stopX,y:slot.stopY,next:[`pump_${slot.slot+1}_depart`]},
     {id:`pump_${slot.slot+1}_depart`,x:slot.stopX-24,y:630,next:[`pump_${slot.slot+1}_clear`]},
     {id:`pump_${slot.slot+1}_clear`,x:slot.stopX-66,y:685,next:[`pump_${slot.slot+1}_merge`]},
-    {id:`pump_${slot.slot+1}_merge`,x:slot.stopX-90,y:735,next:['exit_lane']},
+    {id:`pump_${slot.slot+1}_merge`,x:slot.stopX-90,y:700,next:['exit_lane']},
   ]),
-  {id:'queue_bypass_turn',x:1880,y:650,next:['queue_bypass']},
-  {id:'queue_bypass',x:1650,y:765,next:['exit_lane']},
-  {id:'exit_lane',x:160,y:735,next:['exit']},
-  {id:'exit',x:120,y:750,next:['exit_merge']},
-  {id:'exit_merge',x:70,y:885,next:['west_lane_1_west']},
+  {id:'queue_bypass_turn',x:1820,y:685,next:['queue_bypass']},
+  {id:'queue_bypass',x:1650,y:700,next:['exit_lane']},
+  {id:'exit_lane',x:320,y:700,next:['exit']},
+  {id:'exit',x:190,y:800,next:['exit_merge']},
+  {id:'exit_merge',x:110,y:885,next:['west_lane_1_west']},
 ];

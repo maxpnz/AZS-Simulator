@@ -4,10 +4,12 @@ import { ROAD_NODES } from '../domain/roadNetwork';
 import { priceSignRows } from '../domain/stationGeometry';
 import { footprintBlocked } from './collisions';
 import { StationSimulation } from './StationSimulation';
+import { cloneLegacyStation } from '../domain/config';
+const legacySimulation=(seed?:number)=>new StationSimulation(seed,cloneLegacyStation());
 
 describe('v0.2.7 traffic, price sign and delivery', () => {
   it('shows every fuel on one sign and dims unavailable grades', () => {
-    const sim = new StationSimulation();
+    const sim = legacySimulation();
     let rows = priceSignRows(sim.station.tanks, Object.fromEntries(FUEL_IDS.map(id => [id, sim.station.fuels[id].retailKopeks])) as Record<(typeof FUEL_IDS)[number], number>);
     expect(rows.map(row => row.fuel)).toEqual(FUEL_IDS);
     expect(rows.map(row => row.price)).toEqual(['57.00', '63.00', '—', '—', '—', '—']);
@@ -26,7 +28,7 @@ describe('v0.2.7 traffic, price sign and delivery', () => {
   });
 
   it('keeps vehicle footprints separate through a dense 10x run', () => {
-    const sim = new StationSimulation(77);
+    const sim = legacySimulation(77);
     for (let slot = 2; slot < 10; slot++) sim.buildPump(slot);
     for (let step = 0; step < 1000; step++) {
       sim.step(30);
@@ -38,7 +40,7 @@ describe('v0.2.7 traffic, price sign and delivery', () => {
   }, 30000);
 
   it('preserves the two-hour ETA and unloads the actual volume at the displayed rate after restore', () => {
-    const sim = new StationSimulation(18);
+    const sim = legacySimulation(18);
     expect(sim.orderDelivery('ai92', 150)).toBe(true);
     const trip = sim.deliveries[0];
     expect(trip.arrivalGameSeconds - sim.gameSeconds).toBe(7200);

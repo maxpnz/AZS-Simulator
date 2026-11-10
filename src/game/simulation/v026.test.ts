@@ -4,6 +4,8 @@ import { DELIVERY_PAD, FUEL_HATCH_SIZE, PUMP_ISLANDS, TANK_PAD, connectedPumpCha
 import { modelById, VEHICLE_MODELS } from '../domain/vehicleModels';
 import { CANOPY_SUPPORTS, metres, PUMP_SLOTS } from '../domain/world';
 import { StationSimulation } from './StationSimulation';
+import { cloneLegacyStation } from '../domain/config';
+const legacySimulation=(seed?:number)=>new StationSimulation(seed,cloneLegacyStation());
 
 describe('v0.2.6 world geometry and rendering data',()=>{
   it('keeps five separate islands, ten symmetric mounts and a clear unloading pad',()=>{
@@ -40,7 +42,7 @@ describe('v0.2.6 world geometry and rendering data',()=>{
     expect(pumpNozzlePoint(pump,'diesel')).toBeNull();
   });
   it('loads a v0.2.5 traffic save and continues sales with the new routes',()=>{
-    const sim=new StationSimulation(77);
+    const sim=legacySimulation(77);
     const old={...sim.exportSave(),version:'0.2.5'};
     const restored=StationSimulation.importSave(old);
     expect(restored.station.balanceKopeks).toBe(sim.station.balanceKopeks);
@@ -48,10 +50,10 @@ describe('v0.2.6 world geometry and rendering data',()=>{
     expect(restored.vehicles).toHaveLength(sim.vehicles.length);
     for(let i=0;i<2000;i++)restored.step(30);
     expect(restored.stats.purchases).toBeGreaterThan(sim.stats.purchases);
-    expect(restored.exportSave().version).toBe('0.2.7');
+    expect(restored.exportSave().version).toBe('0.2.8');
   });
   it('moves an old stationary customer onto the matching new stop without changing its sale',()=>{
-    const sim=new StationSimulation(31);
+    const sim=legacySimulation(31);
     for(let i=0;i<300&&!sim.vehicles.some(v=>v.status==='fueling');i++)sim.step(30);
     const saved=sim.exportSave();
     const customer=saved.state.vehicles.find(v=>v.status==='fueling');
@@ -67,7 +69,7 @@ describe('v0.2.6 world geometry and rendering data',()=>{
     expect(migrated.deliveredMl).toBe(customer!.deliveredMl);
   });
   it('can fuel more than one car at once without intersecting adjacent island routes',()=>{
-    const sim=new StationSimulation(19);
+    const sim=legacySimulation(19);
     sim.buildPump(2);sim.buildPump(3);
     let peak=0;
     for(let i=0;i<1000;i++){

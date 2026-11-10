@@ -37,6 +37,12 @@ export class GameEngine {
   importSave(json:string):void {this.simulation=StationSimulation.importSave(JSON.parse(json));this.publishState();}
   save():void {if(typeof localStorage!=='undefined')localStorage.setItem('azs-simulator-save',this.exportSave());}
   loadSaved():boolean {if(typeof localStorage==='undefined')return false;const data=localStorage.getItem('azs-simulator-save');if(!data)return false;try{this.importSave(data);return true;}catch{return false;}}
+  reset():void {
+    this.simulation=new StationSimulation();this.accumulator=0;this.paused=false;this.speed=1;
+    this.lastRealTime=performance.now();
+    this.save();this.publishState();
+    for(const listener of this.listeners)listener(this.simulation.gameSeconds);
+  }
   private publishState():void {const state=this.simulation.snapshot();for(const listener of this.stateListeners.keys())listener(state);}
   setControls(paused:boolean,speed:TimeSpeed):void {this.paused=paused;this.speed=speed;}
   start():void {

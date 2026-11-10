@@ -1,12 +1,14 @@
 import { describe,expect,it } from 'vitest';
 import { FUEL_IDS, INITIAL_STATION, TRAFFIC_CONFIG } from '../domain/config';
 import { StationSimulation } from './StationSimulation';
+import { cloneLegacyStation } from '../domain/config';
+const legacySimulation=(seed?:number)=>new StationSimulation(seed,cloneLegacyStation());
 import { createVehicle, purchaseLimitMl, RandomSource } from './traffic';
 
 describe('v0.2.3 routes, queue and timed fuel sales',()=>{
   it('drives and sells deterministically over two game days without creating fuel or cash',()=>{
-    const first=new StationSimulation(12345);
-    const second=new StationSimulation(12345);
+    const first=legacySimulation(12345);
+    const second=legacySimulation(12345);
     let sawPump1=false,sawPump2=false,sawDiesel=false,sawPremium=false,sawQueue=false,sawFuelingProgress=false;
     let previous=new Map<number,{x:number;y:number}>();
     for(let i=0;i<5760;i++) {
@@ -59,7 +61,7 @@ describe('v0.2.3 routes, queue and timed fuel sales',()=>{
     expect(purchaseLimitMl(vehicle,5000,50_000)).toBeLessThanOrEqual(vehicle.tankCapacityMl-vehicle.currentFuelMl);
   });
   it('blocks changing a dispenser while it serves a vehicle',()=>{
-    const sim=new StationSimulation(12345);
+    const sim=legacySimulation(12345);
     let occupied=false;
     for(let i=0;i<3000&&!occupied;i++) {
       sim.step(30);
@@ -71,7 +73,7 @@ describe('v0.2.3 routes, queue and timed fuel sales',()=>{
     expect(sim.station.fuels.ai92.retailKopeks).toBe(6200);
   });
   it('keeps the quoted price for a customer already assigned to a pump',()=>{
-    const sim=new StationSimulation(12345);
+    const sim=legacySimulation(12345);
     let customer=sim.vehicles.find((vehicle)=>vehicle.pumpId&&vehicle.reservedMl>0);
     for(let i=0;i<3000&&!customer;i++) {
       sim.step(30);
@@ -87,7 +89,7 @@ describe('v0.2.3 routes, queue and timed fuel sales',()=>{
     expect(sale!.revenueKopeks).toBe(Math.round(reservedMl*salePriceKopeks/1000));
   });
   it('spends game time in proportion to delivered litres and posts cash progressively',()=>{
-    const sim=new StationSimulation(7);
+    const sim=legacySimulation(7);
     const start=sim.gameSeconds;
     for(const [index,volume] of [10_000,20_000].entries()) {
       const vehicle=createVehicle(10_000+index,start,new RandomSource(20+index));

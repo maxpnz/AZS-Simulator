@@ -1,6 +1,7 @@
 import { Assets, Container, Graphics, Sprite, Text, TilingSprite, type Texture } from 'pixi.js';
 import type { ConstructionJob, DeliveryTrip, FuelId, FuelTank, Pump, Vehicle } from '../../game/domain/types';
 import { PUMP_SLOTS, ROAD_LANES, WORLD_OBSTACLES } from '../../game/domain/world';
+import { ROAD_SURFACE_POLYGONS, ROAD_SURFACE_RECTS } from '../../game/domain/roadNetwork';
 import { deliveryPose } from '../../game/domain/deliveryMotion';
 import { FUEL_IDS } from '../../game/domain/config';
 import { getHour } from '../../game/simulation/time';
@@ -105,23 +106,20 @@ export async function createStationScene(initialPumps:readonly Pump[]):Promise<S
   const root=new Container();
   const grass=new TilingSprite({texture:grassTexture,width:SCENE_WIDTH,height:SCENE_HEIGHT});grass.tileScale.set(.42);root.addChild(grass);
   const ground=new Container();root.addChild(ground);
-  asphalt(ground,0,840,2000,360);
-  asphalt(ground,1900,160,100,680);
+  for(const [x,y,width,height] of ROAD_SURFACE_RECTS)asphalt(ground,x,y,width,height);
   shape(ground,g=>g.rect(1910,160,3,680).fill({color:0xe9e3c9,alpha:.6}));
-  asphalt(ground,430,405,1450,175);
-  asphalt(ground,270,574,1580,182);
-  shape(ground,g=>g.poly([115,840,300,840,425,756,505,574,380,574,195,705]).fill(0x38444a)
-    .poly([1680,574,1805,574,1940,840,1730,840,1690,710]).fill(0x38444a));
-  const roadMask=new Graphics().rect(0,840,2000,360).rect(1900,160,100,680).rect(430,405,1450,175).rect(270,574,1580,182)
-    .poly([115,840,300,840,425,756,505,574,380,574,195,705])
-    .poly([1680,574,1805,574,1940,840,1730,840,1690,710]).fill(0xffffff);
+  shape(ground,g=>{for(const polygon of ROAD_SURFACE_POLYGONS)g.poly(polygon.flat()).fill(0x38444a);});
+  const roadMask=new Graphics();
+  for(const [x,y,width,height] of ROAD_SURFACE_RECTS)roadMask.rect(x,y,width,height);
+  for(const polygon of ROAD_SURFACE_POLYGONS)roadMask.poly(polygon.flat());
+  roadMask.fill(0xffffff);
   const roadSurface=new TilingSprite({texture:asphaltTexture,width:SCENE_WIDTH,height:SCENE_HEIGHT});
   roadSurface.tileScale.set(.46);roadSurface.mask=roadMask;ground.addChild(roadSurface,roadMask);
   for(const y of ROAD_LANES) {
     const dash=new Graphics();for(let x=15;x<2000;x+=75)dash.rect(x,y+(y<1000?32:-31),37,3).fill({color:0xe8e3c8,alpha:.76});ground.addChild(dash);
   }
   shape(ground,g=>g.rect(0,1032,2000,8).fill(0xd2be70).rect(0,1040,2000,8).fill(0x343e40));
-  shape(ground,g=>g.rect(275,565,1540,9).fill(0xb8bbb1).rect(270,756,1600,8).fill(0xa9afa5));
+  shape(ground,g=>g.rect(275,565,1540,9).fill(0xb8bbb1).rect(270,756,1430,8).fill(0xa9afa5));
   for(const x of [350,1860]) ground.addChild(label(x<1000?'ВЫЕЗД':'ВЪЕЗД',x,719,18));
   for(const x of [570,820,1070,1320,1570]) shape(ground,g=>g.poly([x,693,x-16,685,x,677]).fill({color:0xe9e8d4,alpha:.48}));
   // The planted beds, shop, tanks and service pad are separate scene objects.
@@ -186,8 +184,8 @@ export async function createStationScene(initialPumps:readonly Pump[]):Promise<S
       const hatch=image(tankLayer,tankHatchTexture,x-FUEL_HATCH_SIZE/2,y-FUEL_HATCH_SIZE/2,FUEL_HATCH_SIZE,FUEL_HATCH_SIZE);
       hatch.alpha=tank.status==='active'?1:.58;
       shape(tankLayer,g=>g.rect(x+19,y-34,3,29).fill(0xaebec0)
-        .roundRect(x+5,y-45,32,15,3).fill(FUEL_COLORS[tank.fuel]).stroke({color:0xe1e6de,width:1}));
-      tankLayer.addChild(label(fuelNames[tank.fuel],x+21,y-37,9,0x112027));
+        .roundRect(x+2,y-51,40,23,4).fill(0x102027).stroke({color:FUEL_COLORS[tank.fuel],width:3}));
+      tankLayer.addChild(label(fuelNames[tank.fuel],x+22,y-39,14,0xffffff));
       const job=jobs.find(j=>j.targetId===tank.id);
       if(job)tankLayer.addChild(label(`${Math.round(100*(1-job.remainingSeconds/job.totalSeconds))}%`,x,y-26,11,0xffe1a1));
     });

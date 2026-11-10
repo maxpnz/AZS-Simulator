@@ -24,14 +24,14 @@ export function ObjectPanel({id,state,prices,vehicles,onPrice,onBuildPump,onUpgr
     id==='price-sign'?'Стела с ценами':id==='tank'?'Резервуары':id==='delivery'?'Зона разгрузки':id==='shop'?'Магазин':'Строительство';
   const act=(success:boolean,message:string)=>{if(success){setNotice(message);setError('');}else setError('Действие недоступно: проверьте баланс, занятость, вместимость и наличие бригады.');};
   return <div className="object-panel" role="dialog" aria-label={name}>
-    <div className="object-heading"><div><small>v0.2.7 · ЖИВАЯ СИМУЛЯЦИЯ</small><h2>{name}</h2></div><button type="button" onClick={onClose} aria-label="Закрыть карточку">×</button></div>
+    <div className="object-heading"><div><small>v0.2.8 · ЖИВАЯ СИМУЛЯЦИЯ</small><h2>{name}</h2></div><button type="button" onClick={onClose} aria-label="Закрыть карточку">×</button></div>
     {id==='price-sign'&&<>
       <p>Цены влияют на фактическую выручку. Погасшая цена означает, что топлива нет в доступном резервуаре.</p>
-      {activeFuels.map(fuel=><label className="price-row" key={fuel}><span>{station.fuels[fuel].name}</span>
-        <input type="number" min="1" max="999" step=".01" defaultValue={(prices[fuel]/100).toFixed(2)} onBlur={event=>{
-          const value=Number(event.target.value);if(Number.isFinite(value)&&value>=1&&value<=999){onPrice(fuel,Math.round(value*100));event.target.value=value.toFixed(2);setError('');}
-          else {event.target.value=(prices[fuel]/100).toFixed(2);setError('Цена должна быть от 1 до 999 ₽/л.');}
-        }}/><span>₽/л</span><small>{station.fuels[fuel].stockMl>0?'В продаже':'Нет топлива'}</small></label>)}
+      {FUEL_IDS.map(fuel=><div className="price-row" key={fuel}><span>{station.fuels[fuel].name}</span>
+        <button type="button" aria-label={`Уменьшить цену ${station.fuels[fuel].name}`} disabled={prices[fuel]<=100} onClick={()=>onPrice(fuel,prices[fuel]-10)}>−</button>
+        <strong>{(prices[fuel]/100).toFixed(2)} ₽</strong>
+        <button type="button" aria-label={`Увеличить цену ${station.fuels[fuel].name}`} disabled={prices[fuel]>=99900} onClick={()=>onPrice(fuel,prices[fuel]+10)}>+</button>
+        <small>{station.fuels[fuel].stockMl>0?'В продаже':'Нет топлива'}</small></div>)}
     </>}
     {slot>=0&&<>
       <p>Опора {Math.floor(slot/2)+1}, {slot%2?'правая':'левая'} сторона · место {slot+1} из 10.</p>
@@ -60,7 +60,7 @@ export function ObjectPanel({id,state,prices,vehicles,onPrice,onBuildPump,onUpgr
       <button type="button" className="panel-action" onClick={()=>act(onBuildTank(chosenFuel),'Строительство резервуара поставлено в очередь.')}>Построить · 40 000 ₽</button>
     </>}
     {id==='delivery'&&<>
-      <p>Поставка закупается по оптовой цене. Бензовоз прибывает через 10 игровых минут; разгрузка зависит от фактического объёма.</p>
+      <p>Поставка закупается по оптовой цене. Бензовоз прибывает через 2 игровых часа; разгрузка зависит от фактического объёма.</p>
       <select value={chosenFuel} onChange={e=>setChosenFuel(e.target.value as FuelId)}>{FUEL_IDS.map(f=><option key={f} value={f}>{INITIAL_STATION.fuels[f].name}</option>)}</select>
       <input type="number" min="1" max="20000" value={deliveryLitres} onChange={e=>setDeliveryLitres(Number(e.target.value))} aria-label="Литры поставки"/>
       <button type="button" className="panel-action" onClick={()=>act(onDelivery(chosenFuel,deliveryLitres),'Поставка заказана.')}>Заказать · {rubles(deliveryLitres*station.fuels[chosenFuel].wholesaleKopeks)}</button>

@@ -19,8 +19,10 @@ export function App() {
   const [objectId,setObjectId]=useState<ObjectId|null>(null);
   const [overviewOpen,setOverviewOpen]=useState(false);
   const [notice,setNotice]=useState('');
+  const [sceneKey,setSceneKey]=useState(0);
   const paused=useUiStore((s)=>s.paused),speed=useUiStore((s)=>s.speed);
   const togglePause=useUiStore((s)=>s.togglePause),cycleSpeed=useUiStore((s)=>s.cycleSpeed);
+  const resetControls=useUiStore((s)=>s.resetControls);
   useEffect(()=>{const unsubscribe=engine.subscribeState(setGameState);engine.start();return()=>{unsubscribe();engine.stop();};},[]);
   useEffect(()=>{engine.setControls(paused,speed);},[paused,speed]);
   const clock=getClock(gameState.gameSeconds);
@@ -37,10 +39,10 @@ export function App() {
     else setNotice(name==='Настройки'?'Камера: сдвиг одним пальцем, масштаб двумя пальцами. Колесо мыши меняет масштаб.':name+' — раздел будет доступен в следующих версиях.');
   };
   return <div className="app-shell">
-    <TopBar clock={clock} time={time} station={gameState.station} stats={gameState.stats} queueCount={gameState.queueIds.length} paused={paused} speed={speed} fuelOpen={fuelOpen}
+    <TopBar clock={clock} time={time} station={gameState.station} stats={gameState.stats} queueCount={gameState.vehicles.filter(v=>v.status==='queued'||v.status==='entering').length} paused={paused} speed={speed} fuelOpen={fuelOpen}
       onPause={togglePause} onSpeed={cycleSpeed} onFuel={()=>setFuelOpen((v)=>!v)} onMenu={()=>{setFuelOpen(false);setMenuOpen((v)=>!v);}} />
     <main className="game-stage" aria-label="Территория АЗС">
-      <StationCanvas pumps={gameState.station.pumps} jobs={gameState.station.jobs??[]} tanks={gameState.station.tanks} deliveries={gameState.deliveries??[]} stocks={Object.fromEntries(FUEL_IDS.map(id=>[id,gameState.station.fuels[id].stockMl])) as Record<FuelId,number>} gameSeconds={gameState.gameSeconds} prices={prices} engine={engine}
+      <StationCanvas key={sceneKey} pumps={gameState.station.pumps} jobs={gameState.station.jobs??[]} tanks={gameState.station.tanks} deliveries={gameState.deliveries??[]} stocks={Object.fromEntries(FUEL_IDS.map(id=>[id,gameState.station.fuels[id].stockMl])) as Record<FuelId,number>} gameSeconds={gameState.gameSeconds} prices={prices} engine={engine}
         onObject={(id)=>{setNotice('');setOverviewOpen(false);setObjectId(id);}} />
       {objectId&&<ObjectPanel key={objectId} id={objectId} state={gameState} prices={prices} vehicles={gameState.vehicles}
         onPrice={(fuel,kopeks)=>{engine.setRetailPrice(fuel,kopeks);setGameState(engine.getState());}}
@@ -54,7 +56,7 @@ export function App() {
       {overviewOpen&&<OverviewPanel state={gameState} onClose={()=>setOverviewOpen(false)} />}
       {notice&&<div className="section-notice" role="status">{notice}<button type="button" onClick={()=>setNotice('')} aria-label="Закрыть">×</button></div>}
     </main>
-    {menuOpen&&<GameMenu onClose={()=>setMenuOpen(false)} onSection={openSection} />}
+    {menuOpen&&<GameMenu onClose={()=>setMenuOpen(false)} onSection={openSection} onReset={()=>{engine.reset();resetControls();setGameState(engine.getState());setSceneKey(k=>k+1);setFuelOpen(false);setObjectId(null);setOverviewOpen(false);setNotice('Новая игра начата.');}} />}
     <UpdateNotice />
   </div>;
 }

@@ -1,7 +1,7 @@
 import type { ClockSnapshot } from '../domain/types';
 
 export const SECONDS_PER_DAY = 24 * 60 * 60;
-export const INITIAL_GAME_SECONDS = 7 * 3600 + 30 * 60;
+export const INITIAL_GAME_SECONDS = 7 * 3600;
 
 export function getClock(gameSeconds: number): ClockSnapshot {
   const wholeSeconds = Math.floor(Math.max(0, gameSeconds));

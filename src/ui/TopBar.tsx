@@ -24,9 +24,9 @@ export function TopBar({ clock, time, station, stats, queueCount, paused, speed,
 
   return (
     <header className="game-topbar">
-      <div className="game-brand" aria-label="АЗС Simulator версия 0.2.7">
+      <div className="game-brand" aria-label="АЗС Simulator версия 0.2.8">
         <span className="brand-emblem"><span>АЗС</span></span>
-        <span className="brand-name"><strong>АЗС</strong><small>Simulator <em>v0.2.7</em></small></span>
+        <span className="brand-name"><strong>АЗС</strong><small>Simulator <em>v0.2.8</em></small></span>
       </div>
       <div className="top-chip day-chip"><Icon name="calendar" /><span>День {clock.day}</span></div>
       <div className="top-chip clock-chip"><Icon name="clock" /><strong>{time}</strong></div>

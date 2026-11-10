@@ -57,7 +57,7 @@ export const TRAFFIC_CONFIG = {
   colors: [0x4eabe0, 0xe3bc52, 0xe56859, 0x83ca79, 0xc8b4e8, 0xe9eee1],
 } as const;
 
-export function cloneInitialStation(): StationState {
+export function cloneLegacyStation(): StationState {
   return {
     balanceKopeks: INITIAL_STATION.balanceKopeks,
     fuels: Object.fromEntries(FUEL_IDS.map((id) => [id, { ...INITIAL_STATION.fuels[id] }])) as Record<FuelId, FuelStock>,
@@ -65,6 +65,13 @@ export function cloneInitialStation(): StationState {
     pumps: INITIAL_STATION.pumps.map((pump) => ({ ...pump, fuels: [...pump.fuels] })),
     jobs: [],
   };
+}
+
+export function cloneInitialStation(): StationState {
+  const station=cloneLegacyStation();
+  station.tanks=[];station.pumps=[];
+  for(const fuel of FUEL_IDS){station.fuels[fuel].stockMl=0;station.fuels[fuel].capacityMl=0;}
+  return station;
 }
 
 export function canPlacePump(pumps: readonly Pump[], slot: number): boolean {

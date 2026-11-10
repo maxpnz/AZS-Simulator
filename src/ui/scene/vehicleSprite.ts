@@ -92,11 +92,12 @@ export function createVehicleVisual(vehicle: Vehicle): VehicleVisual {
     else{sprite.width=length*1.12;sprite.height=width*4.3;}
     root.addChild(sprite);
   } else root.addChild(body);
-  const progress=new Graphics();progress.y=width*.89;root.addChild(progress);
+  const readout=new Container();root.addChild(readout);
+  const progress=new Graphics();progress.y=width*.89;readout.addChild(progress);
   const amount=new Text({text:'',style:{fontFamily:'Arial',fontSize:13,fontWeight:'bold',fill:0xffffff,stroke:{color:0x102027,width:3}}});
-  amount.anchor.set(.5);amount.y=width*1.22;root.addChild(amount);
+  amount.anchor.set(.5);amount.y=width*1.22;readout.addChild(amount);
   return {root,update(next) {
-    root.position.set(next.x,next.y);root.rotation=next.angle;
+    root.position.set(next.x,next.y);root.rotation=next.angle;readout.rotation=-next.angle;
     const filling=(next.status==='fueling'||next.status==='finishing')&&next.deliveredMl>0;
     progress.visible=filling;amount.visible=filling;
     if(filling) {

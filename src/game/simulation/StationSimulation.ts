@@ -1,4 +1,4 @@
-import { canPlacePump, cloneInitialStation, FUEL_IDS, isValidPumpFuels, TRAFFIC_CONFIG } from '../domain/config';
+import { canPlacePump, cloneInitialStation, cloneLegacyStation, FUEL_IDS, isValidPumpFuels, TRAFFIC_CONFIG } from '../domain/config';
 import { ROAD_NODES } from '../domain/roadNetwork';
 import { PUMP_SLOTS } from '../domain/world';
 import { deliveryPose } from '../domain/deliveryMotion';
@@ -43,7 +43,7 @@ function moveToward(vehicle: Vehicle, target: {x:number;y:number}, distance: num
   return distance-step;
 }
 function queuePoint(index:number): {x:number;y:number} {
-  return index===0?{x:1850,y:685}:index===1?{x:1850,y:820}:{x:1740-(index-2)*110,y:820};
+  return index===0?{x:1850,y:685}:index===1?{x:1840,y:820}:{x:1740-(index-2)*110,y:820};
 }
 
 export class StationSimulation {
@@ -78,7 +78,7 @@ export class StationSimulation {
     };
   }
   exportSave() {
-    return {version:'0.2.7',state:this.snapshot(),rngState:this.rng.getState(),nextVehicleId:this.nextVehicleId,
+    return {version:'0.2.8',state:this.snapshot(),rngState:this.rng.getState(),nextVehicleId:this.nextVehicleId,
       nextSpawnSeconds:this.nextSpawnSeconds,nextJobId:this.nextJobId,nextDeliveryId:this.nextDeliveryId};
   }
   static importSave(raw:unknown):StationSimulation {
@@ -86,7 +86,7 @@ export class StationSimulation {
     const save=raw as {version?:string;state?:GameState;rngState?:number;nextVehicleId?:number;nextSpawnSeconds?:number;nextJobId?:number;nextDeliveryId?:number};
     const state=(save.state??raw) as GameState;
     if(!state.station||!Number.isFinite(state.gameSeconds))throw new Error('Invalid save state');
-    const station=cloneInitialStation();
+    const station=save.version==='0.2.8'?cloneInitialStation():cloneLegacyStation();
     if(Number.isFinite(state.station.balanceKopeks))station.balanceKopeks=state.station.balanceKopeks;
     for(const id of FUEL_IDS)if(state.station.fuels?.[id])station.fuels[id]={...station.fuels[id],...state.station.fuels[id]};
     station.tanks=(state.station.tanks??station.tanks).map(t=>({...t,status:t.status??'active'}));
@@ -99,7 +99,7 @@ export class StationSimulation {
     sim.queueIds.push(...(state.queueIds??[]).filter(id=>sim.vehicles.some(v=>v.id===id)));
     sim.recentSales.push(...(state.recentSales??[]).map(sale=>({...sale})));
     sim.deliveries.push(...(state.deliveries??[]).map(trip=>({...trip,cargo:{...trip.cargo},status:trip.status??'enroute'})));
-    if(save.version!=='0.2.7')for(const v of sim.vehicles){
+    if(save.version!=='0.2.7'&&save.version!=='0.2.8')for(const v of sim.vehicles){
       const pump=v.pumpId&&sim.station.pumps.find(p=>p.id===v.pumpId);
       if(v.status==='fueling'||v.status==='finishing'){
         if(pump){const point=PUMP_SLOTS[pump.slot];v.x=point.stopX;v.y=point.stopY;v.angle=Math.PI;}
@@ -142,13 +142,14 @@ export class StationSimulation {
   buildPump(slot:number):boolean {
     if(!canPlacePump(this.station.pumps,slot)||this.station.balanceKopeks<2_500_000)return false;
     this.station.balanceKopeks-=2_500_000;
-    const pump:Pump={id:`pump-${slot+1}`,slot,fuels:['ai92','ai95'],status:'building',flowMultiplier:1};
+    const fuels=(['ai92','ai95'] as FuelId[]).filter(fuel=>this.station.tanks.some(t=>t.fuel===fuel&&t.status==='active'));
+    const pump:Pump={id:`pump-${slot+1}`,slot,fuels,status:'building',flowMultiplier:1};
     this.station.pumps.push(pump);this.addJob('pump',pump.id,360);return true;
   }
   upgradePump(id:string):boolean {
     const pump=this.station.pumps.find(p=>p.id===id);
     if(!pump||pump.status==='building'||pump.status==='upgrading'||this.isOccupied(pump)||this.station.balanceKopeks<1_200_000)return false;
-    this.station.balanceKopeks-=1_200_000;pump.status='upgrading';this.addJob('pump-upgrade',id,480);return true;
+    this.station.balanceKopeks-=1_200_000;pump.status='upgrading';this.addJob('pump-upgrade',id,10_800);return true;
   }
   buildTank(fuel:FuelId):boolean {
     if(!FUEL_IDS.includes(fuel)||this.station.balanceKopeks<4_000_000)return false;
@@ -327,7 +328,11 @@ export class StationSimulation {
   private advance(vehicle:Vehicle,seconds:number):void {
     if(vehicle.status==='road') {
       let travel=this.travelDistance(vehicle,TRAFFIC_CONFIG.roadSpeed,seconds);
-      if(vehicle.laneId==='west_lane_1'&&vehicle.x>=500&&this.vehicles.some(other=>other.status==='leaving'&&other.x<=300&&other.y<925))travel=Math.min(travel,Math.max(0,vehicle.x-500));
+      // Keep the approach lane clear while a customer turns north into the station.
+      // A follower next to the turn blocks its swept rear corner at 1×.
+      if(vehicle.laneId==='west_lane_1'&&vehicle.x>1850&&this.vehicles.some(other=>other.status==='entering'&&other.id!==vehicle.id))
+        travel=Math.min(travel,Math.max(0,vehicle.x-1980));
+      if(vehicle.laneId==='west_lane_1'&&vehicle.x>=500&&this.vehicles.some(other=>other.status==='leaving'&&other.x<=350&&other.y<925))travel=Math.min(travel,Math.max(0,vehicle.x-500));
       if(travel>0)this.moveRoute(vehicle,travel);
     }
     else if(vehicle.status==='entering'||vehicle.status==='toPump'||vehicle.status==='leaving') {
