@@ -27,7 +27,7 @@ describe('v0.2.3 routes, queue and timed fuel sales',()=>{
         }
         if(vehicle.status!=='road'&&((vehicle.x>=700&&vehicle.x<=900)||(vehicle.x>=1250&&vehicle.x<=1450)))
           expect(vehicle.y).toBeGreaterThanOrEqual(575);
-        if(vehicle.status!=='road'&&vehicle.status!=='leaving') expect(vehicle.laneId).toBe('east_lane_1');
+        if(vehicle.status!=='road'&&vehicle.status!=='leaving') expect(vehicle.laneId).toBe('west_lane_1');
         if(vehicle.pumpId==='pump-1') sawPump1=true;
         if(vehicle.pumpId==='pump-2') sawPump2=true;
         if(vehicle.fuel==='diesel') sawDiesel=true;

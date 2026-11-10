@@ -31,13 +31,13 @@ describe('v0.2.4 station systems',()=>{
     expect(sim.buildPump(2)).toBe(true);
     expect(sim.orderDelivery('ai92',200)).toBe(true);
     expect(sim.orderDelivery('ai92',300)).toBe(true);
-    for(let i=0;i<20;i++)sim.step(30);
+    for(let i=0;i<240;i++)sim.step(30);
     expect(sim.deliveries).toHaveLength(2);
     expect(sim.deliveries[0].remainingMl).toBe(200_000);
     expect(sim.deliveries[1].status).toBe('waiting');
     const copy=StationSimulation.importSave(sim.exportSave());
     expect(copy.snapshot()).toEqual(sim.snapshot());
-    for(let i=0;i<120;i++){sim.step(30);copy.step(30);}
+    for(let i=0;i<220;i++){sim.step(30);copy.step(30);}
     expect(copy.snapshot()).toEqual(sim.snapshot());
     expect(sim.station.tanks[0].stockMl).toBeLessThanOrEqual(sim.station.tanks[0].capacityMl);
     expect(sim.deliveries).toHaveLength(0);
@@ -77,7 +77,7 @@ describe('v0.2.4 station systems',()=>{
     const old={...sim.exportSave(),version:'0.2.4'};
     const restored=StationSimulation.importSave(old);
     expect(restored.snapshot()).toEqual(sim.snapshot());
-    expect(restored.exportSave().version).toBe('0.2.6');
+    expect(restored.exportSave().version).toBe('0.2.7');
   });
   it('stops a sale at the last millilitre and charges only what was delivered',()=>{
     const sim=new StationSimulation(7);

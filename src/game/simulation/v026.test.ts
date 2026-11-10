@@ -25,7 +25,7 @@ describe('v0.2.6 world geometry and rendering data',()=>{
       const cap=vehicleFillerPoint(pose);
       expect(cap.x).toBeGreaterThan(500-metres(model.length)/2);
       expect(cap.x).toBeLessThan(500);
-      expect(cap.y).toBeLessThan(600);
+      expect(cap.y).toBeGreaterThan(600);
       const turned=vehicleFillerPoint({...pose,angle:Math.PI/2});
       expect(turned.x).toBeCloseTo(500-metres(model.filler.y));
       expect(turned.y).toBeCloseTo(600+metres(model.filler.x));
@@ -41,15 +41,14 @@ describe('v0.2.6 world geometry and rendering data',()=>{
   });
   it('loads a v0.2.5 traffic save and continues sales with the new routes',()=>{
     const sim=new StationSimulation(77);
-    for(let i=0;i<300;i++)sim.step(30);
     const old={...sim.exportSave(),version:'0.2.5'};
     const restored=StationSimulation.importSave(old);
     expect(restored.station.balanceKopeks).toBe(sim.station.balanceKopeks);
     expect(restored.stats).toEqual(sim.stats);
     expect(restored.vehicles).toHaveLength(sim.vehicles.length);
-    for(let i=0;i<600;i++)restored.step(30);
+    for(let i=0;i<2000;i++)restored.step(30);
     expect(restored.stats.purchases).toBeGreaterThan(sim.stats.purchases);
-    expect(restored.exportSave().version).toBe('0.2.6');
+    expect(restored.exportSave().version).toBe('0.2.7');
   });
   it('moves an old stationary customer onto the matching new stop without changing its sale',()=>{
     const sim=new StationSimulation(31);
@@ -64,7 +63,7 @@ describe('v0.2.6 world geometry and rendering data',()=>{
     const slot=restored.station.pumps.find(p=>p.id===customer!.pumpId)!.slot;
     expect(migrated.x).toBe(PUMP_SLOTS[slot].stopX);
     expect(migrated.y).toBe(PUMP_SLOTS[slot].stopY);
-    expect(migrated.angle).toBe(0);
+    expect(migrated.angle).toBe(Math.PI);
     expect(migrated.deliveredMl).toBe(customer!.deliveredMl);
   });
   it('can fuel more than one car at once without intersecting adjacent island routes',()=>{

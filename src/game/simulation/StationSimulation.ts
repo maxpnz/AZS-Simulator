@@ -13,7 +13,7 @@ const EMPTY_STATS: TrafficStats = { passed: 0, visited: 0, purchases: 0, leftQue
 const PUMP_ROUTES: Record<string, string[]> = Object.fromEntries(PUMP_SLOTS.map(slot=>[
   `pump-${slot.slot+1}`,[`pump_${slot.slot+1}_approach`,`pump_${slot.slot+1}_turn`,`pump_${slot.slot+1}_align`,`pump_${slot.slot+1}`],
 ]));
-const EXIT_ROUTE = ['exit_lane','exit','exit_merge','east_lane_1_east'];
+const EXIT_ROUTE = ['exit_lane','exit','exit_merge','west_lane_1_west'];
 
 function availableMl(station: StationState, vehicles: readonly Vehicle[], fuel: FuelId): number {
   const held = vehicles.reduce((sum, vehicle) =>
@@ -43,7 +43,7 @@ function moveToward(vehicle: Vehicle, target: {x:number;y:number}, distance: num
   return distance-step;
 }
 function queuePoint(index:number): {x:number;y:number} {
-  return {x:500-index*110,y:685};
+  return index===0?{x:1850,y:685}:index===1?{x:1850,y:820}:{x:1740-(index-2)*110,y:820};
 }
 
 export class StationSimulation {
@@ -78,7 +78,7 @@ export class StationSimulation {
     };
   }
   exportSave() {
-    return {version:'0.2.6',state:this.snapshot(),rngState:this.rng.getState(),nextVehicleId:this.nextVehicleId,
+    return {version:'0.2.7',state:this.snapshot(),rngState:this.rng.getState(),nextVehicleId:this.nextVehicleId,
       nextSpawnSeconds:this.nextSpawnSeconds,nextJobId:this.nextJobId,nextDeliveryId:this.nextDeliveryId};
   }
   static importSave(raw:unknown):StationSimulation {
@@ -99,15 +99,30 @@ export class StationSimulation {
     sim.queueIds.push(...(state.queueIds??[]).filter(id=>sim.vehicles.some(v=>v.id===id)));
     sim.recentSales.push(...(state.recentSales??[]).map(sale=>({...sale})));
     sim.deliveries.push(...(state.deliveries??[]).map(trip=>({...trip,cargo:{...trip.cargo},status:trip.status??'enroute'})));
-    if(save.version!=='0.2.6')for(const v of sim.vehicles){
-      if(v.pumpId){const slot=sim.station.pumps.find(p=>p.id===v.pumpId)?.slot??0;const point=PUMP_SLOTS[slot];
-        if(v.status==='fueling'||v.status==='finishing'){v.x=point.stopX;v.y=point.stopY;v.angle=0;}
-        if(v.status==='toPump'){
-          v.route=v.y<640?[`pump_${slot+1}`]:[...PUMP_ROUTES[v.pumpId]];
-          v.routeIndex=0;
-        }
+    if(save.version!=='0.2.7')for(const v of sim.vehicles){
+      const pump=v.pumpId&&sim.station.pumps.find(p=>p.id===v.pumpId);
+      if(v.status==='fueling'||v.status==='finishing'){
+        if(pump){const point=PUMP_SLOTS[pump.slot];v.x=point.stopX;v.y=point.stopY;v.angle=Math.PI;}
+      }else if(v.status==='toPump'&&pump){
+        v.x=queuePoint(0).x;v.y=queuePoint(0).y;v.angle=Math.PI;
+        v.route=[...PUMP_ROUTES[pump.id]];v.routeIndex=0;
+      }else if(v.status==='queued'){
+        const index=sim.queueIds.indexOf(v.id);
+        if(index>=0){const point=queuePoint(index);v.x=point.x;v.y=point.y;v.angle=-Math.PI/2;}
+      }else if(v.status==='entering'){
+        v.x=1845;v.y=850;v.angle=-Math.PI/2;v.route=['entrance'];v.routeIndex=0;v.laneId='west_lane_1';v.westbound=true;
+      }else if(v.status==='road'){
+        v.x=2000-v.x;
+        const lane=v.laneId?.startsWith('east')?v.laneId.replace('east','west'):v.laneId?.replace('west','east');
+        v.laneId=lane as Vehicle['laneId'];v.westbound=lane?.startsWith('west')??true;
+        v.y=NODES.get(`${lane}_${v.westbound?'east':'west'}`)?.y??v.y;
+        v.angle=v.westbound?Math.PI:0;v.route=[`${lane}_${v.westbound?'west':'east'}`];v.routeIndex=0;
+      }else if(v.status==='leaving'){
+        v.angle=Math.PI;
+        v.route=v.pumpId&&pump?[`pump_${pump.slot+1}_depart`,`pump_${pump.slot+1}_clear`,`pump_${pump.slot+1}_merge`,...EXIT_ROUTE]:
+          v.route.includes('queue_bypass')?['queue_bypass_turn','queue_bypass',...EXIT_ROUTE]:[...EXIT_ROUTE];
+        v.routeIndex=0;
       }
-      if(save.version==='0.2.3'&&v.status==='queued'){const index=sim.queueIds.indexOf(v.id);if(index>=0){const point=queuePoint(index);v.x=point.x;v.y=point.y;}}
     }
     if(Number.isInteger(save.rngState))sim.rng.setState(save.rngState!);
     sim.nextVehicleId=save.nextVehicleId??Math.max(0,...sim.vehicles.map(v=>v.id))+1;
@@ -153,7 +168,7 @@ export class StationSimulation {
     const free=this.station.tanks.filter(t=>t.fuel===fuel&&t.status==='active').reduce((sum,t)=>sum+t.capacityMl-t.stockMl,0)-pending;
     if(ml>free||cost>this.station.balanceKopeks)return false;
     this.station.balanceKopeks-=cost;
-    this.deliveries.push({id:`delivery-${this.nextDeliveryId++}`,cargo:{[fuel]:ml},arrivalGameSeconds:this.gameSeconds+600,status:'enroute',remainingMl:ml,totalMl:ml});
+    this.deliveries.push({id:`delivery-${this.nextDeliveryId++}`,cargo:{[fuel]:ml},arrivalGameSeconds:this.gameSeconds+7200,status:'enroute',remainingMl:ml,totalMl:ml});
     return true;
   }
   setPumpFuels(pumpId:string,fuels:readonly FuelId[]):boolean {
@@ -198,7 +213,7 @@ export class StationSimulation {
       active.status='approaching';active.phaseSeconds=0;return;
     }
     if(active.status==='approaching'||active.status==='connecting'||active.status==='disconnecting'||active.status==='leaving'){
-      const duration=active.status==='approaching'||active.status==='leaving'?90:30;
+      const duration=active.status==='approaching'||active.status==='leaving'?600:120;
       const nextPhase=Math.min(duration,(active.phaseSeconds??0)+seconds);
       if(active.status==='approaching'||active.status==='leaving'){
         const now=this.deliveryVehicle(active);
@@ -217,7 +232,7 @@ export class StationSimulation {
     const fuel=Object.keys(active.cargo)[0] as FuelId;
     const tank=this.station.tanks.find(t=>t.fuel===fuel&&t.status==='active'&&t.stockMl<t.capacityMl);
     if(!tank)return;
-    const actual=Math.min(active.remainingMl??0,tank.capacityMl-tank.stockMl,Math.floor(unloadSeconds*12_000));
+    const actual=Math.min(active.remainingMl??0,tank.capacityMl-tank.stockMl,Math.floor(unloadSeconds*1_500));
     tank.stockMl+=actual;active.remainingMl=Math.max(0,(active.remainingMl??0)-actual);
     this.recountFuel(fuel);
     if(active.remainingMl===0){active.status='disconnecting';active.phaseSeconds=0;}
@@ -245,13 +260,12 @@ export class StationSimulation {
     const profile=vehicle.category==='truck'?truckTrafficMultiplier(atSeconds):passengerTrafficMultiplier(atSeconds);
     if(this.rng.next()>=Math.min(.95,TRAFFIC_CONFIG.baseSpawnChance*profile)) return;
     const lane=this.rng.pickWeighted(
-      ['east_lane_1','east_lane_2','west_lane_1','west_lane_2'] as const,[.42,.16,.21,.21]);
+      ['west_lane_1','west_lane_2','east_lane_1','east_lane_2'] as const,[.42,.16,.21,.21]);
     vehicle.laneId=lane;
     vehicle.westbound=lane.startsWith('west');
     const start=NODES.get(lane+(vehicle.westbound?'_east':'_west'))!;
     vehicle.x=start.x;vehicle.y=start.y;vehicle.angle=vehicle.westbound?Math.PI:0;
-    vehicle.route=vehicle.westbound?[lane+'_west'] : lane==='east_lane_1'
-      ? ['entrance_decision','east_lane_1_east']:[lane+'_east'];
+    vehicle.route=vehicle.westbound?(lane==='west_lane_1'?['entrance_decision','west_lane_1_west']:[lane+'_west']):[lane+'_east'];
     vehicle.routeIndex=0;
     if(footprintBlocked(vehicle,vehicle.x,vehicle.y,vehicle.angle,this.trafficBlockers()))return;
     this.vehicles.push(vehicle);
@@ -268,8 +282,8 @@ export class StationSimulation {
       if(!node) throw new Error('Unknown road node '+id);
       if((node.x===0||node.x===2000)&&Math.hypot(vehicle.x-node.x,vehicle.y-node.y)<1){vehicle.routeIndex++;continue;}
       remaining=moveToward(vehicle,node,remaining,this.trafficBlockers());
-      if(Math.hypot(vehicle.x-node.x,vehicle.y-node.y)<.001) {
-        if(vehicle.status==='leaving'&&id==='exit_lane'&&this.vehicles.some(other=>other.status==='road'&&other.laneId==='east_lane_1'&&other.x>1500&&other.x<2000))return;
+      if(Math.hypot(vehicle.x-node.x,vehicle.y-node.y)<3) {
+        if(vehicle.status==='leaving'&&id==='exit_lane'&&this.vehicles.some(other=>other.status==='road'&&other.laneId==='west_lane_1'&&other.x<500))return;
         vehicle.routeIndex++;
         if(vehicle.status==='leaving'&&id.endsWith('_clear'))vehicle.pumpId=undefined;
         if(vehicle.status==='road'&&id==='entrance_decision') this.decideVisit(vehicle);
@@ -283,14 +297,15 @@ export class StationSimulation {
       vehicle.status='queued';vehicle.speed=0;vehicle.waitedSeconds=0;this.queueIds.push(vehicle.id);
     } else if(vehicle.status==='toPump') {
       vehicle.status='fueling';vehicle.speed=0;vehicle.setupRemainingSeconds=TRAFFIC_CONFIG.serviceSetupSeconds;
-      vehicle.angle=0;
+      vehicle.angle=Math.PI;
       vehicle.serviceRemainingSeconds=TRAFFIC_CONFIG.serviceSetupSeconds+
         vehicle.reservedMl/TRAFFIC_CONFIG.fuelFlowMlPerSecond;
     } else if(vehicle.status==='leaving') this.finishedIds.add(vehicle.id);
   }
   private decideVisit(vehicle:Vehicle):void {
-    if(vehicle.laneId!=='east_lane_1'||this.rng.next()>=TRAFFIC_CONFIG.baseVisitChance) return;
-    const compatible=this.station.pumps.some(pump=>pump.status!=='building'&&pump.status!=='upgrading'&&pump.fuels.includes(vehicle.fuel))&&this.station.tanks.some(t=>t.fuel===vehicle.fuel&&t.status==='active');
+    if(vehicle.laneId!=='west_lane_1'||this.rng.next()>=TRAFFIC_CONFIG.baseVisitChance) return;
+    const compatible=this.station.pumps.some(pump=>pump.status!=='building'&&pump.status!=='upgrading'&&pump.fuels.includes(vehicle.fuel)&&
+      modelById(vehicle.modelId).length<=(pump.slot%2===1?4.7:5.4))&&this.station.tanks.some(t=>t.fuel===vehicle.fuel&&t.status==='active');
     if(!compatible||availableMl(this.station,this.vehicles,vehicle.fuel)<=0||
       this.queueIds.length+this.vehicles.filter((v)=>v.status==='entering').length>=TRAFFIC_CONFIG.maxQueue) {
       this.stats.unserved++;return;
@@ -312,22 +327,17 @@ export class StationSimulation {
   private advance(vehicle:Vehicle,seconds:number):void {
     if(vehicle.status==='road') {
       let travel=this.travelDistance(vehicle,TRAFFIC_CONFIG.roadSpeed,seconds);
-      if(vehicle.laneId==='east_lane_1'&&vehicle.x<=1500&&this.vehicles.some(other=>other.status==='leaving'&&other.x>=1700&&other.y<925))travel=Math.min(travel,Math.max(0,1500-vehicle.x));
+      if(vehicle.laneId==='west_lane_1'&&vehicle.x>=500&&this.vehicles.some(other=>other.status==='leaving'&&other.x<=300&&other.y<925))travel=Math.min(travel,Math.max(0,vehicle.x-500));
       if(travel>0)this.moveRoute(vehicle,travel);
     }
     else if(vehicle.status==='entering'||vehicle.status==='toPump'||vehicle.status==='leaving') {
       const merging=vehicle.status==='leaving'&&vehicle.route[vehicle.routeIndex]?.endsWith('_depart');
       const exitBusy=merging&&this.vehicles.some(other=>other.id!==vehicle.id&&(
-        (vehicle.y<600&&other.status==='leaving'&&!other.pumpId&&other.x>vehicle.x-250&&other.x<vehicle.x+160&&other.y>670)||
-        (vehicle.y<600&&other.status==='toPump'&&other.x>vehicle.x-180&&other.x<vehicle.x+150&&other.y>650)||
-        (other.status==='leaving'&&other.pumpId&&other.pumpId!==vehicle.pumpId&&other.x<vehicle.x&&vehicle.x-other.x<200)));
+        (vehicle.y<650&&other.status==='leaving'&&!other.pumpId&&other.x<vehicle.x+250&&other.x>vehicle.x-160&&other.y>650)||
+        (vehicle.y<600&&other.status==='toPump'&&other.x<vehicle.x+180&&other.x>vehicle.x-150&&other.y>650)||
+        (other.status==='leaving'&&other.pumpId&&other.pumpId!==vehicle.pumpId&&other.x>vehicle.x&&other.x-vehicle.x<200)));
       if(!exitBusy){
         let travel=this.travelDistance(vehicle,TRAFFIC_CONFIG.stationSpeed,seconds);
-        if(vehicle.status==='leaving'&&vehicle.route[vehicle.routeIndex]==='exit_lane'){
-          const departing=this.vehicles.find(other=>other.id!==vehicle.id&&other.status==='leaving'&&other.pumpId&&
-            other.route[other.routeIndex]?.endsWith('_depart')&&other.y>610&&other.y<750&&other.x>vehicle.x&&other.x-vehicle.x<270);
-          if(departing)travel=Math.min(travel,Math.max(0,departing.x-130-vehicle.x));
-        }
         this.moveRoute(vehicle,travel);
       }
       else vehicle.speed=0;
@@ -335,14 +345,16 @@ export class StationSimulation {
     else if(vehicle.status==='queued') {
       vehicle.waitedSeconds+=seconds;
       const index=this.queueIds.indexOf(vehicle.id);
-      const bypassBusy=this.vehicles.some(other=>other.status==='leaving'&&!other.pumpId&&other.route.includes('queue_bypass')&&other.x<650);
-      if(index>=0&&!bypassBusy)moveToward(vehicle,queuePoint(index),this.travelDistance(vehicle,TRAFFIC_CONFIG.stationSpeed,seconds),this.trafficBlockers());
-      if(index===0&&vehicle.waitedSeconds>=vehicle.patienceSeconds&&
-        !this.vehicles.some(other=>other.id!==vehicle.id&&other.status==='toPump'&&other.x>vehicle.x&&other.x<720)&&
-        !this.vehicles.some(other=>other.status==='leaving'&&other.pumpId&&other.route[other.routeIndex]?.endsWith('_depart')&&other.x<900)) {
+      const bypassBusy=this.vehicles.some(other=>other.status==='leaving'&&!other.pumpId&&other.route.includes('queue_bypass')&&other.x>1350);
+      const dispatchBusy=this.vehicles.some(other=>other.status==='toPump'&&other.x>1780&&other.y>650);
+      if(index>=0&&!bypassBusy&&!dispatchBusy)moveToward(vehicle,queuePoint(index),this.travelDistance(vehicle,TRAFFIC_CONFIG.stationSpeed,seconds),this.trafficBlockers());
+      if(index===0&&Math.hypot(vehicle.x-queuePoint(0).x,vehicle.y-queuePoint(0).y)<5&&
+        vehicle.waitedSeconds>=vehicle.patienceSeconds&&
+        !this.vehicles.some(other=>other.id!==vehicle.id&&other.status==='toPump'&&other.x<vehicle.x&&other.x>1280)&&
+        !this.vehicles.some(other=>other.status==='leaving'&&other.pumpId&&other.route[other.routeIndex]?.endsWith('_depart')&&other.x>1100)) {
         if(index>=0) this.queueIds.splice(index,1);
         this.stats.leftQueue++;
-        this.setRoute(vehicle,['queue_bypass',...EXIT_ROUTE],'leaving');
+        this.setRoute(vehicle,['queue_bypass_turn','queue_bypass',...EXIT_ROUTE],'leaving');
       }
     } else if(vehicle.status==='fueling')this.fuel(vehicle,seconds);
     else if(vehicle.status==='finishing'){vehicle.setupRemainingSeconds=Math.max(0,vehicle.setupRemainingSeconds-seconds);if(vehicle.setupRemainingSeconds===0)this.endService(vehicle);}
@@ -393,8 +405,9 @@ export class StationSimulation {
       (vehicle.status==='toPump'||vehicle.status==='fueling'||vehicle.status==='finishing'||vehicle.status==='leaving'));
   }
   private dispatchQueue():void {
-    if(this.vehicles.some(v=>v.status==='leaving'&&v.pumpId&&v.route[v.routeIndex]?.endsWith('_depart')&&v.x<900))return;
-    if(this.vehicles.some(v=>v.status==='toPump'))return;
+    if(this.vehicles.some(v=>v.status==='leaving'&&v.route.includes('queue_bypass')&&v.x>1600))return;
+    if(this.vehicles.some(v=>v.status==='leaving'&&v.pumpId&&v.route[v.routeIndex]?.endsWith('_depart')&&v.x>1100))return;
+    if(this.vehicles.some(v=>v.status==='toPump'&&v.x>queuePoint(0).x-180))return;
     const offset=(this.queueIds[0]??0)%Math.max(1,this.station.pumps.length);
     const ordered=[...this.station.pumps].sort((a,b)=>
       (a.slot-offset+10)%10-(b.slot-offset+10)%10);
@@ -407,17 +420,15 @@ export class StationSimulation {
         return current&&Math.abs(current.slot-pump.slot)===1&&Math.max(current.slot,pump.slot)%2===0&&
           ['toPump','fueling','finishing','leaving'].includes(v.status);
       }))continue;
-      const index=this.queueIds.findIndex((id)=>{
-        const vehicle=this.vehicles.find((candidate)=>candidate.id===id);
-        return vehicle&&pump.fuels.includes(vehicle.fuel)&&this.station.tanks.some(t=>t.fuel===vehicle.fuel&&t.status==='active')&&modelById(vehicle.modelId).length<=(pump.slot%2===1?4.7:5.4)&&availableMl(this.station,this.vehicles,vehicle.fuel)>0&&
-          Math.hypot(vehicle.x-queuePoint(this.queueIds.indexOf(id)).x,vehicle.y-queuePoint(this.queueIds.indexOf(id)).y)<5;
-      });
-      if(index<0) continue;
-      const id=this.queueIds.splice(index,1)[0];
+      const id=this.queueIds[0],head=this.vehicles.find(candidate=>candidate.id===id);
+      if(!head||!pump.fuels.includes(head.fuel)||!this.station.tanks.some(t=>t.fuel===head.fuel&&t.status==='active')||
+        modelById(head.modelId).length>(pump.slot%2===1?4.7:5.4)||availableMl(this.station,this.vehicles,head.fuel)<=0||
+        Math.hypot(head.x-queuePoint(0).x,head.y-queuePoint(0).y)>=5)continue;
+      this.queueIds.shift();
       const vehicle=this.vehicles.find((candidate)=>candidate.id===id)!;
       const stock=this.station.fuels[vehicle.fuel];
       vehicle.reservedMl=purchaseLimitMl(vehicle,stock.retailKopeks,availableMl(this.station,this.vehicles,vehicle.fuel));
-      if(vehicle.reservedMl<=0) {this.stats.unserved++;this.setRoute(vehicle,['queue_bypass',...EXIT_ROUTE],'leaving');continue;}
+      if(vehicle.reservedMl<=0) {this.stats.unserved++;this.setRoute(vehicle,['queue_bypass_turn','queue_bypass',...EXIT_ROUTE],'leaving');continue;}
       vehicle.salePriceKopeks=stock.retailKopeks;
       vehicle.deliveredMl=0;vehicle.pumpId=pump.id;
       this.setRoute(vehicle,PUMP_ROUTES[pump.id]??PUMP_ROUTES['pump-1'],'toPump');

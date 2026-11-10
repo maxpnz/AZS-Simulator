@@ -4,20 +4,19 @@ import { PUMP_SLOTS, ROAD_LANES, WORLD_OBSTACLES } from '../../game/domain/world
 import { deliveryPose } from '../../game/domain/deliveryMotion';
 import { FUEL_IDS } from '../../game/domain/config';
 import { getHour } from '../../game/simulation/time';
-import { connectedPumpChannels, DELIVERY_PAD, FUEL_HATCH_SIZE, PUMP_ISLANDS, pumpChannelX, pumpNozzlePoint, TANK_PAD, tankHatchPoint, vehicleFillerPoint } from '../../game/domain/stationGeometry';
+import { connectedPumpChannels, DELIVERY_PAD, FUEL_COLORS, FUEL_HATCH_SIZE, PUMP_ISLANDS, pumpChannelX, pumpNozzlePoint, priceSignRows, TANK_PAD, tankHatchPoint, vehicleFillerPoint } from '../../game/domain/stationGeometry';
 import { createVehicleVisual, type VehicleVisual } from './vehicleSprite';
 import grassUrl from '../../assets/v025/grass.webp';
 import asphaltUrl from '../../assets/v025/asphalt.webp';
 import storeUrl from '../../assets/v025/store.webp';
 import canopyUrl from '../../assets/v025/canopy.webp';
-import pumpUrl from '../../assets/v026/pump-cabinet.webp';
+import pumpUrl from '../../assets/v027/pump-front.webp';
 import flowerbedUrl from '../../assets/v025/flowerbed.webp';
 import landscapeLampUrl from '../../assets/v025/landscape-lamp.webp';
 import passengerAtlasUrl from '../../assets/v026/passenger-top.webp';
 import commercialAtlasUrl from '../../assets/v026/commercial-top.webp';
 import pickupUrl from '../../assets/v026/pickup-top.webp';
 import tankHatchUrl from '../../assets/v025/tank-hatch.webp';
-import priceSignUrl from '../../assets/v025/price-sign.webp';
 import { setVehicleTextures } from './vehicleSprite';
 
 export const SCENE_WIDTH=2000, SCENE_HEIGHT=1200;
@@ -25,7 +24,7 @@ export type ObjectId='price-sign'|'tank'|'shop'|'delivery'|'expansion'|`pump-${n
 export interface Hotspot { id:ObjectId; polygon:readonly [number,number][] }
 const box=(id:ObjectId,x:number,y:number,w:number,h:number):Hotspot=>({id,polygon:[[x,y],[x+w,y],[x+w,y+h],[x,y+h]]});
 export const HOTSPOTS:readonly Hotspot[]=[
-  box('price-sign',145,280,125,270),box('tank',TANK_PAD.x,TANK_PAD.y,TANK_PAD.width,TANK_PAD.height),box('shop',475,95,670,280),
+  box('price-sign',115,205,185,355),box('tank',TANK_PAD.x,TANK_PAD.y,TANK_PAD.width,TANK_PAD.height),box('shop',475,95,670,280),
   box('delivery',DELIVERY_PAD.x,DELIVERY_PAD.y,DELIVERY_PAD.width,DELIVERY_PAD.height),box('expansion',1050,380,230,70),
   ...PUMP_SLOTS.map((slot)=>box(`slot-${slot.slot}`,slot.x-34,slot.y-68,68,94)),
 ];
@@ -57,8 +56,10 @@ function pumpGraphic(pump:Pump,vehicles:readonly Vehicle[],stock:Record<FuelId,n
   g.roundRect(-23,11,46,14,3).fill(0x879397);
   image(root,texture,-33,-73,66,89);
   const front=new Graphics();root.addChild(front);
-  front.roundRect(-17,-55,34,28,2).fill({color:0x101b22,alpha:.96}).stroke({color:0x9eb9bd,width:1});
-  const display=new Text({text:'',style:{fontFamily:'monospace',fontSize:6,fontWeight:'bold',fill:0xc7f3df,align:'right',lineHeight:7}});display.anchor.set(.5);display.position.set(0,-41);root.addChild(display);
+  front.roundRect(-22,-61,44,22,3).fill({color:0x071817,alpha:.97}).stroke({color:0x8aa9a7,width:1});
+  front.roundRect(-17,-84,34,19,4).fill(0x101e22).stroke({color:0xffdfab,width:1.4});
+  root.addChild(label(String(slot.slot+1),0,-74,15,0xffe7ba));
+  const display=new Text({text:'',style:{fontFamily:'monospace',fontSize:5.6,fontWeight:'bold',fill:0xbdf9d3,align:'right',lineHeight:6}});display.anchor.set(.5);display.position.set(0,-50);root.addChild(display);
   const tags:Text[]=[];
   const channels=connectedPumpChannels(pump,stock);
   for(let index=0;index<channels.length;index++){
@@ -69,8 +70,8 @@ function pumpGraphic(pump:Pump,vehicles:readonly Vehicle[],stock:Record<FuelId,n
     front.roundRect(x-3,7,6,15,1).fill(available?0x202b30:0x7c3939);
     front.circle(x,13,1.3).fill(available?0x52d0a6:0xc45151);
     const badgeX=x,badgeY=-15;
-    front.roundRect(badgeX-5,badgeY-5,10,10,2).fill(available?0x234451:0x563638);
-    const t=new Text({text:channel.label,style:{fontFamily:'Arial',fontSize:7,fontWeight:'bold',fill:available?0xf5eee0:0xe5a9a2}});
+    front.roundRect(badgeX-6,badgeY-6,12,12,2).fill(available?FUEL_COLORS[channel.fuel]:0x724845).stroke({color:0xe7e9db,width:.5});
+    const t=new Text({text:channel.label,style:{fontFamily:'Arial',fontSize:7,fontWeight:'bold',fill:available?0x11242a:0xffd2c5}});
     t.anchor.set(.5);t.position.set(badgeX,badgeY);root.addChild(t);tags.push(t);
   }
   const active=vehicles.find(v=>v.pumpId===pump.id&&(v.status==='fueling'||v.status==='finishing'));
@@ -98,8 +99,8 @@ function constructionGraphic(slot:typeof PUMP_SLOTS[number],job:ConstructionJob|
 }
 export interface StationScene {root:Container;setTime:(seconds:number)=>void;setPrices:(prices:Record<FuelId,number>)=>void;setVehicles:(vehicles:readonly Vehicle[])=>void;setPumps:(pumps:readonly Pump[],stocks:Record<FuelId,number>,jobs?:readonly ConstructionJob[],tanks?:readonly FuelTank[])=>void;setDeliveries:(deliveries:readonly DeliveryTrip[])=>void;tick:(elapsedMs:number)=>void}
 export async function createStationScene(initialPumps:readonly Pump[]):Promise<StationScene> {
-  const [grassTexture,asphaltTexture,storeTexture,canopyTexture,pumpTexture,flowerbedTexture,landscapeLampTexture,passengerAtlas,commercialAtlas,pickupTexture,tankHatchTexture,priceSignTexture]=
-    await Promise.all([grassUrl,asphaltUrl,storeUrl,canopyUrl,pumpUrl,flowerbedUrl,landscapeLampUrl,passengerAtlasUrl,commercialAtlasUrl,pickupUrl,tankHatchUrl,priceSignUrl].map(url=>Assets.load<Texture>(url)));
+  const [grassTexture,asphaltTexture,storeTexture,canopyTexture,pumpTexture,flowerbedTexture,landscapeLampTexture,passengerAtlas,commercialAtlas,pickupTexture,tankHatchTexture]=
+    await Promise.all([grassUrl,asphaltUrl,storeUrl,canopyUrl,pumpUrl,flowerbedUrl,landscapeLampUrl,passengerAtlasUrl,commercialAtlasUrl,pickupUrl,tankHatchUrl].map(url=>Assets.load<Texture>(url)));
   setVehicleTextures(passengerAtlas,commercialAtlas,pickupTexture);
   const root=new Container();
   const grass=new TilingSprite({texture:grassTexture,width:SCENE_WIDTH,height:SCENE_HEIGHT});grass.tileScale.set(.42);root.addChild(grass);
@@ -121,8 +122,8 @@ export async function createStationScene(initialPumps:readonly Pump[]):Promise<S
   }
   shape(ground,g=>g.rect(0,1032,2000,8).fill(0xd2be70).rect(0,1040,2000,8).fill(0x343e40));
   shape(ground,g=>g.rect(275,565,1540,9).fill(0xb8bbb1).rect(270,756,1600,8).fill(0xa9afa5));
-  for(const x of [350,1860]) ground.addChild(label(x<1000?'ВЪЕЗД':'ВЫЕЗД',x,719,18));
-  for(const x of [570,820,1070,1320,1570]) shape(ground,g=>g.poly([x,693,x+16,685,x,677]).fill({color:0xe9e8d4,alpha:.48}));
+  for(const x of [350,1860]) ground.addChild(label(x<1000?'ВЫЕЗД':'ВЪЕЗД',x,719,18));
+  for(const x of [570,820,1070,1320,1570]) shape(ground,g=>g.poly([x,693,x-16,685,x,677]).fill({color:0xe9e8d4,alpha:.48}));
   // The planted beds, shop, tanks and service pad are separate scene objects.
   for(const obstacle of WORLD_OBSTACLES.filter(o=>o.id.startsWith('flower'))) {
     image(root,flowerbedTexture,obstacle.x-10,obstacle.y-26,obstacle.width+20,obstacle.height+54);
@@ -151,26 +152,31 @@ export async function createStationScene(initialPumps:readonly Pump[]):Promise<S
       .roundRect(island.x-island.width/2+4,island.y+4,island.width-8,island.height-8,6).fill(0x555f60)
       .rect(island.x-11,452,22,96).fill(0xdee2dc).rect(island.x-11,452,5,96).fill(0x99a9aa));
   }
-  const sign=new Container();sign.position.set(207,398);root.addChild(sign);
-  image(sign,priceSignTexture,-58,-125,116,260);
-  const signTitle=label('АЗС',0,-91,14);sign.addChild(signTitle);
-  const signRows=[-48,-11].map(y=>{
-    const fuel=label('',-26,y,11),price=label('',22,y,11);
-    sign.addChild(fuel,price);return {fuel,price};
+  const sign=new Container();sign.position.set(207,380);root.addChild(sign);
+  shape(sign,g=>g.ellipse(7,178,80,14).fill({color:0x071017,alpha:.4})
+    .roundRect(-88,-171,176,348,9).fill(0x171d22).stroke({color:0xb5bec0,width:4})
+    .roundRect(-83,-165,166,51,5).fill(0xc31319).stroke({color:0xee8180,width:1})
+    .rect(-84,-114,168,4).fill(0xe5e2d3)
+    .roundRect(-91,171,182,12,3).fill(0x727978));
+  sign.addChild(label('АЗС',0,-141,31,0xfff5e7));
+  const signRows=FUEL_IDS.map((fuel,index)=>{
+    const y=-90+index*42;
+    shape(sign,g=>g.roundRect(-79,y-18,158,37,3).fill(0x071118).stroke({color:0x65737a,width:1})
+      .roundRect(-77,y-16,154,3,1).fill({color:0x39494c,alpha:.7}));
+    const name=label(fuel==='diesel'?'ДТ':fuel==='ai95plus'?'95+':fuel.slice(2),-55,y,15,FUEL_COLORS[fuel]);
+    const glow=label('',27,y,27,0xc7ff84);glow.alpha=.23;glow.scale.set(1.06);
+    const price=label('',27,y,27,0xe4ffb2);
+    sign.addChild(name,glow,price);return {fuel,name,glow,price};
   });
   const pumpLayer=new Container(),vehicleLayer=new Container(),effectLayer=new Container(),nozzleLayer=new Container(),deliveryLayer=new Container();root.addChild(effectLayer,pumpLayer,vehicleLayer,nozzleLayer,deliveryLayer);
   const visuals=new Map<number,VehicleVisual>();
   const motions=new Map<number,{root:Container;fromX:number;fromY:number;toX:number;toY:number;fromAngle:number;toAngle:number;elapsed:number}>();let vehicles:readonly Vehicle[]=[];let pumps:readonly Pump[]=initialPumps;let stocks={} as Record<FuelId,number>;let jobs:readonly ConstructionJob[]=[];let tanks:readonly FuelTank[]=[];
-  let pumpSignature='';const displays=new Map<string,Text>();let prices={} as Record<FuelId,number>;let signPage=0;
+  let pumpSignature='';const displays=new Map<string,Text>();let prices={} as Record<FuelId,number>;let currentGameSeconds=0;
   const fuelNames:Record<FuelId,string>={ai92:'92',ai95:'95',ai95plus:'95+',ai98:'98',ai100:'100',diesel:'ДТ'};
   function drawSign(){
-    const installed=FUEL_IDS.filter(fuel=>tanks.some(t=>t.fuel===fuel&&t.status==='active'));
-    signRows.forEach((row,index)=>{
-      const fuel=index<installed.length?installed[(signPage*2+index)%installed.length]:undefined;
-      const available=fuel&&tanks.some(t=>t.fuel===fuel&&t.status==='active'&&t.stockMl>0);
-      row.fuel.text=fuel?fuelNames[fuel]:'';
-      row.price.text=fuel?(available&&prices[fuel]?(prices[fuel]/100).toFixed(2):'—'):'';
-      row.fuel.alpha=row.price.alpha=available?1:.42;
+    priceSignRows(tanks,prices).forEach((data,index)=>{
+      const row=signRows[index];row.price.text=row.glow.text=data.price;
+      row.name.alpha=data.available?1:.42;row.price.alpha=data.available?1:.45;row.glow.alpha=data.available ? .23 : 0;
     });
   }
   function drawTanks(){
@@ -179,7 +185,9 @@ export async function createStationScene(initialPumps:readonly Pump[]):Promise<S
       const {x,y}=tankHatchPoint(index);
       const hatch=image(tankLayer,tankHatchTexture,x-FUEL_HATCH_SIZE/2,y-FUEL_HATCH_SIZE/2,FUEL_HATCH_SIZE,FUEL_HATCH_SIZE);
       hatch.alpha=tank.status==='active'?1:.58;
-      tankLayer.addChild(label(fuelNames[tank.fuel],x,y+32,10));
+      shape(tankLayer,g=>g.rect(x+19,y-34,3,29).fill(0xaebec0)
+        .roundRect(x+5,y-45,32,15,3).fill(FUEL_COLORS[tank.fuel]).stroke({color:0xe1e6de,width:1}));
+      tankLayer.addChild(label(fuelNames[tank.fuel],x+21,y-37,9,0x112027));
       const job=jobs.find(j=>j.targetId===tank.id);
       if(job)tankLayer.addChild(label(`${Math.round(100*(1-job.remainingSeconds/job.totalSeconds))}%`,x,y-26,11,0xffe1a1));
     });
@@ -212,20 +220,34 @@ export async function createStationScene(initialPumps:readonly Pump[]):Promise<S
   }
   function drawDeliveries(deliveries:readonly DeliveryTrip[]){
     deliveryLayer.removeChildren().forEach(child=>child.destroy({children:true}));
-    const trip=deliveries.find(d=>d.status&&d.status!=='enroute'&&d.status!=='waiting');if(!trip)return;
+    const trip=deliveries.find(d=>d.status&&d.status!=='enroute'&&d.status!=='waiting');
+    if(!trip){
+      const pending=deliveries.find(d=>d.status==='enroute');
+      if(pending){const minutes=Math.max(0,Math.ceil((pending.arrivalGameSeconds-currentGameSeconds)/60));
+        deliveryLayer.addChild(label('БЕНЗОВОЗ ЧЕРЕЗ',1805,201,12,0xe2eadf));
+        deliveryLayer.addChild(label(`${Math.floor(minutes/60)} ч ${String(minutes%60).padStart(2,'0')} мин`,1805,228,19,0xffd68b));
+      }else if(deliveries.some(d=>d.status==='waiting'))deliveryLayer.addChild(label('ОЖИДАЕТ ВЪЕЗДА',1805,214,13,0xffd68b));
+      return;
+    }
     const {x,y,angle}=deliveryPose(trip);
     const vehicle={id:-1,modelId:'fuel-tanker',color:0xc5473b,x,y,angle,status:'road',deliveredMl:0,reservedMl:0} as Vehicle;
     const tanker=createVehicleVisual(vehicle);tanker.update(vehicle);deliveryLayer.addChild(tanker.root);
     if(trip.status==='unloading'||trip.status==='disconnecting')shape(deliveryLayer,g=>g.moveTo(x+57,y+17).bezierCurveTo(x+72,y+55,1815,281,1822,256).stroke({color:0x152328,width:5})
       .circle(1822,256,5).fill(0x202b2d));
     const ratio=trip.totalMl?1-(trip.remainingMl??0)/trip.totalMl:0;
+    if(trip.status==='unloading'||trip.status==='disconnecting'){
+      shape(deliveryLayer,g=>g.roundRect(1707,280,197,12,5).fill(0x13242a).stroke({color:0xaebcba,width:1})
+        .roundRect(1710,283,191*Math.max(0,Math.min(1,ratio)),6,3).fill(0x69d1a1));
+      deliveryLayer.addChild(label(`${Math.round(ratio*100)}% · ${Math.round(((trip.totalMl??0)-(trip.remainingMl??0))/1000)} л`,1805,267,12,0xe9ffdc));
+    }
     const action=trip.status==='unloading'?`СЛИВ ${Math.round(ratio*100)}%`:trip.status==='connecting'?'ПОДКЛЮЧЕНИЕ':trip.status==='disconnecting'?'ОТКЛЮЧЕНИЕ':trip.status==='approaching'?'ПРИБЫТИЕ':'ВЫЕЗД';
-    deliveryLayer.addChild(label(action,x,y-62,13));
+    // Keep the phase caption in the pad header. Following the truck made it
+    // overlap the canopy (and sometimes leave the screen during approach).
+    deliveryLayer.addChild(label(action,1805,181,13));
   }
   const night=new Graphics().rect(0,0,SCENE_WIDTH,SCENE_HEIGHT).fill(0x071525);root.addChild(night);
   drawPumps();
-  return {root,setTime(seconds){const daylight=Math.max(0,Math.sin(((getHour(seconds)-5)/14)*Math.PI));night.alpha=.33*(1-daylight);
-    const page=Math.floor(seconds/300);if(page!==signPage){signPage=page;drawSign();}},
+  return {root,setTime(seconds){currentGameSeconds=seconds;const daylight=Math.max(0,Math.sin(((getHour(seconds)-5)/14)*Math.PI));night.alpha=.33*(1-daylight);},
     setPrices(nextPrices){prices=nextPrices;drawSign();},
     setPumps(nextPumps,nextStocks,nextJobs=[],nextTanks=[]){
       pumps=nextPumps;jobs=nextJobs;tanks=nextTanks;
