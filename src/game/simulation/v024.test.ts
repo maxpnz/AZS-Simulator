@@ -70,6 +70,15 @@ describe('v0.2.4 station systems',()=>{
     restored.step(30);
     expect(restored.station.fuels.ai92.stockMl).toBeGreaterThanOrEqual(0);
   });
+  it('opens a v0.2.4 save without changing cash, stock or built pumps',()=>{
+    const sim=new StationSimulation(11);
+    sim.station.balanceKopeks=12_345_678;
+    sim.station.tanks[0].stockMl=987_000;
+    const old={...sim.exportSave(),version:'0.2.4'};
+    const restored=StationSimulation.importSave(old);
+    expect(restored.snapshot()).toEqual(sim.snapshot());
+    expect(restored.exportSave().version).toBe('0.2.5');
+  });
   it('stops a sale at the last millilitre and charges only what was delivered',()=>{
     const sim=new StationSimulation(7);
     sim.station.tanks[0].stockMl=1_000;sim.station.fuels.ai92.stockMl=1_000;

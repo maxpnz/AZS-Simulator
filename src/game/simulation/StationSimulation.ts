@@ -78,7 +78,7 @@ export class StationSimulation {
     };
   }
   exportSave() {
-    return {version:'0.2.4',state:this.snapshot(),rngState:this.rng.getState(),nextVehicleId:this.nextVehicleId,
+    return {version:'0.2.5',state:this.snapshot(),rngState:this.rng.getState(),nextVehicleId:this.nextVehicleId,
       nextSpawnSeconds:this.nextSpawnSeconds,nextJobId:this.nextJobId,nextDeliveryId:this.nextDeliveryId};
   }
   static importSave(raw:unknown):StationSimulation {

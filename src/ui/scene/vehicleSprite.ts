@@ -1,9 +1,24 @@
-import { Container, Graphics, Text } from 'pixi.js';
+import { Container, Graphics, Rectangle, Sprite, Text, Texture } from 'pixi.js';
 import type { Vehicle } from '../../game/domain/types';
 import { modelById } from '../../game/domain/vehicleModels';
 import { metres } from '../../game/domain/world';
 
 export interface VehicleVisual { root: Container; update: (vehicle: Vehicle) => void }
+const passengerIds=['city-hatch','budget-sedan','family-sedan','business-sedan','estate-wagon','compact-crossover','mid-suv','full-suv','minivan','sport-coupe'];
+const vehicleTextures=new Map<string,Texture>();
+/** The atlas frames are separate render objects; every car keeps its own transform and model scale. */
+export function setVehicleTextures(passenger:Texture,commercial:Texture,pickup?:Texture) {
+  vehicleTextures.clear();
+  const cellWidth=passenger.width/5,cellHeight=passenger.height/2;
+  passengerIds.forEach((id,index)=>vehicleTextures.set(id,new Texture({source:passenger.source,
+    frame:new Rectangle((index%5)*cellWidth,Math.floor(index/5)*cellHeight,cellWidth,cellHeight)})));
+  const edges=[0,318,670,1180,1700,commercial.width];
+  const frame=(i:number)=>new Texture({source:commercial.source,frame:new Rectangle(edges[i],0,edges[i+1]-edges[i],commercial.height)});
+  vehicleTextures.set('delivery-van',frame(0));vehicleTextures.set('medium-truck',frame(1));
+  vehicleTextures.set('heavy-truck',frame(1));vehicleTextures.set('coach-bus',frame(2));
+  vehicleTextures.set('semi-trailer',frame(3));vehicleTextures.set('fuel-tanker',frame(4));
+  if(pickup)vehicleTextures.set('pickup',pickup);
+}
 function tint(color:number, fraction:number) {
   const c=(shift:number)=>Math.max(0,Math.min(255,Math.round(((color>>shift)&255)*fraction)));
   return (c(16)<<16)|(c(8)<<8)|c(0);
@@ -69,7 +84,14 @@ export function createVehicleVisual(vehicle: Vehicle): VehicleVisual {
     body.roundRect(length*.44,side*width*.26-3,6,6,2).fill(0xfff2bf);
     body.roundRect(-length*.49,side*width*.26-3,5,6,2).fill(0xd64c42);
   }
-  root.addChild(body);
+  const texture=vehicleTextures.get(model.id);
+  if(texture){
+    const sprite=new Sprite(texture);sprite.anchor.set(.5);
+    if(model.id==='pickup'){sprite.width=length*1.1;sprite.height=width*1.2;}
+    else if(passengerIds.includes(model.id)){sprite.width=length*1.35;sprite.height=width*2.3;}
+    else{sprite.width=length*1.2;sprite.height=width*4;}
+    root.addChild(sprite);
+  } else root.addChild(body);
   const progress=new Graphics();progress.y=-width*.72;root.addChild(progress);
   const amount=new Text({text:'',style:{fontFamily:'Arial',fontSize:13,fontWeight:'bold',fill:0xffffff,stroke:{color:0x102027,width:3}}});
   amount.anchor.set(.5);amount.y=-width*.9;root.addChild(amount);
