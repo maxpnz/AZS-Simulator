@@ -3,8 +3,8 @@ export const WORLD_SCALE = 20;
 export const metres = (value: number) => value * WORLD_SCALE;
 export const CANOPY_SUPPORTS = [680, 930, 1180, 1430, 1680] as const;
 export const PUMP_SLOTS = CANOPY_SUPPORTS.flatMap((x, support) => [
-  { slot: support * 2, support, side: 'left' as const, x: x - 54, y: 526, stopX: x - 54, stopY: 590 },
-  { slot: support * 2 + 1, support, side: 'right' as const, x: x + 54, y: 526, stopX: x + 54, stopY: 590 },
+  { slot: support * 2, support, side: 'left' as const, x: x - 54, y: 526, stopX: x - 84, stopY: 590 },
+  { slot: support * 2 + 1, support, side: 'right' as const, x: x + 54, y: 526, stopX: x + 84, stopY: 590 },
 ]);
 export const ROAD_LANES = [885, 975, 1105, 1170] as const;
 export const WORLD_OBSTACLES = [

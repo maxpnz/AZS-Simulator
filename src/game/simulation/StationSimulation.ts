@@ -10,8 +10,8 @@ import { createVehicle, passengerTrafficMultiplier, priceForVolume, purchaseLimi
 
 const NODES = new Map(ROAD_NODES.map((node) => [node.id, node]));
 const EMPTY_STATS: TrafficStats = { passed: 0, visited: 0, purchases: 0, leftQueue: 0, unserved: 0, soldMl: 0, revenueKopeks: 0, costKopeks: 0 };
-const PUMP_ROUTES: Record<string, [string,string]> = Object.fromEntries(PUMP_SLOTS.map(slot=>[
-  `pump-${slot.slot+1}`,[`pump_${slot.slot+1}_approach`,`pump_${slot.slot+1}`],
+const PUMP_ROUTES: Record<string, string[]> = Object.fromEntries(PUMP_SLOTS.map(slot=>[
+  `pump-${slot.slot+1}`,[`pump_${slot.slot+1}_approach`,`pump_${slot.slot+1}_turn`,`pump_${slot.slot+1}_align`,`pump_${slot.slot+1}`],
 ]));
 const EXIT_ROUTE = ['exit_lane','exit','exit_merge','east_lane_1_east'];
 
@@ -78,7 +78,7 @@ export class StationSimulation {
     };
   }
   exportSave() {
-    return {version:'0.2.5',state:this.snapshot(),rngState:this.rng.getState(),nextVehicleId:this.nextVehicleId,
+    return {version:'0.2.6',state:this.snapshot(),rngState:this.rng.getState(),nextVehicleId:this.nextVehicleId,
       nextSpawnSeconds:this.nextSpawnSeconds,nextJobId:this.nextJobId,nextDeliveryId:this.nextDeliveryId};
   }
   static importSave(raw:unknown):StationSimulation {
@@ -99,11 +99,15 @@ export class StationSimulation {
     sim.queueIds.push(...(state.queueIds??[]).filter(id=>sim.vehicles.some(v=>v.id===id)));
     sim.recentSales.push(...(state.recentSales??[]).map(sale=>({...sale})));
     sim.deliveries.push(...(state.deliveries??[]).map(trip=>({...trip,cargo:{...trip.cargo},status:trip.status??'enroute'})));
-    if(save.version==='0.2.3')for(const v of sim.vehicles){
+    if(save.version!=='0.2.6')for(const v of sim.vehicles){
       if(v.pumpId){const slot=sim.station.pumps.find(p=>p.id===v.pumpId)?.slot??0;const point=PUMP_SLOTS[slot];
-        if(v.status==='fueling'){v.x=point.stopX;v.y=point.stopY;v.angle=0;}
+        if(v.status==='fueling'||v.status==='finishing'){v.x=point.stopX;v.y=point.stopY;v.angle=0;}
+        if(v.status==='toPump'){
+          v.route=v.y<640?[`pump_${slot+1}`]:[...PUMP_ROUTES[v.pumpId]];
+          v.routeIndex=0;
+        }
       }
-      if(v.status==='queued'){const index=sim.queueIds.indexOf(v.id);if(index>=0){const point=queuePoint(index);v.x=point.x;v.y=point.y;}}
+      if(save.version==='0.2.3'&&v.status==='queued'){const index=sim.queueIds.indexOf(v.id);if(index>=0){const point=queuePoint(index);v.x=point.x;v.y=point.y;}}
     }
     if(Number.isInteger(save.rngState))sim.rng.setState(save.rngState!);
     sim.nextVehicleId=save.nextVehicleId??Math.max(0,...sim.vehicles.map(v=>v.id))+1;
@@ -267,7 +271,7 @@ export class StationSimulation {
       if(Math.hypot(vehicle.x-node.x,vehicle.y-node.y)<.001) {
         if(vehicle.status==='leaving'&&id==='exit_lane'&&this.vehicles.some(other=>other.status==='road'&&other.laneId==='east_lane_1'&&other.x>1500&&other.x<2000))return;
         vehicle.routeIndex++;
-        if(vehicle.status==='leaving'&&id.endsWith('_depart'))vehicle.pumpId=undefined;
+        if(vehicle.status==='leaving'&&id.endsWith('_clear'))vehicle.pumpId=undefined;
         if(vehicle.status==='road'&&id==='entrance_decision') this.decideVisit(vehicle);
       } else break;
     }
@@ -382,7 +386,7 @@ export class StationSimulation {
     vehicle.currentFuelMl+=vehicle.deliveredMl;
     vehicle.reservedMl=0;vehicle.salePriceKopeks=0;vehicle.deliveredMl=0;vehicle.chargedKopeks=0;
     const servedNode=vehicle.route.find(id=>/^pump_\d+$/.test(id))??'pump_1';
-    this.setRoute(vehicle,[servedNode+'_depart',...EXIT_ROUTE],'leaving');
+    this.setRoute(vehicle,[servedNode+'_depart',servedNode+'_clear',servedNode+'_merge',...EXIT_ROUTE],'leaving');
   }
   private isOccupied(pump:Pump):boolean {
     return this.vehicles.some((vehicle)=>vehicle.pumpId===pump.id&&
@@ -391,8 +395,18 @@ export class StationSimulation {
   private dispatchQueue():void {
     if(this.vehicles.some(v=>v.status==='leaving'&&v.pumpId&&v.route[v.routeIndex]?.endsWith('_depart')&&v.x<900))return;
     if(this.vehicles.some(v=>v.status==='toPump'))return;
-    for(const pump of this.station.pumps) {
+    const offset=(this.queueIds[0]??0)%Math.max(1,this.station.pumps.length);
+    const ordered=[...this.station.pumps].sort((a,b)=>
+      (a.slot-offset+10)%10-(b.slot-offset+10)%10);
+    for(const pump of ordered) {
       if(this.isOccupied(pump)||pump.status==='building'||pump.status==='upgrading')continue;
+      // The exit curve from the right side of one island crosses the approach
+      // to the left side of the next island. Reserve that crossing until clear.
+      if(this.vehicles.some(v=>{
+        const current=this.station.pumps.find(p=>p.id===v.pumpId);
+        return current&&Math.abs(current.slot-pump.slot)===1&&Math.max(current.slot,pump.slot)%2===0&&
+          ['toPump','fueling','finishing','leaving'].includes(v.status);
+      }))continue;
       const index=this.queueIds.findIndex((id)=>{
         const vehicle=this.vehicles.find((candidate)=>candidate.id===id);
         return vehicle&&pump.fuels.includes(vehicle.fuel)&&this.station.tanks.some(t=>t.fuel===vehicle.fuel&&t.status==='active')&&modelById(vehicle.modelId).length<=(pump.slot%2===1?4.7:5.4)&&availableMl(this.station,this.vehicles,vehicle.fuel)>0&&

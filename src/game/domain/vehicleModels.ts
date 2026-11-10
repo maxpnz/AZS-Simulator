@@ -8,7 +8,7 @@ const petrol: FuelId[] = ['ai92','ai95','ai95plus','ai98','ai100'];
 const mixed: FuelId[] = [...petrol,'diesel'];
 const diesel: FuelId[] = ['diesel'];
 const model = (id:string,category:VehicleCategory,length:number,width:number,height:number,wheelbase:number,turnRadius:number,silhouette:VehicleModel['silhouette'],fuels:FuelId[]=mixed):VehicleModel =>
-  ({id,category,length,width,height,wheelbase,turnRadius,silhouette,fuels,filler:{x:-length*.32,y:width*.48},acceleration:category==='truck'?.8:1.8,braking:category==='truck'?2.4:3.5});
+  ({id,category,length,width,height,wheelbase,turnRadius,silhouette,fuels,filler:{x:-length*.32,y:-width*.48},acceleration:category==='truck'?.8:1.8,braking:category==='truck'?2.4:3.5});
 export const VEHICLE_MODELS: readonly VehicleModel[] = [
   model('city-hatch','compact',3.85,1.72,1.49,2.45,5.1,'hatch',petrol),
   model('budget-sedan','sedan',4.38,1.76,1.48,2.62,5.4,'sedan',petrol),

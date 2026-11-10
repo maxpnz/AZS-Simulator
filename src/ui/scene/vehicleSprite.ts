@@ -12,7 +12,7 @@ export function setVehicleTextures(passenger:Texture,commercial:Texture,pickup?:
   const cellWidth=passenger.width/5,cellHeight=passenger.height/2;
   passengerIds.forEach((id,index)=>vehicleTextures.set(id,new Texture({source:passenger.source,
     frame:new Rectangle((index%5)*cellWidth,Math.floor(index/5)*cellHeight,cellWidth,cellHeight)})));
-  const edges=[0,318,670,1180,1700,commercial.width];
+  const edges=[0,315,635,1085,1595,2045];
   const frame=(i:number)=>new Texture({source:commercial.source,frame:new Rectangle(edges[i],0,edges[i+1]-edges[i],commercial.height)});
   vehicleTextures.set('delivery-van',frame(0));vehicleTextures.set('medium-truck',frame(1));
   vehicleTextures.set('heavy-truck',frame(1));vehicleTextures.set('coach-bus',frame(2));
@@ -87,14 +87,14 @@ export function createVehicleVisual(vehicle: Vehicle): VehicleVisual {
   const texture=vehicleTextures.get(model.id);
   if(texture){
     const sprite=new Sprite(texture);sprite.anchor.set(.5);
-    if(model.id==='pickup'){sprite.width=length*1.1;sprite.height=width*1.2;}
-    else if(passengerIds.includes(model.id)){sprite.width=length*1.35;sprite.height=width*2.3;}
-    else{sprite.width=length*1.2;sprite.height=width*4;}
+    if(model.id==='pickup'){sprite.width=length*1.05;sprite.height=width*1.4;}
+    else if(passengerIds.includes(model.id)){sprite.width=length*1.08;sprite.height=width*2.1;}
+    else{sprite.width=length*1.12;sprite.height=width*4.3;}
     root.addChild(sprite);
   } else root.addChild(body);
-  const progress=new Graphics();progress.y=-width*.72;root.addChild(progress);
+  const progress=new Graphics();progress.y=width*.89;root.addChild(progress);
   const amount=new Text({text:'',style:{fontFamily:'Arial',fontSize:13,fontWeight:'bold',fill:0xffffff,stroke:{color:0x102027,width:3}}});
-  amount.anchor.set(.5);amount.y=-width*.9;root.addChild(amount);
+  amount.anchor.set(.5);amount.y=width*1.22;root.addChild(amount);
   return {root,update(next) {
     root.position.set(next.x,next.y);root.rotation=next.angle;
     const filling=(next.status==='fueling'||next.status==='finishing')&&next.deliveredMl>0;

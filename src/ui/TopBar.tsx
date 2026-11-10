@@ -24,9 +24,9 @@ export function TopBar({ clock, time, station, stats, queueCount, paused, speed,
 
   return (
     <header className="game-topbar">
-      <div className="game-brand" aria-label="АЗС Simulator версия 0.2.5">
+      <div className="game-brand" aria-label="АЗС Simulator версия 0.2.6">
         <span className="brand-emblem"><span>АЗС</span></span>
-        <span className="brand-name"><strong>АЗС</strong><small>Simulator <em>v0.2.5</em></small></span>
+        <span className="brand-name"><strong>АЗС</strong><small>Simulator <em>v0.2.6</em></small></span>
       </div>
       <div className="top-chip day-chip"><Icon name="calendar" /><span>День {clock.day}</span></div>
       <div className="top-chip clock-chip"><Icon name="clock" /><strong>{time}</strong></div>
@@ -54,7 +54,9 @@ export function TopBar({ clock, time, station, stats, queueCount, paused, speed,
           <p>Остатки меняются после фактической заправки. Поставки доступны в зоне разгрузки.</p>
         </div>}
       </div>
-      <div className="top-chip traffic-chip"><Icon name="traffic" /><span>{queueCount ? 'Очередь' : 'Поток'}</span><strong>{queueCount ? queueCount+' ждут' : stats.passed+' проехали'}</strong></div>
+      <div className="top-chip traffic-chip" title={`Мимо: ${stats.passed}; заехали: ${stats.visited}; обслужены: ${stats.purchases}; ждут: ${queueCount}; уехали из очереди: ${stats.leftQueue}; без обслуживания: ${stats.unserved}`}>
+        <Icon name="traffic" /><span>Трафик</span><strong>{stats.passed} мимо · {queueCount} ждут</strong>
+      </div>
       <div className="top-chip pumps-chip"><Icon name="pumps" /><strong>{station.pumps.filter(p=>p.status!=='building').length}/10</strong></div>
       <button type="button" className="menu-trigger" onClick={onMenu} aria-label="Открыть меню"><Icon name="menu" /></button>
     </header>
