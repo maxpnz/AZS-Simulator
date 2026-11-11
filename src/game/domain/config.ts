@@ -38,6 +38,8 @@ export const TRAFFIC_CONFIG = {
   spawnSlotSeconds: 90,
   baseSpawnChance: 0.75,
   baseVisitChance: 0.75,
+  demand: { priceElasticity: 1.65, minimumPriceFactor: .16, maximumPriceFactor: 1.38,
+    queuePenalty: .16, attractiveness: 1, minimumVisitChance: .03 },
   roadSpeed: 1.45,
   stationSpeed: 0.8,
   decisionX: 1.0,

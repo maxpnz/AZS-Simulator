@@ -9,7 +9,6 @@ interface Props { pumps: readonly Pump[]; stocks: Record<FuelId,number>; jobs: r
 
 export function StationCanvas({ pumps, stocks, jobs, tanks, deliveries, gameSeconds, prices, engine, onObject }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
-  const resetCameraRef=useRef<()=>void>(()=>undefined);
   const updateTimeRef = useRef<(seconds: number) => void>(() => undefined);
   const updatePricesRef = useRef<(prices: Record<FuelId,number>) => void>(() => undefined);
   const updatePumpsRef = useRef<(pumps: readonly Pump[], stocks: Record<FuelId,number>, jobs: readonly ConstructionJob[], tanks: readonly FuelTank[]) => void>(() => undefined);
@@ -64,7 +63,6 @@ export function StationCanvas({ pumps, stocks, jobs, tanks, deliveries, gameSeco
         scene.root.scale.set(transform.scale);
         scene.root.position.set(transform.x, transform.y);
       };
-      resetCameraRef.current=()=>{camera=initialCamera();applyCamera();};
       const resize = () => {
         const width = host.clientWidth;
         const height = host.clientHeight;
@@ -158,11 +156,10 @@ export function StationCanvas({ pumps, stocks, jobs, tanks, deliveries, gameSeco
       updatePumpsRef.current = () => undefined;
       updateDeliveriesRef.current = () => undefined;
       updateTimeRef.current = () => undefined;
-      resetCameraRef.current = () => undefined;
       updatePricesRef.current = () => undefined;
       if (app.renderer) app.destroy(true, { children: true });
     };
   }, [engine]);
 
-  return <><div className="station-canvas" ref={hostRef} aria-label="Объектная карта АЗС" role="img"/><button type="button" className="camera-reset" onClick={()=>resetCameraRef.current()} aria-label="Сбросить камеру">Центр · 1×</button></>;
+  return <div className="station-canvas" ref={hostRef} aria-label="Объектная карта АЗС" role="img"/>;
 }

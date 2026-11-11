@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import { FUEL_IDS } from '../game/domain/config';
 import type { FuelId } from '../game/domain/types';
 import { GameEngine } from '../game/simulation/GameEngine';
@@ -12,7 +12,9 @@ import { UpdateNotice } from './UpdateNotice';
 import { StationCanvas } from './scene/StationCanvas';
 import type { ObjectId } from './scene/createStationScene';
 import { useUiStore } from './store';
+import { InteractionGate } from './interactionGate';
 const engine=new GameEngine();
+const interactionGate=new InteractionGate();
 useUiStore.setState({speed:engine.getSpeed()});
 type Screen='menu'|'overview'|'finances'|'settings'|ObjectId|null;
 export function App() {
@@ -24,6 +26,8 @@ export function App() {
   const manualPause=useUiStore((s)=>s.paused),backgroundPause=useUiStore((s)=>s.backgroundPause),interfacePause=useUiStore((s)=>s.interfacePause),speed=useUiStore((s)=>s.speed);
   const togglePause=useUiStore((s)=>s.togglePause),cycleSpeed=useUiStore((s)=>s.cycleSpeed),resetControls=useUiStore((s)=>s.resetControls);
   useEffect(()=>{const unsubscribe=engine.subscribeState(setGameState);engine.start();return()=>{unsubscribe();engine.stop();};},[]);
+  useEffect(()=>interactionGate.attach(document),[]);
+  useLayoutEffect(()=>{interactionGate.transition();},[screen]);
   useEffect(()=>{useUiStore.getState().setInterfacePause(screen!==null);engine.setControls(manualPause||backgroundPause||useUiStore.getState().interfacePause,speed);},[manualPause,backgroundPause,interfacePause,screen,speed]);
   useEffect(()=>{
     const onVisibility=()=>{const hidden=document.visibilityState==='hidden';const wasHidden=useUiStore.getState().backgroundPause;useUiStore.getState().setBackgroundPause(hidden);engine.setControls(useUiStore.getState().paused||hidden||useUiStore.getState().interfacePause,useUiStore.getState().speed);engine.resetClock();if(hidden)engine.save();else if(wasHidden){setNotice('Симуляция возобновлена после автопаузы');window.setTimeout(()=>setNotice(current=>current==='Симуляция возобновлена после автопаузы'?'':current),3500);}};

@@ -79,7 +79,7 @@ describe('v0.2.4 station systems',()=>{
     const old={...sim.exportSave(),version:'0.2.4'};
     const restored=StationSimulation.importSave(old);
     expect(restored.snapshot()).toEqual(sim.snapshot());
-    expect(restored.exportSave().version).toBe('0.3.2');
+    expect(restored.exportSave().version).toBe('0.4.0');
   });
   it('stops a sale at the last millilitre and charges only what was delivered',()=>{
     const sim=legacySimulation(7);
@@ -155,7 +155,7 @@ describe('v0.2.4 station systems',()=>{
       }
       const ids=sim.vehicles.map(vehicle=>vehicle.id);
       expect(Math.max(...ids)-Math.min(...ids)).toBeLessThan(100);
-      expect(sim.stats.purchases).toBeGreaterThan(50);
+      expect(sim.stats.purchases).toBeGreaterThan(30);
       expect(sim.station.tanks.every(tank=>tank.stockMl>=0&&tank.stockMl<=tank.capacityMl)).toBe(true);
     }
   },30000);

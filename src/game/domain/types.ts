@@ -160,5 +160,6 @@ export interface GameState {
   deliveries?: DeliveryTrip[];
   expenses?: ExpenseTotals;
   supplierReservedLitres?: Record<string, number>;
+  market?: import('./market').MarketState;
   financeEvents?: FinanceEvent[];
 }

@@ -20,19 +20,29 @@ export function getHour(gameSeconds: number): number {
 
 // Cyclic control points keep demand continuous at midnight and make rush hours gradual.
 const TRAFFIC_CURVE: readonly [number, number][] = [
-  [0, 0.28], [4, 0.2], [6, 0.45], [8, 1.3], [10, 0.85],
-  [13, 0.95], [16, 1.05], [18, 1.45], [20, 0.9], [22, 0.48], [24, 0.28],
+  [0, 0.25], [5, 0.22], [7, 0.8], [8, 1.65], [9, 1.0], [13, 1.0],
+  [16, 1.05], [18, 1.7], [19, 1.2], [22, 0.4], [24, 0.25],
+];
+const WEEKEND_CURVE: readonly [number,number][] = [
+  [0,.35],[5,.27],[7,.45],[9,.72],[11,1.18],[14,1.38],[16,1.32],
+  [18,1.35],[19,1.12],[22,.55],[24,.35],
 ];
 
 export function getTrafficMultiplier(gameSeconds: number): number {
   const hour = getHour(gameSeconds);
-  const nextIndex = TRAFFIC_CURVE.findIndex(([pointHour]) => pointHour >= hour);
-  if (nextIndex <= 0) return TRAFFIC_CURVE[0][1];
-  const [fromHour, fromValue] = TRAFFIC_CURVE[nextIndex - 1];
-  const [toHour, toValue] = TRAFFIC_CURVE[nextIndex];
+  const day=Math.floor(gameSeconds/SECONDS_PER_DAY);
+  const curve=day%7>=5?WEEKEND_CURVE:TRAFFIC_CURVE;
+  const nextIndex = curve.findIndex(([pointHour]) => pointHour >= hour);
+  if (nextIndex <= 0) return curve[0][1];
+  const [fromHour, fromValue] = curve[nextIndex - 1];
+  const [toHour, toValue] = curve[nextIndex];
   const t = (hour - fromHour) / (toHour - fromHour);
   const eased = t * t * (3 - 2 * t);
-  return fromValue + (toValue - fromValue) * eased;
+  const block=Math.floor(gameSeconds/(3*3600));
+  const variation=(index:number)=>(((Math.imul(index+1,2654435761)>>>0)%1000)/1000-.5)*.24;
+  const phase=(gameSeconds/(3*3600))-block;
+  const noise=variation(block)*(1-phase)+variation(block+1)*phase;
+  return (fromValue + (toValue - fromValue) * eased)*(1+noise);
 }
 
 export type DayPhase = 'Ночь' | 'Утро' | 'День' | 'Вечер';

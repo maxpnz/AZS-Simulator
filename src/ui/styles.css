@@ -117,3 +117,17 @@ button:focus-visible{outline:2px solid #8cb8ff;outline-offset:2px}
 .chart-bucket{position:relative}.chart-bucket .bar{position:absolute;bottom:50%;width:25%}.chart-bucket .bar.revenue{left:4%}.chart-bucket .bar.costs{left:37%}.chart-bucket .bar.profit{left:70%}.chart-bucket .bar.profit.negative{top:50%;bottom:auto;border-radius:0 0 3px 3px}
 @media(max-width:700px){.finance-table-wrap{overflow-x:hidden}.finance-table-wrap table{min-width:0}.finance-table-wrap thead{display:none}.finance-table-wrap tbody{display:grid;gap:10px}.finance-table-wrap tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));padding:10px;border:1px solid #3d5964;border-radius:10px;background:#182b34}.finance-table-wrap th,.finance-table-wrap td{display:block;min-width:0;text-align:left;border:0;padding:3px 5px;overflow-wrap:anywhere}.finance-table-wrap th:first-child{grid-column:1/-1;font-size:15px}.finance-table-wrap td:before{display:block;color:#95b1b8;font-size:10px}.finance-table-wrap td:nth-child(2):before{content:'Литры'}.finance-table-wrap td:nth-child(3):before{content:'Выручка'}.finance-table-wrap td:nth-child(4):before{content:'Средняя цена'}.finance-table-wrap td:nth-child(5):before{content:'Себестоимость'}.finance-table-wrap td:nth-child(6):before{content:'Валовая прибыль'}.finance-table-wrap td:nth-child(7):before{content:'Маржа'}}
 .screen-content.object-panel>select{display:block;width:min(900px,100%);min-height:44px;margin:10px auto}
+/* 0.4: fixed dialog shell, scrollable content, and mobile safe areas. */
+.full-screen{height:100dvh;max-width:100vw;overflow:hidden;box-sizing:border-box}
+.full-screen *{box-sizing:border-box}
+.screen-header{position:relative;top:auto;min-width:0;padding-top:max(10px,env(safe-area-inset-top));padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right))}
+.screen-header>div{min-width:0;overflow-wrap:anywhere}
+.screen-content,.screen-content.object-panel{min-height:0;overflow-y:auto;overflow-x:hidden;padding-bottom:max(36px,calc(env(safe-area-inset-bottom) + 24px));width:100%;max-width:100%}
+.screen-content>*{min-width:0;max-width:100%}
+.supplier-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:9px;max-width:900px;margin:12px auto}
+.supplier-grid button{display:grid;gap:4px;min-width:0;padding:12px;border:1px solid #4b6972;border-radius:11px;background:#1b303a;color:#eef6f7;text-align:left}
+.supplier-grid button.selected{border-color:#7ad9b1;background:#24483e}
+.supplier-grid small{color:#aac1c6}
+.supplier-grid span{font-size:13px}
+.delivery-section,.price-row,.order-quantity{min-width:0}
+@media(max-width:500px){.screen-header h2{font-size:18px}.screen-header small{font-size:10px}.order-quantity button{flex:none}.order-quantity strong{font-size:23px}}
