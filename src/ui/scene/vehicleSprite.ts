@@ -86,6 +86,7 @@ export function createVehicleVisual(vehicle: Vehicle): VehicleVisual {
     body.roundRect(-length*.49,side*width*.26-3,5,6,2).fill(0xd64c42);
   }
   const texture=vehicleTextures.get(model.id);
+  let tankerSprite:Sprite|undefined;
   if(texture){
     const sprite=new Sprite(texture);sprite.anchor.set(.5);
     if(model.id==='pickup'){sprite.width=length*1.05;sprite.height=width*1.4;}
@@ -93,6 +94,7 @@ export function createVehicleVisual(vehicle: Vehicle): VehicleVisual {
     else if(model.id==='fuel-tanker'){sprite.width=length*1.25;sprite.height=width*1.65;}
     else{sprite.width=length*1.12;sprite.height=width*4.3;}
     root.addChild(sprite);
+    if(model.id==='fuel-tanker')tankerSprite=sprite;
   } else root.addChild(body);
   const readout=new Container();root.addChild(readout);
   const progress=new Graphics();progress.y=width*.89;readout.addChild(progress);
@@ -100,6 +102,9 @@ export function createVehicleVisual(vehicle: Vehicle): VehicleVisual {
   amount.anchor.set(.5);amount.y=width*1.22;readout.addChild(amount);
   return {root,update(next) {
     root.position.set(next.x,next.y);root.rotation=next.angle;readout.rotation=-next.angle;
+    // The tanker asset is a side view with wheels at the bottom. A 180° turn
+    // at the pad would otherwise put them above the tank.
+    if(tankerSprite)tankerSprite.scale.y=next.angle< -Math.PI*0.75?-Math.abs(tankerSprite.scale.y):Math.abs(tankerSprite.scale.y);
     const filling=(next.status==='fueling'||next.status==='finishing')&&next.deliveredMl>0;
     progress.visible=filling;amount.visible=filling;
     if(filling) {

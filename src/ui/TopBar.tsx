@@ -18,9 +18,10 @@ interface Props {
   onSpeed: () => void;
   onFuel: () => void;
   onMenu: () => void;
+  onFinance: () => void;
 }
 
-export function TopBar({ clock, time, station, stats, queueCount, paused, speed, fuelOpen, onPause, onSpeed, onFuel, onMenu }: Props) {
+export function TopBar({ clock, time, station, stats, queueCount, paused, speed, fuelOpen, onPause, onSpeed, onFuel, onMenu, onFinance }: Props) {
   const totalFuel = station.tanks.reduce((total, tank) => total + tank.stockMl / 1000, 0);
 
   return (
@@ -36,7 +37,7 @@ export function TopBar({ clock, time, station, stats, queueCount, paused, speed,
         <button type="button" className="speed active" onClick={onSpeed} aria-label={'Скорость ' + speed + '×. Следующая скорость'}>{speed}×</button>
       </div>
       <div className="top-grow" />
-      <div className="top-chip money-chip"><Icon name="wallet" /><strong>{rubles.format(station.balanceKopeks / 100)}</strong></div>
+      <button type="button" className="top-chip money-chip" onClick={onFinance} aria-label="Открыть финансы АЗС"><Icon name="wallet" /><strong>{rubles.format(station.balanceKopeks / 100)}</strong></button>
       <div className="fuel-wrap">
         <button type="button" className={`top-chip fuel-chip ${fuelOpen ? 'selected' : ''}`} onClick={onFuel} aria-expanded={fuelOpen} aria-controls="fuel-popover">
           <Icon name="fuel" /><span>Топливо</span><strong>{litres.format(totalFuel)} л</strong><Icon name="chevron" className="chevron" />

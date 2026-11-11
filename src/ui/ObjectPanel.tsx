@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { FUEL_IDS, INITIAL_STATION, MAX_FUELS_PER_PUMP } from '../game/domain/config';
 import { ECONOMY, supplierOffer, SUPPLIERS } from '../game/domain/economy';
 import type { FuelId, GameState, Vehicle } from '../game/domain/types';
@@ -11,9 +11,9 @@ interface Props {
   onPrice:(fuel:FuelId,kopeks:number)=>void;onBuildPump:(slot:number)=>boolean;onUpgradePump:(id:string)=>boolean;
   onSetPumpEnabled:(id:string,enabled:boolean)=>boolean;
   onSetPumpFuels:(id:string,fuels:FuelId[])=>boolean;onBuildTank:(fuel:FuelId)=>boolean;onUpgradeTank:(id:string)=>boolean;
-  onDelivery:(supplierId:string,sections:readonly {fuel:FuelId;litres:number}[])=>boolean;onClose:()=>void;
+  onDelivery:(supplierId:string,sections:readonly {fuel:FuelId;litres:number}[])=>boolean;onClose:()=>void;onBack:()=>void;
 }
-export function ObjectPanel({id,state,prices,vehicles,onPrice,onBuildPump,onUpgradePump,onSetPumpEnabled,onSetPumpFuels,onBuildTank,onUpgradeTank,onDelivery,onClose}:Props) {
+export function ObjectPanel({id,state,prices,vehicles,onPrice,onBuildPump,onUpgradePump,onSetPumpEnabled,onSetPumpFuels,onBuildTank,onUpgradeTank,onDelivery,onClose,onBack}:Props) {
   const station=state.station;
   const slot=id.startsWith('slot-')?Number(id.slice(5)):id.startsWith('pump-')?Number(id.slice(5))-1:-1;
   const pump=station.pumps.find(p=>p.slot===slot);
@@ -22,6 +22,9 @@ export function ObjectPanel({id,state,prices,vehicles,onPrice,onBuildPump,onUpgr
   const [supplierId,setSupplierId]=useState('regional');
   const [secondFuel,setSecondFuel]=useState<FuelId|'none'>('none');const [secondLitres,setSecondLitres]=useState(500);
   const [thirdFuel,setThirdFuel]=useState<FuelId|'none'>('none');const [thirdLitres,setThirdLitres]=useState(500);
+  const [orderStep,setOrderStep]=useState(100);
+  const [submitting,setSubmitting]=useState(false);
+  const submittingRef=useRef(false);
   const [channels,setChannels]=useState<FuelId[]>(()=>[...(pump?.fuels??['ai92','ai95'])]);
   const serving=pump?vehicles.find(v=>v.pumpId===pump.id&&(v.status==='fueling'||v.status==='finishing')):undefined;
   const pumpBusy=pump?vehicles.some(v=>v.pumpId===pump.id&&['toPump','fueling','finishing','leaving'].includes(v.status)):false;
@@ -45,8 +48,9 @@ export function ObjectPanel({id,state,prices,vehicles,onPrice,onBuildPump,onUpgr
   const name=slot>=0?pump?`Колонка №${slot+1}`:`Монтажное место №${slot+1}`:
     id==='price-sign'?'Стела с ценами':id==='tank'?'Резервуары':id==='delivery'?'Зона разгрузки':id==='shop'?'Магазин':'Строительство';
   const act=(success:boolean,message:string)=>{if(success){setNotice(message);setError('');}else setError('Действие недоступно: проверьте баланс, занятость, вместимость и наличие бригады.');};
-  return <div className="object-panel" role="dialog" aria-label={name}>
-    <div className="object-heading"><div><small>v{currentVersion} · ЖИВАЯ СИМУЛЯЦИЯ</small><h2>{name}</h2></div><button type="button" onClick={onClose} aria-label="Закрыть карточку">×</button></div>
+  return <section className="full-screen" role="dialog" aria-label={name}>
+    <header className="screen-header"><button type="button" onClick={onBack}>← Меню</button><div><h2>{name}</h2><small>АЗС Simulator · v{currentVersion}</small></div><button type="button" onClick={onClose} aria-label="Вернуться к игре">×</button></header>
+    <div className="screen-content object-panel">
     {id==='price-sign'&&<>
       <p>Цены влияют на фактическую выручку. Погасшая цена означает, что топлива нет в доступном резервуаре.</p>
       {FUEL_IDS.map(fuel=><div className="price-row" key={fuel}><span>{station.fuels[fuel].name}</span>
@@ -86,20 +90,23 @@ export function ObjectPanel({id,state,prices,vehicles,onPrice,onBuildPump,onUpgr
     {id==='delivery'&&<>
       <p>Выберите поставщика и до трёх сортов. Каждая секция вмещает до 8000 л, общий объём — до 24 000 л. Цена закрепляется при заказе. Слив: 36 л за реальную секунду при 1×, без учёта подъезда и подключения.</p>
       <select value={supplierId} onChange={e=>setSupplierId(e.target.value)} aria-label="Поставщик">{SUPPLIERS.map(s=><option key={s.id} value={s.id}>{s.name} · {s.etaGameSeconds/3600} игровых ч</option>)}</select>
+      <div className="order-steps"><span>Шаг изменения:</span>{[50,100,500,1000].map(step=><button type="button" key={step} className={orderStep===step?'active':''} onClick={()=>setOrderStep(step)}>{step} л</button>)}</div>
       {([[chosenFuel,deliveryLitres,setChosenFuel,setDeliveryLitres],[secondFuel,secondLitres,setSecondFuel,setSecondLitres],[thirdFuel,thirdLitres,setThirdFuel,setThirdLitres]] as const).map(([fuel,amount,setFuel,setAmount],index)=><div className="delivery-section" key={index}>
         <select value={fuel} onChange={e=>setFuel(e.target.value as FuelId & 'none')} aria-label={`Сорт секции ${index+1}`}>
           {index>0&&<option value="none">Без секции</option>}{FUEL_IDS.map(f=><option key={f} value={f}>{station.fuels[f].name}</option>)}
         </select>
-        {fuel!=='none'&&<><input type="number" min="1" max="8000" value={amount} onChange={e=>setAmount(Number(e.target.value))} aria-label={`Литры секции ${index+1}`}/>
-          <small>Поставщик: {offerFor(fuel)?.availableLitres??0} л · свободно у нас: {Math.max(0,Math.floor(freeFor(fuel)/1000))} л · {rubles(offerFor(fuel)?.priceKopeks??0)}/л</small></>}
+        {fuel!=='none'&&<><div className="order-quantity"><button type="button" disabled={amount<=0} onClick={()=>setAmount(Math.max(0,amount-orderStep))} aria-label={`Уменьшить объём секции ${index+1}`}>−</button><strong>{amount.toLocaleString('ru-RU')} л</strong><button type="button" disabled={amount+orderStep>Math.min(8000,Math.max(0,Math.floor(freeFor(fuel)/1000)-(requestedByFuel(fuel)-amount)),Math.max(0,(offerFor(fuel)?.availableLitres??0)-(requestedByFuel(fuel)-amount)),24000-cargoEntries.reduce((sum,[,litres])=>sum+litres,0)+amount)} onClick={()=>setAmount(amount+orderStep)} aria-label={`Увеличить объём секции ${index+1}`}>+</button></div>
+          <small>Поставщик: {offerFor(fuel)?.availableLitres??0} л · свободная ёмкость: {Math.max(0,Math.floor(freeFor(fuel)/1000))} л · {rubles(offerFor(fuel)?.priceKopeks??0)}/л</small></>}
       </div>)}
       {!station.tanks.some(t=>t.status==='active')&&<p>Перед заказом постройте резервуар нужного сорта.</p>}
-      <button type="button" className="panel-action" disabled={!validCargo} onClick={()=>act(onDelivery(supplierId,cargoEntries.map(([fuel,amount])=>({fuel,litres:amount}))),'Поставка заказана.')}>Заказать · {rubles(orderCost)}</button>
+      <p>Стоимость заказа: <strong>{rubles(orderCost)}</strong> · Доступный баланс: <strong>{rubles(station.balanceKopeks)}</strong></p>
+      <button type="button" className="panel-action" disabled={!validCargo||submitting} onClick={()=>{if(submittingRef.current)return;submittingRef.current=true;setSubmitting(true);const ok=onDelivery(supplierId,cargoEntries.map(([fuel,amount])=>({fuel,litres:amount})));act(ok,'Поставка заказана.');if(!ok){submittingRef.current=false;setSubmitting(false);}}}>Заказать бензовоз · {rubles(orderCost)}</button>
       {state.deliveries?.map(d=><p key={d.id}>{d.id} · {SUPPLIERS.find(s=>s.id===d.supplierId)?.name??'Поставка'}: {{enroute:'в пути',waiting:'ожидает площадку',approaching:'подъезжает',connecting:'подключает рукав',unloading:'разгрузка',disconnecting:'отключает рукав',leaving:'выезжает'}[d.status??'enroute']} · осталось {litres(d.remainingMl??0,0)} · слив ~{Math.ceil((d.remainingMl??0)/(ECONOMY.unloadMlPerGameSecond*60))} реальных с при 1×</p>)}
     </>}
     {id==='expansion'&&<><p>Две строительные бригады. Новые ТРК приобретаются через пустые монтажные места под навесом; резервуары — через карточку люков.</p>
       {(station.jobs??[]).map(j=><p key={j.id}>{j.targetId}: {j.status==='active'?'в работе':'в очереди'} · {Math.ceil(j.remainingSeconds)} игровых с</p>)}</>}
     {id==='shop'&&<p>Магазин пока декоративный объект станции. Продажи магазина в экономике не учитываются.</p>}
     {notice&&<p role="status">{notice}</p>}{error&&<p className="panel-error" role="alert">{error}</p>}
-  </div>;
+    </div>
+  </section>;
 }

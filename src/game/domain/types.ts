@@ -72,6 +72,17 @@ export interface ExpenseTotals {
   stockValueKopeks: Record<FuelId, number>;
 }
 
+export type FinanceKind = 'sale' | 'lighting' | 'pumpElectricity' | 'tankMaintenance' | 'pumping' | 'purchase' | 'construction' | 'upgrade';
+export interface FinanceEvent {
+  gameSeconds: number;
+  kind: FinanceKind;
+  amountKopeks: number;
+  costKopeks?: number;
+  fuel?: FuelId;
+  volumeMl?: number;
+  objectId?: string;
+}
+
 export type TimeSpeed = 1 | 2 | 5 | 10;
 
 export interface ClockSnapshot {
@@ -149,4 +160,5 @@ export interface GameState {
   deliveries?: DeliveryTrip[];
   expenses?: ExpenseTotals;
   supplierReservedLitres?: Record<string, number>;
+  financeEvents?: FinanceEvent[];
 }

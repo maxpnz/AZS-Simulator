@@ -11,15 +11,17 @@ describe('game clock', () => {
   it('advances by fixed simulation steps and respects pause and speed', () => {
     const engine = new GameEngine();
     const start = engine.getSnapshot();
-    engine.pulse(0);
-    engine.pulse(1000);
-    expect(engine.getSnapshot()).toBeCloseTo(start + 60, 5);
+    const now=performance.now();
+    engine.resetClock(now);
+    engine.pulse(now+1000);
+    expect(engine.getSnapshot()).toBeCloseTo(start + 6, 5);
     engine.setControls(true, 1);
-    engine.pulse(1500);
-    expect(engine.getSnapshot()).toBeCloseTo(start + 60, 5);
+    engine.pulse(now+1500);
+    expect(engine.getSnapshot()).toBeCloseTo(start + 6, 5);
     engine.setControls(false, 2);
-    engine.pulse(1600);
-    expect(engine.getSnapshot()).toBeCloseTo(start + 72, 5);
+    engine.resetClock(now+1500);
+    engine.pulse(now+1600);
+    expect(engine.getSnapshot()).toBeCloseTo(start + 18, 5);
   });
 
   it('has continuous traffic at midnight and less traffic at night', () => {

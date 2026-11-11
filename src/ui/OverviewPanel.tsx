@@ -1,16 +1,16 @@
 import type { GameState } from '../game/domain/types';
 
 const money=(kopeks:number)=>(kopeks/100).toLocaleString('ru-RU',{maximumFractionDigits:2})+' ₽';
-interface Props { state:GameState; onClose:()=>void }
-export function OverviewPanel({state,onClose}:Props) {
+interface Props { state:GameState; onClose:()=>void; onBack:()=>void }
+export function OverviewPanel({state,onClose,onBack}:Props) {
   const {stats,recentSales,station,queueIds}=state;
   const expenses=state.expenses;
   const operating=(expenses?.lightingKopeks??0)+(expenses?.pumpElectricityKopeks??0)+(expenses?.tankMaintenanceKopeks??0)+(expenses?.pumpingKopeks??0);
   const inTransit=(state.deliveries??[]).reduce((sum,trip)=>sum+Object.entries(trip.remainingCargo??trip.cargo).reduce((cost,[fuel,ml])=>
     cost+Math.round((ml??0)*(trip.unitPrices?.[fuel as keyof typeof station.fuels]??station.fuels[fuel as keyof typeof station.fuels].wholesaleKopeks)/1000),0),0);
-  return <div className="object-panel overview-panel" role="dialog" aria-label="Обзор АЗС">
-    <div className="object-heading"><div><small>ЖИВАЯ СТАТИСТИКА</small><h2>Обзор АЗС</h2></div>
-      <button type="button" onClick={onClose} aria-label="Закрыть обзор">×</button></div>
+  return <section className="full-screen" role="dialog" aria-label="Обзор АЗС">
+    <header className="screen-header"><button type="button" onClick={onBack}>← Меню</button><div><h2>Обзор АЗС</h2><small>Трафик, продажи и остатки</small></div><button type="button" onClick={onClose} aria-label="Закрыть обзор">×</button></header>
+    <div className="screen-content overview-panel">
     <p>С начала игры или миграции сохранения. Поток трассы и заезды считаются отдельно.</p>
     <div className="overview-grid">
       <div><strong>{stats.passed}</strong><span>проехало мимо</span></div>
@@ -42,5 +42,6 @@ export function OverviewPanel({state,onClose}:Props) {
     {recentSales.length ? recentSales.map((sale)=><div className="overview-sale" key={sale.vehicleId}>
       <span>{station.fuels[sale.fuel].name} · {(sale.volumeMl/1000).toFixed(1)} л</span><strong>{money(sale.revenueKopeks)}</strong>
     </div>) : <p>Продаж пока нет.</p>}
-  </div>;
+    </div>
+  </section>;
 }

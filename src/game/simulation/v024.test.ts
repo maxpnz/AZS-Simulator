@@ -79,7 +79,7 @@ describe('v0.2.4 station systems',()=>{
     const old={...sim.exportSave(),version:'0.2.4'};
     const restored=StationSimulation.importSave(old);
     expect(restored.snapshot()).toEqual(sim.snapshot());
-    expect(restored.exportSave().version).toBe('0.3.0');
+    expect(restored.exportSave().version).toBe('0.3.2');
   });
   it('stops a sale at the last millilitre and charges only what was delivered',()=>{
     const sim=legacySimulation(7);

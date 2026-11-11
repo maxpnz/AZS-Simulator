@@ -6,8 +6,11 @@ const GAME_SECONDS_PER_REAL_SECOND=60;
 export class GameEngine {
   private simulation=new StationSimulation();
   private lastSaved=0;
+  private lastDiagnostic=0;
+  private saveHealthy=true;
   constructor(){
-    if(typeof localStorage!=='undefined')try{const data=localStorage.getItem('azs-simulator-save');if(data)this.simulation=StationSimulation.importSave(JSON.parse(data));}catch{this.simulation=new StationSimulation();}
+    if(typeof localStorage!=='undefined')try{const data=localStorage.getItem('azs-simulator-save');if(data)this.simulation=StationSimulation.importSave(JSON.parse(data));}catch{this.simulation=new StationSimulation();this.saveHealthy=false;}
+    if(typeof localStorage!=='undefined')try{const speed=Number(localStorage.getItem('azs-simulator-speed'));if([1,2,5,10].includes(speed))this.speed=speed as TimeSpeed;}catch{/* storage unavailable */}
   }
   private speed:TimeSpeed=1;
   private paused=false;
@@ -19,6 +22,7 @@ export class GameEngine {
   private stateListeners=new Map<(state:GameState)=>void,{interval:number;last:number}>();
   getSnapshot():number {return this.simulation.gameSeconds;}
   getState():GameState {return this.simulation.snapshot();}
+  getSpeed():TimeSpeed {return this.speed;}
   subscribe(listener:(gameSeconds:number)=>void):()=>void {
     this.listeners.add(listener);return ()=>this.listeners.delete(listener);
   }
@@ -26,28 +30,34 @@ export class GameEngine {
     this.stateListeners.set(listener,{interval,last:-Infinity});
     return ()=>this.stateListeners.delete(listener);
   }
-  setRetailPrice(fuel:FuelId,kopeks:number):boolean {return this.simulation.setRetailPrice(fuel,kopeks);}
-  setPumpFuels(pumpId:string,fuels:readonly FuelId[]):boolean {return this.simulation.setPumpFuels(pumpId,fuels);}
-  buildPump(slot:number):boolean {return this.simulation.buildPump(slot);}
-  upgradePump(id:string):boolean {return this.simulation.upgradePump(id);}
-  setPumpEnabled(id:string,enabled:boolean):boolean {return this.simulation.setPumpEnabled(id,enabled);}
-  buildTank(fuel:FuelId):boolean {return this.simulation.buildTank(fuel);}
-  upgradeTank(id:string):boolean {return this.simulation.upgradeTank(id);}
-  orderDelivery(fuel:FuelId,litres:number):boolean {return this.simulation.orderDelivery(fuel,litres);}
+  private action(result:boolean):boolean {if(result){this.save();this.publishState();}return result;}
+  setRetailPrice(fuel:FuelId,kopeks:number):boolean {return this.action(this.simulation.setRetailPrice(fuel,kopeks));}
+  setPumpFuels(pumpId:string,fuels:readonly FuelId[]):boolean {return this.action(this.simulation.setPumpFuels(pumpId,fuels));}
+  buildPump(slot:number):boolean {return this.action(this.simulation.buildPump(slot));}
+  upgradePump(id:string):boolean {return this.action(this.simulation.upgradePump(id));}
+  setPumpEnabled(id:string,enabled:boolean):boolean {return this.action(this.simulation.setPumpEnabled(id,enabled));}
+  buildTank(fuel:FuelId):boolean {return this.action(this.simulation.buildTank(fuel));}
+  upgradeTank(id:string):boolean {return this.action(this.simulation.upgradeTank(id));}
+  orderDelivery(fuel:FuelId,litres:number):boolean {return this.action(this.simulation.orderDelivery(fuel,litres));}
   getOffers(fuel:FuelId) {return this.simulation.getOffers(fuel);}
-  orderTrip(supplierId:string,sections:readonly {fuel:FuelId;litres:number}[]):boolean {return this.simulation.orderTrip(supplierId,sections);}
+  orderTrip(supplierId:string,sections:readonly {fuel:FuelId;litres:number}[]):boolean {return this.action(this.simulation.orderTrip(supplierId,sections));}
   exportSave():string {return JSON.stringify(this.simulation.exportSave());}
   importSave(json:string):void {this.simulation=StationSimulation.importSave(JSON.parse(json));this.publishState();}
-  save():void {if(typeof localStorage!=='undefined')localStorage.setItem('azs-simulator-save',this.exportSave());}
+  save():void {if(this.saveHealthy&&typeof localStorage!=='undefined')try{localStorage.setItem('azs-simulator-save',this.exportSave());}catch{/* storage quota or access denied */}}
   loadSaved():boolean {if(typeof localStorage==='undefined')return false;const data=localStorage.getItem('azs-simulator-save');if(!data)return false;try{this.importSave(data);return true;}catch{return false;}}
   reset():void {
-    this.simulation=new StationSimulation();this.accumulator=0;this.paused=false;this.speed=1;
+    this.simulation=new StationSimulation();this.accumulator=0;this.paused=false;this.speed=1;this.saveHealthy=true;
     this.lastRealTime=performance.now();
     this.save();this.publishState();
     for(const listener of this.listeners)listener(this.simulation.gameSeconds);
   }
   private publishState():void {const state=this.simulation.snapshot();for(const listener of this.stateListeners.keys())listener(state);}
-  setControls(paused:boolean,speed:TimeSpeed):void {this.paused=paused;this.speed=speed;}
+  setControls(paused:boolean,speed:TimeSpeed):void {
+    if(paused!==this.paused){this.accumulator=0;this.lastRealTime=performance.now();}
+    this.paused=paused;this.speed=speed;
+    if(typeof localStorage!=='undefined')try{localStorage.setItem('azs-simulator-speed',String(speed));}catch{/* storage unavailable */}
+  }
+  resetClock(now=performance.now()):void {this.lastRealTime=now;this.accumulator=0;}
   start():void {
     if(this.timer) return;
     this.lastRealTime=performance.now();this.lastPublished=this.lastRealTime;
@@ -55,20 +65,22 @@ export class GameEngine {
   }
   stop():void {if(this.timer) clearInterval(this.timer);this.timer=undefined;}
   pulse(now:number):void {
-    const elapsed=Math.max(0,now-this.lastRealTime);this.lastRealTime=now;
+    const elapsed=Math.min(100,Math.max(0,now-this.lastRealTime));this.lastRealTime=now;
     if(!this.paused) {
       this.accumulator+=elapsed;
       let steps=0;
-      while(this.accumulator>=FIXED_STEP_MS&&steps<200) {
+      while(this.accumulator>=FIXED_STEP_MS&&steps<2) {
         this.simulation.step(FIXED_STEP_MS/1000*GAME_SECONDS_PER_REAL_SECOND*this.speed);
         this.accumulator-=FIXED_STEP_MS;steps++;
       }
+      if(steps===2)this.accumulator=0;
     } else this.accumulator=0;
     if(now-this.lastPublished>=200) {
       this.lastPublished=now;
       for(const listener of this.listeners) listener(this.simulation.gameSeconds);
     }
     if(now-this.lastSaved>=5000){this.lastSaved=now;this.save();}
+    if(import.meta.env.DEV&&now-this.lastDiagnostic>=5000){this.lastDiagnostic=now;for(const issue of this.simulation.trafficDiagnostics())console.debug('[AZS traffic]',issue);}
     for(const [listener,meta] of this.stateListeners) if(now-meta.last>=meta.interval) {
       meta.last=now;listener(this.simulation.snapshot());
     }

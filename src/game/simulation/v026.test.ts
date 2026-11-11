@@ -50,7 +50,7 @@ describe('v0.2.6 world geometry and rendering data',()=>{
     expect(restored.vehicles).toHaveLength(sim.vehicles.length);
     for(let i=0;i<2000;i++)restored.step(30);
     expect(restored.stats.purchases).toBeGreaterThan(sim.stats.purchases);
-    expect(restored.exportSave().version).toBe('0.3.0');
+    expect(restored.exportSave().version).toBe('0.3.2');
   });
   it('moves an old stationary customer onto the matching new stop without changing its sale',()=>{
     const sim=legacySimulation(31);

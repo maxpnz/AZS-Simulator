@@ -1,25 +1,16 @@
-import { App as CapacitorApp } from '@capacitor/app';
-import { Capacitor } from '@capacitor/core';
+import { useState } from 'react';
 import { Icon } from './Icon';
 import { version as currentVersion } from '../../package.json';
-const sections = [
-  ['Обзор','Трафик, продажи и остатки'],['Цены','Редактор цен на стеле'],['Закупки','Заказ бензовоза'],['Топливо','Остатки в резервуарах'],
-  ['Развитие','Бригады и строительство'],['Финансы','Появятся в следующих версиях'],['Отчёты','Текущие продажи и трафик'],
-  ['Настройки','Жесты: один палец — сдвиг; два пальца — масштаб'],
-  ['Строительство','Бригады и монтажные места'],['Сохранить','Записать текущее состояние'],['Загрузить','Вернуться к последнему сохранению'],['Персонал','Появится в следующих версиях'],
-  ['Маркетинг','Появится в следующих версиях'],['Задачи','Появятся в следующих версиях'],
-] as const;
-interface Props { onClose: () => void; onSection: (name: string) => void; onReset: () => void }
-export function GameMenu({ onClose, onSection, onReset }: Props) {
-  const exit = () => { if (Capacitor.getPlatform() === 'android') void CapacitorApp.exitApp(); else onClose(); };
-  return <div className="menu-backdrop" onPointerDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-    <nav className="menu-card" role="dialog" aria-label="Меню игры">
-      <button type="button" className="menu-close" onClick={onClose} aria-label="Закрыть меню"><Icon name="close" /></button>
-      <div className="menu-kicker">АЗС SIMULATOR · v{currentVersion}</div><h2>Меню</h2>
-      <div className="menu-sections">{sections.map(([name,description]) =>
-        <button type="button" key={name} onClick={() => { onSection(name); onClose(); }}><strong>{name}</strong><small>{description}</small></button>)}</div>
-      <button type="button" className="menu-reset" onClick={()=>{if(window.confirm('Сбросить игру? Деньги, объекты, топливо, статистика и сохранение будут удалены.')){onReset();onClose();}}}>Сбросить игру</button>
-      <button type="button" className="menu-exit" onClick={exit}><Icon name="exit" /> Выйти из приложения</button>
-    </nav>
-  </div>;
+interface Props { onClose:()=>void; onSection:(name:string)=>void; onReset:()=>void; settings?:boolean; onBack?:()=>void }
+export function GameMenu({onClose,onSection,onReset,settings=false,onBack}:Props){
+  const [confirmReset,setConfirmReset]=useState(false);
+  return <section className="full-screen" role="dialog" aria-label={settings?'Настройки':'Главное меню'}>
+    <header className="screen-header">{settings?<button type="button" onClick={onBack}>← Меню</button>:<span/>}<div><h2>{settings?'Настройки':'Главное меню'}</h2><small>АЗС Simulator · v{currentVersion}</small></div><button type="button" onClick={onClose} aria-label="Вернуться к игре"><Icon name="close" /></button></header>
+    <div className="screen-content menu-content">{settings?<>
+      <div className="settings-card"><h3>Управление камерой</h3><p>Сдвигайте сцену одним пальцем или мышью. Масштабируйте двумя пальцами или колесом мыши. Кнопка «Сброс камеры» возвращает исходный вид.</p></div>
+      <div className="settings-card"><h3>Версия</h3><p>v{currentVersion}</p></div>
+      <div className="settings-card"><h3>Прогресс</h3><button type="button" className="menu-reset" onClick={()=>setConfirmReset(true)}>Сбросить прогресс</button></div>
+      {confirmReset&&<div className="reset-dialog" role="alertdialog" aria-label="Подтверждение сброса"><h3>Начать новую игру?</h3><p>Деньги, объекты, топливо, статистика и сохранение будут заменены начальным состоянием.</p><div><button type="button" onClick={()=>setConfirmReset(false)}>Отмена</button><button type="button" className="menu-reset" onClick={()=>{onReset();setConfirmReset(false);onClose();}}>Сбросить</button></div></div>}
+    </>:<div className="menu-grid">{[['Обзор','Продажи, трафик и остатки'],['Цены','Розничные цены на стеле'],['Настройки','Управление и версия']] .map(([name,description])=><button type="button" key={name} onClick={()=>onSection(name)}><strong>{name}</strong><small>{description}</small></button>)}</div>}</div>
+  </section>;
 }

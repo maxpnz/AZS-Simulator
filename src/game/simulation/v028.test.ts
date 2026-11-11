@@ -33,7 +33,7 @@ it('preserves the cash and active work of a 0.2.7 save',()=>{
  expect(restored.station.tanks).toHaveLength(2);
  expect(restored.station.jobs).toEqual(old.station.jobs);
  expect(restored.deliveries).toEqual(old.deliveries);
- expect(restored.exportSave().version).toBe('0.3.0');
+ expect(restored.exportSave().version).toBe('0.3.2');
 });
 it('resets the saved party and its controls',()=>{
  const data=new Map<string,string>();

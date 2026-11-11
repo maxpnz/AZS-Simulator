@@ -5,7 +5,7 @@ import { deliveryPose } from '../domain/deliveryMotion';
 import { footprintBlocked, sweptBlocked } from './collisions';
 import { modelById } from '../domain/vehicleModels';
 import { ECONOMY, levelTariff, pumpLevel, supplierOffer, SUPPLIERS, tankLevel } from '../domain/economy';
-import type { ConstructionJob, DeliveryTrip, ExpenseTotals, FuelId, GameState, Pump, Sale, StationState, TrafficStats, Vehicle } from '../domain/types';
+import type { ConstructionJob, DeliveryTrip, ExpenseTotals, FinanceEvent, FinanceKind, FuelId, GameState, Pump, Sale, StationState, TrafficStats, Vehicle } from '../domain/types';
 import { INITIAL_GAME_SECONDS } from './time';
 import { createVehicle, passengerTrafficMultiplier, priceForVolume, purchaseLimitMl, RandomSource, truckTrafficMultiplier } from './traffic';
 
@@ -14,6 +14,7 @@ const EMPTY_STATS: TrafficStats = { passed: 0, visited: 0, purchases: 0, leftQue
 const EMPTY_EXPENSES: ExpenseTotals = {lightingKopeks:0,pumpElectricityKopeks:0,tankMaintenanceKopeks:0,pumpingKopeks:0,
   lightingRemainder:0,pumpRemainder:0,tankRemainder:0,pumpingRemainder:0,purchasesKopeks:0,capitalKopeks:0,
   stockValueKopeks:Object.fromEntries(FUEL_IDS.map(id=>[id,0])) as Record<FuelId,number>};
+const FINANCE_KINDS:FinanceKind[]=['sale','lighting','pumpElectricity','tankMaintenance','pumping','purchase','construction','upgrade'];
 const PUMP_ROUTES: Record<string, string[]> = Object.fromEntries(PUMP_SLOTS.map(slot=>[
   `pump-${slot.slot+1}`,[`pump_${slot.slot+1}_approach`,`pump_${slot.slot+1}_turn`,`pump_${slot.slot+1}_align`,`pump_${slot.slot+1}`],
 ]));
@@ -56,6 +57,7 @@ export class StationSimulation {
   readonly vehicles: Vehicle[]=[];
   readonly queueIds: number[]=[];
   readonly recentSales: Sale[]=[];
+  readonly financeEvents: FinanceEvent[]=[];
   readonly deliveries: DeliveryTrip[]=[];
   readonly supplierReservedLitres: Record<string,number>={};
   readonly expenses: ExpenseTotals={...EMPTY_EXPENSES,stockValueKopeks:{...EMPTY_EXPENSES.stockValueKopeks}};
@@ -66,11 +68,15 @@ export class StationSimulation {
   private nextVehicleId=0;
   private nextSpawnSeconds=INITIAL_GAME_SECONDS;
   private finishedIds=new Set<number>();
+  private stallInfo=new Map<number,{x:number;y:number;seconds:number}>();
 
   constructor(seed:number=TRAFFIC_CONFIG.seed,station:StationState=cloneInitialStation()) {
     this.rng=new RandomSource(seed);
     this.station=station;
     for(const id of FUEL_IDS)this.expenses.stockValueKopeks[id]=priceForVolume(station.fuels[id].stockMl,station.fuels[id].wholesaleKopeks);
+  }
+  private record(kind:FinanceKind,amountKopeks:number,fuel?:FuelId,volumeMl?:number,objectId?:string):void {
+    if(amountKopeks>0)this.financeEvents.push({gameSeconds:this.gameSeconds,kind,amountKopeks,fuel,volumeMl,objectId});
   }
   snapshot(): GameState {
     return {
@@ -85,18 +91,25 @@ export class StationSimulation {
         unitPrices:trip.unitPrices?{...trip.unitPrices}:undefined,sections:trip.sections?.map(section=>({...section}))})),
       expenses:{...this.expenses,stockValueKopeks:{...this.expenses.stockValueKopeks}},
       supplierReservedLitres:{...this.supplierReservedLitres},
+      // Append-only ledger: sharing it avoids cloning years of history for each visual frame.
+      financeEvents:this.financeEvents,
     };
   }
   exportSave() {
-    return {version:'0.3.0',state:this.snapshot(),rngState:this.rng.getState(),nextVehicleId:this.nextVehicleId,
+    const state={...this.snapshot(),financeEvents:this.financeEvents.map(event=>{
+      const row:(number|string|null)[]=[event.gameSeconds,FINANCE_KINDS.indexOf(event.kind),event.amountKopeks];
+      if(event.costKopeks!==undefined||event.fuel!==undefined||event.volumeMl!==undefined||event.objectId!==undefined)row.push(event.costKopeks??null,event.fuel?FUEL_IDS.indexOf(event.fuel):null,event.volumeMl??null,event.objectId??null);
+      return row;
+    })};
+    return {version:'0.3.2',state,rngState:this.rng.getState(),nextVehicleId:this.nextVehicleId,
       nextSpawnSeconds:this.nextSpawnSeconds,nextJobId:this.nextJobId,nextDeliveryId:this.nextDeliveryId};
   }
   static importSave(raw:unknown):StationSimulation {
     if(!raw||typeof raw!=='object')throw new Error('Invalid save');
     const save=raw as {version?:string;state?:GameState;rngState?:number;nextVehicleId?:number;nextSpawnSeconds?:number;nextJobId?:number;nextDeliveryId?:number};
     const state=(save.state??raw) as GameState;
-    if(!state.station||!Number.isFinite(state.gameSeconds))throw new Error('Invalid save state');
-    const station=save.version==='0.2.8'||save.version==='0.3.0'?cloneInitialStation():cloneLegacyStation();
+    if(!state.station||!Number.isFinite(state.gameSeconds)||!Array.isArray(state.vehicles)||!Array.isArray(state.queueIds)||!state.station.fuels||!Array.isArray(state.station.tanks)||!Array.isArray(state.station.pumps))throw new Error('Invalid save state');
+    const station=['0.2.8','0.3.0','0.3.1','0.3.2'].includes(save.version??'')?cloneInitialStation():cloneLegacyStation();
     if(Number.isFinite(state.station.balanceKopeks))station.balanceKopeks=state.station.balanceKopeks;
     for(const id of FUEL_IDS)if(state.station.fuels?.[id])station.fuels[id]={...station.fuels[id],...state.station.fuels[id]};
     station.tanks=(state.station.tanks??station.tanks).map(t=>({...t,status:t.status??'active'}));
@@ -108,6 +121,14 @@ export class StationSimulation {
     sim.vehicles.push(...(state.vehicles??[]).map(v=>({...v,modelId:v.modelId??'budget-sedan',route:[...v.route]})));
     sim.queueIds.push(...(state.queueIds??[]).filter(id=>sim.vehicles.some(v=>v.id===id)));
     sim.recentSales.push(...(state.recentSales??[]).map(sale=>({...sale})));
+    if(state.financeEvents!==undefined){
+      if(!Array.isArray(state.financeEvents))throw new Error('Invalid finance history');
+      for(const rawEvent of state.financeEvents){
+        const event=Array.isArray(rawEvent)?{gameSeconds:rawEvent[0],kind:FINANCE_KINDS[rawEvent[1]],amountKopeks:rawEvent[2],costKopeks:rawEvent[3]??undefined,fuel:rawEvent[4]===null||rawEvent[4]===undefined?undefined:FUEL_IDS[rawEvent[4]],volumeMl:rawEvent[5]??undefined,objectId:rawEvent[6]??undefined}:rawEvent as FinanceEvent;
+        if(!Number.isFinite(event.gameSeconds)||!Number.isFinite(event.amountKopeks)||!FINANCE_KINDS.includes(event.kind))throw new Error('Invalid finance event');
+        sim.financeEvents.push({...event});
+      }
+    }
     sim.deliveries.push(...(state.deliveries??[]).map(trip=>{
       const legacyRemaining={...trip.cargo};
       const onlyFuel=FUEL_IDS.find(id=>trip.cargo[id]!==undefined);
@@ -126,7 +147,7 @@ export class StationSimulation {
       vehicle.costKopeks=priceForVolume(vehicle.deliveredMl,station.fuels[vehicle.fuel].wholesaleKopeks);
       if(!state.expenses)sim.stats.costKopeks+=vehicle.costKopeks;
     }
-    if(save.version!=='0.2.7'&&save.version!=='0.2.8'&&save.version!=='0.3.0')for(const v of sim.vehicles){
+    if(!['0.2.7','0.2.8','0.3.0','0.3.1','0.3.2'].includes(save.version??''))for(const v of sim.vehicles){
       const pump=v.pumpId&&sim.station.pumps.find(p=>p.id===v.pumpId);
       if(v.status==='fueling'||v.status==='finishing'){
         if(pump){const point=PUMP_SLOTS[pump.slot];v.x=point.stopX;v.y=point.stopY;v.angle=Math.PI;}
@@ -170,6 +191,7 @@ export class StationSimulation {
     if(!canPlacePump(this.station.pumps,slot)||this.station.balanceKopeks<2_500_000)return false;
     this.station.balanceKopeks-=2_500_000;
     this.expenses.capitalKopeks+=2_500_000;
+    this.record('construction',2_500_000,undefined,undefined,`pump-${slot+1}`);
     const fuels=(['ai92','ai95'] as FuelId[]).filter(fuel=>this.station.tanks.some(t=>t.fuel===fuel&&t.status==='active'));
     const pump:Pump={id:`pump-${slot+1}`,slot,fuels,status:'building',flowMultiplier:1,enabled:true};
     this.station.pumps.push(pump);this.addJob('pump',pump.id,360);return true;
@@ -177,19 +199,20 @@ export class StationSimulation {
   upgradePump(id:string):boolean {
     const pump=this.station.pumps.find(p=>p.id===id);
     if(!pump||pump.status==='building'||pump.status==='upgrading'||this.isOccupied(pump)||this.station.balanceKopeks<1_200_000)return false;
-    this.station.balanceKopeks-=1_200_000;this.expenses.capitalKopeks+=1_200_000;pump.status='upgrading';this.addJob('pump-upgrade',id,10_800);return true;
+    this.station.balanceKopeks-=1_200_000;this.expenses.capitalKopeks+=1_200_000;this.record('upgrade',1_200_000,undefined,undefined,id);pump.status='upgrading';this.addJob('pump-upgrade',id,10_800);return true;
   }
   buildTank(fuel:FuelId):boolean {
     if(!FUEL_IDS.includes(fuel)||this.station.balanceKopeks<4_000_000)return false;
     this.station.balanceKopeks-=4_000_000;
     this.expenses.capitalKopeks+=4_000_000;
+    this.record('construction',4_000_000,fuel,undefined,`tank-${fuel}`);
     const tank={id:`tank-${fuel}-${this.station.tanks.length+1}`,fuel,capacityMl:2_500_000,stockMl:0,status:'building' as const};
     this.station.tanks.push(tank);this.addJob('tank',tank.id,900);return true;
   }
   upgradeTank(id:string):boolean {
     const tank=this.station.tanks.find(t=>t.id===id);
     if(!tank||tank.status!=='active'||this.station.balanceKopeks<2_000_000||this.vehicles.some(v=>v.fuel===tank.fuel&&(v.status==='fueling'||v.status==='finishing'||v.status==='toPump')))return false;
-    this.station.balanceKopeks-=2_000_000;this.expenses.capitalKopeks+=2_000_000;tank.status='upgrading';this.addJob('tank-upgrade',id,720);return true;
+    this.station.balanceKopeks-=2_000_000;this.expenses.capitalKopeks+=2_000_000;this.record('upgrade',2_000_000,tank.fuel,undefined,id);tank.status='upgrading';this.addJob('tank-upgrade',id,720);return true;
   }
   orderDelivery(fuel:FuelId,litres:number):boolean {
     if(!FUEL_IDS.includes(fuel)||!Number.isInteger(litres)||litres<=0||litres>20_000)return false;
@@ -198,6 +221,7 @@ export class StationSimulation {
     const free=this.station.tanks.filter(t=>t.fuel===fuel&&t.status==='active').reduce((sum,t)=>sum+t.capacityMl-t.stockMl,0)-pending;
     if(ml>free||cost>this.station.balanceKopeks)return false;
     this.station.balanceKopeks-=cost;this.expenses.purchasesKopeks+=cost;
+    this.record('purchase',cost,fuel,ml);
     this.deliveries.push({id:`delivery-${this.nextDeliveryId++}`,cargo:{[fuel]:ml},remainingCargo:{[fuel]:ml},sections:[{fuel,totalMl:ml,remainingMl:ml}],unitPrices:{[fuel]:this.station.fuels[fuel].wholesaleKopeks},supplierId:'legacy',paidKopeks:cost,
       arrivalGameSeconds:this.gameSeconds+7200,status:'enroute',remainingMl:ml,totalMl:ml});
     return true;
@@ -231,6 +255,7 @@ export class StationSimulation {
     const sections=entries.map(([fuel,litres])=>({fuel,totalMl:litres*1000,remainingMl:litres*1000}));
     const totalMl=entries.reduce((sum,[,litres])=>sum+litres*1000,0);
     this.station.balanceKopeks-=cost;this.expenses.purchasesKopeks+=cost;
+    for(const [fuel,litres] of totals)this.record('purchase',litres*(unitPrices[fuel]??0),fuel,litres*1000,supplierId);
     const day=Math.floor(this.gameSeconds/ECONOMY.gameDaySeconds);
     for(const [fuel,litres] of totals){const key=`${day}:${supplierId}:${fuel}`;this.supplierReservedLitres[key]=(this.supplierReservedLitres[key]??0)+litres;}
     this.deliveries.push({id:`delivery-${this.nextDeliveryId++}`,cargo,remainingCargo:{...cargo},sections,unitPrices,supplierId,paidKopeks:cost,
@@ -274,6 +299,7 @@ export class StationSimulation {
     this.expenses[remainderKey]=numerator-kopeks*ECONOMY.gameDaySeconds;
     const totalKey=key==='lighting'?'lightingKopeks':key==='pumpElectricity'?'pumpElectricityKopeks':'tankMaintenanceKopeks';
     this.expenses[totalKey]+=kopeks;this.station.balanceKopeks-=kopeks;
+    this.record(key,kopeks);
   }
   private accrueTimeExpenses(seconds:number):void {
     this.chargeExpense('lighting',ECONOMY.lightingDailyKopeks,seconds,'lightingRemainder');
@@ -287,6 +313,7 @@ export class StationSimulation {
     const kopeks=Math.floor(numerator/1000);
     this.expenses.pumpingRemainder=numerator-kopeks*1000;
     this.expenses.pumpingKopeks+=kopeks;this.station.balanceKopeks-=kopeks;
+    this.record('pumping',kopeks);
   }
   private deliveryVehicle(trip:DeliveryTrip):Vehicle {
     return {id:-1,modelId:'fuel-tanker',...deliveryPose(trip)} as Vehicle;
@@ -368,6 +395,22 @@ export class StationSimulation {
     for(const vehicle of ordered) this.advance(vehicle,seconds);
     this.dispatchQueue();
     for(let i=this.vehicles.length-1;i>=0;i--) if(this.finishedIds.has(this.vehicles[i].id)) this.vehicles.splice(i,1);
+    for(const vehicle of this.vehicles){
+      if(['queued','fueling','finishing'].includes(vehicle.status)){this.stallInfo.delete(vehicle.id);continue;}
+      const previous=this.stallInfo.get(vehicle.id);
+      this.stallInfo.set(vehicle.id,{x:vehicle.x,y:vehicle.y,seconds:previous&&Math.hypot(previous.x-vehicle.x,previous.y-vehicle.y)<.01?previous.seconds+seconds:0});
+    }
+    const activeIds=new Set(this.vehicles.map(v=>v.id));
+    for(const id of this.stallInfo.keys())if(!activeIds.has(id))this.stallInfo.delete(id);
+  }
+  trafficDiagnostics(thresholdSeconds=60):{id:number;status:string;routeNode:string;stalledSeconds:number;reason:string}[]{
+    return this.vehicles.flatMap(vehicle=>{
+      const stalledSeconds=this.stallInfo.get(vehicle.id)?.seconds??0;
+      if(stalledSeconds<thresholdSeconds)return [];
+      const blockers=this.trafficBlockers().filter(other=>other.id!==vehicle.id&&Math.hypot(other.x-vehicle.x,other.y-vehicle.y)<180).map(v=>v.id);
+      const routeNode=vehicle.route[vehicle.routeIndex]??'конец маршрута';
+      return [{id:vehicle.id,status:vehicle.status,routeNode,stalledSeconds,reason:blockers.length?`рядом автомобили ${blockers.join(', ')}`:routeNode==='exit_lane'?'ожидание выезда':'препятствие или ограничение маршрута'}];
+    });
   }
   private spawn(atSeconds:number):void {
     const vehicle=createVehicle(this.nextVehicleId++,atSeconds,this.rng);
@@ -516,6 +559,7 @@ export class StationSimulation {
     vehicle.chargedKopeks=totalCharge;
     this.station.balanceKopeks+=charge;
     this.stats.revenueKopeks+=charge;
+    if(delivered>0)this.financeEvents.push({gameSeconds:this.gameSeconds,kind:'sale',amountKopeks:charge,costKopeks:cost,fuel:vehicle.fuel,volumeMl:delivered,objectId:vehicle.pumpId});
     vehicle.serviceRemainingSeconds=Math.max(0,vehicle.serviceRemainingSeconds-seconds);
     if(vehicle.deliveredMl>=vehicle.reservedMl||availableMl(this.station,[],vehicle.fuel)<=0)this.finishSale(vehicle);
   }
