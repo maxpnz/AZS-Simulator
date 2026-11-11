@@ -28,8 +28,8 @@ export const INITIAL_STATION: StationState = {
   ],
   jobs: [],
   pumps: [
-    { id: 'pump-1', slot: 0, fuels: ['ai92', 'ai95'], status: 'ready', flowMultiplier: 1 },
-    { id: 'pump-2', slot: 1, fuels: ['ai92', 'ai95'], status: 'ready', flowMultiplier: 1 },
+    { id: 'pump-1', slot: 0, fuels: ['ai92', 'ai95'], status: 'ready', flowMultiplier: 1, enabled: true },
+    { id: 'pump-2', slot: 1, fuels: ['ai92', 'ai95'], status: 'ready', flowMultiplier: 1, enabled: true },
   ],
 };
 

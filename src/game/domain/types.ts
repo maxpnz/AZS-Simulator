@@ -16,6 +16,7 @@ export interface Pump {
   fuels: FuelId[];
   status?: 'ready' | 'building' | 'upgrading';
   flowMultiplier?: number;
+  enabled?: boolean;
 }
 
 export interface FuelTank {
@@ -48,6 +49,27 @@ export interface DeliveryTrip {
   phaseSeconds?: number;
   remainingMl?: number;
   totalMl?: number;
+  remainingCargo?: Partial<Record<FuelId, number>>;
+  supplierId?: string;
+  paidKopeks?: number;
+  orderDay?: number;
+  unitPrices?: Partial<Record<FuelId, number>>;
+  sections?: { fuel: FuelId; totalMl: number; remainingMl: number }[];
+}
+
+export interface ExpenseTotals {
+  lightingKopeks: number;
+  pumpElectricityKopeks: number;
+  tankMaintenanceKopeks: number;
+  pumpingKopeks: number;
+  /** Fractions of a kopek, retained across saves. */
+  lightingRemainder: number;
+  pumpRemainder: number;
+  tankRemainder: number;
+  pumpingRemainder: number;
+  purchasesKopeks: number;
+  capitalKopeks: number;
+  stockValueKopeks: Record<FuelId, number>;
 }
 
 export type TimeSpeed = 1 | 2 | 5 | 10;
@@ -83,6 +105,7 @@ export interface Vehicle {
   setupRemainingSeconds: number;
   deliveredMl: number;
   chargedKopeks: number;
+  costKopeks?: number;
   route: string[];
   laneId: string;
   x: number;
@@ -124,4 +147,6 @@ export interface GameState {
   stats: TrafficStats;
   recentSales: Sale[];
   deliveries?: DeliveryTrip[];
+  expenses?: ExpenseTotals;
+  supplierReservedLitres?: Record<string, number>;
 }

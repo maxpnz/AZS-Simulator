@@ -56,7 +56,7 @@ describe('v0.2.7 traffic, price sign and delivery', () => {
     expect(unloading).toBe(true);
     const before = restored.deliveries[0].remainingMl!;
     restored.step(30);
-    expect(before - restored.deliveries[0].remainingMl!).toBe(45_000);
+    expect(before - restored.deliveries[0].remainingMl!).toBe(18_000);
     expect(restored.deliveries[0].totalMl).toBe(150_000);
   }, 30000);
 });

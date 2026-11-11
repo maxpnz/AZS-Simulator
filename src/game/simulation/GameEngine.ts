@@ -30,9 +30,12 @@ export class GameEngine {
   setPumpFuels(pumpId:string,fuels:readonly FuelId[]):boolean {return this.simulation.setPumpFuels(pumpId,fuels);}
   buildPump(slot:number):boolean {return this.simulation.buildPump(slot);}
   upgradePump(id:string):boolean {return this.simulation.upgradePump(id);}
+  setPumpEnabled(id:string,enabled:boolean):boolean {return this.simulation.setPumpEnabled(id,enabled);}
   buildTank(fuel:FuelId):boolean {return this.simulation.buildTank(fuel);}
   upgradeTank(id:string):boolean {return this.simulation.upgradeTank(id);}
   orderDelivery(fuel:FuelId,litres:number):boolean {return this.simulation.orderDelivery(fuel,litres);}
+  getOffers(fuel:FuelId) {return this.simulation.getOffers(fuel);}
+  orderTrip(supplierId:string,sections:readonly {fuel:FuelId;litres:number}[]):boolean {return this.simulation.orderTrip(supplierId,sections);}
   exportSave():string {return JSON.stringify(this.simulation.exportSave());}
   importSave(json:string):void {this.simulation=StationSimulation.importSave(JSON.parse(json));this.publishState();}
   save():void {if(typeof localStorage!=='undefined')localStorage.setItem('azs-simulator-save',this.exportSave());}

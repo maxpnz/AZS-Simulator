@@ -49,7 +49,9 @@ describe('v0.2.3 routes, queue and timed fuel sales',()=>{
     expect(sawPump1&&sawPump2&&sawDiesel&&sawPremium&&sawQueue&&sawFuelingProgress).toBe(true);
     const used=FUEL_IDS.reduce((sum,id)=>sum+INITIAL_STATION.fuels[id].stockMl-first.station.fuels[id].stockMl,0);
     expect(used).toBe(first.stats.soldMl);
-    expect(first.station.balanceKopeks-INITIAL_STATION.balanceKopeks).toBe(first.stats.revenueKopeks);
+    const expenses=first.expenses;
+    expect(first.station.balanceKopeks-INITIAL_STATION.balanceKopeks).toBe(first.stats.revenueKopeks-
+      expenses.lightingKopeks-expenses.pumpElectricityKopeks-expenses.tankMaintenanceKopeks-expenses.pumpingKopeks);
     expect(first.snapshot()).toEqual(second.snapshot());
   },30000);
   it('limits purchase by tank, budget and available stock',()=>{

@@ -7,7 +7,7 @@ export interface VehicleVisual { root: Container; update: (vehicle: Vehicle) => 
 const passengerIds=['city-hatch','budget-sedan','family-sedan','business-sedan','estate-wagon','compact-crossover','mid-suv','full-suv','minivan','sport-coupe'];
 const vehicleTextures=new Map<string,Texture>();
 /** The atlas frames are separate render objects; every car keeps its own transform and model scale. */
-export function setVehicleTextures(passenger:Texture,commercial:Texture,pickup?:Texture) {
+export function setVehicleTextures(passenger:Texture,commercial:Texture,pickup?:Texture,tanker?:Texture) {
   vehicleTextures.clear();
   const cellWidth=passenger.width/5,cellHeight=passenger.height/2;
   passengerIds.forEach((id,index)=>vehicleTextures.set(id,new Texture({source:passenger.source,
@@ -18,6 +18,7 @@ export function setVehicleTextures(passenger:Texture,commercial:Texture,pickup?:
   vehicleTextures.set('heavy-truck',frame(1));vehicleTextures.set('coach-bus',frame(2));
   vehicleTextures.set('semi-trailer',frame(3));vehicleTextures.set('fuel-tanker',frame(4));
   if(pickup)vehicleTextures.set('pickup',pickup);
+  if(tanker)vehicleTextures.set('fuel-tanker',tanker);
 }
 function tint(color:number, fraction:number) {
   const c=(shift:number)=>Math.max(0,Math.min(255,Math.round(((color>>shift)&255)*fraction)));
@@ -89,6 +90,7 @@ export function createVehicleVisual(vehicle: Vehicle): VehicleVisual {
     const sprite=new Sprite(texture);sprite.anchor.set(.5);
     if(model.id==='pickup'){sprite.width=length*1.05;sprite.height=width*1.4;}
     else if(passengerIds.includes(model.id)){sprite.width=length*1.08;sprite.height=width*2.1;}
+    else if(model.id==='fuel-tanker'){sprite.width=length*1.25;sprite.height=width*1.65;}
     else{sprite.width=length*1.12;sprite.height=width*4.3;}
     root.addChild(sprite);
   } else root.addChild(body);

@@ -18,6 +18,7 @@ import passengerAtlasUrl from '../../assets/v026/passenger-top.webp';
 import commercialAtlasUrl from '../../assets/v026/commercial-top.webp';
 import pickupUrl from '../../assets/v026/pickup-top.webp';
 import tankHatchUrl from '../../assets/v025/tank-hatch.webp';
+import tankerUrl from '../../assets/v030-tanker.png';
 import { setVehicleTextures } from './vehicleSprite';
 
 export const SCENE_WIDTH=2000, SCENE_HEIGHT=1200;
@@ -100,9 +101,9 @@ function constructionGraphic(slot:typeof PUMP_SLOTS[number],job:ConstructionJob|
 }
 export interface StationScene {root:Container;setTime:(seconds:number)=>void;setPrices:(prices:Record<FuelId,number>)=>void;setVehicles:(vehicles:readonly Vehicle[])=>void;setPumps:(pumps:readonly Pump[],stocks:Record<FuelId,number>,jobs?:readonly ConstructionJob[],tanks?:readonly FuelTank[])=>void;setDeliveries:(deliveries:readonly DeliveryTrip[])=>void;tick:(elapsedMs:number)=>void}
 export async function createStationScene(initialPumps:readonly Pump[]):Promise<StationScene> {
-  const [grassTexture,asphaltTexture,storeTexture,canopyTexture,pumpTexture,flowerbedTexture,landscapeLampTexture,passengerAtlas,commercialAtlas,pickupTexture,tankHatchTexture]=
-    await Promise.all([grassUrl,asphaltUrl,storeUrl,canopyUrl,pumpUrl,flowerbedUrl,landscapeLampUrl,passengerAtlasUrl,commercialAtlasUrl,pickupUrl,tankHatchUrl].map(url=>Assets.load<Texture>(url)));
-  setVehicleTextures(passengerAtlas,commercialAtlas,pickupTexture);
+  const [grassTexture,asphaltTexture,storeTexture,canopyTexture,pumpTexture,flowerbedTexture,landscapeLampTexture,passengerAtlas,commercialAtlas,pickupTexture,tankHatchTexture,tankerTexture]=
+    await Promise.all([grassUrl,asphaltUrl,storeUrl,canopyUrl,pumpUrl,flowerbedUrl,landscapeLampUrl,passengerAtlasUrl,commercialAtlasUrl,pickupUrl,tankHatchUrl,tankerUrl].map(url=>Assets.load<Texture>(url)));
+  setVehicleTextures(passengerAtlas,commercialAtlas,pickupTexture,tankerTexture);
   const root=new Container();
   const grass=new TilingSprite({texture:grassTexture,width:SCENE_WIDTH,height:SCENE_HEIGHT});grass.tileScale.set(.42);root.addChild(grass);
   const ground=new Container();root.addChild(ground);

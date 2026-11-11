@@ -51,7 +51,8 @@ export function App() {
         onSetPumpFuels={(id,fuels)=>{const ok=engine.setPumpFuels(id,fuels);setGameState(engine.getState());return ok;}}
         onBuildTank={(fuel)=>{const ok=engine.buildTank(fuel);setGameState(engine.getState());return ok;}}
         onUpgradeTank={(id)=>{const ok=engine.upgradeTank(id);setGameState(engine.getState());return ok;}}
-        onDelivery={(fuel,litres)=>{const ok=engine.orderDelivery(fuel,litres);setGameState(engine.getState());return ok;}}
+        onDelivery={(supplier,cargo)=>{const ok=engine.orderTrip(supplier,cargo);setGameState(engine.getState());return ok;}}
+        onSetPumpEnabled={(id,enabled)=>{const ok=engine.setPumpEnabled(id,enabled);setGameState(engine.getState());return ok;}}
         onClose={()=>setObjectId(null)} />}
       {overviewOpen&&<OverviewPanel state={gameState} onClose={()=>setOverviewOpen(false)} />}
       {notice&&<div className="section-notice" role="status">{notice}<button type="button" onClick={()=>setNotice('')} aria-label="Закрыть">×</button></div>}
