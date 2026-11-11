@@ -1,5 +1,6 @@
 import type { ClockSnapshot, StationState, TrafficStats, TimeSpeed } from '../game/domain/types';
 import { Icon } from './Icon';
+import { version as currentVersion } from '../../package.json';
 
 const rubles = new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 });
 const litres = new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0});
@@ -24,9 +25,9 @@ export function TopBar({ clock, time, station, stats, queueCount, paused, speed,
 
   return (
     <header className="game-topbar">
-      <div className="game-brand" aria-label="АЗС Simulator версия 0.3.0">
+      <div className="game-brand" aria-label={`АЗС Simulator версия ${currentVersion}`}>
         <span className="brand-emblem"><span>АЗС</span></span>
-        <span className="brand-name"><strong>АЗС</strong><small>Simulator <em>v0.3.0</em></small></span>
+        <span className="brand-name"><strong>АЗС</strong><small>Simulator <em>v{currentVersion}</em></small></span>
       </div>
       <div className="top-chip day-chip"><Icon name="calendar" /><span>День {clock.day}</span></div>
       <div className="top-chip clock-chip"><Icon name="clock" /><strong>{time}</strong></div>

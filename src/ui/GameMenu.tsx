@@ -1,6 +1,7 @@
 import { App as CapacitorApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 import { Icon } from './Icon';
+import { version as currentVersion } from '../../package.json';
 const sections = [
   ['Обзор','Трафик, продажи и остатки'],['Цены','Редактор цен на стеле'],['Закупки','Заказ бензовоза'],['Топливо','Остатки в резервуарах'],
   ['Развитие','Бригады и строительство'],['Финансы','Появятся в следующих версиях'],['Отчёты','Текущие продажи и трафик'],
@@ -14,7 +15,7 @@ export function GameMenu({ onClose, onSection, onReset }: Props) {
   return <div className="menu-backdrop" onPointerDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
     <nav className="menu-card" role="dialog" aria-label="Меню игры">
       <button type="button" className="menu-close" onClick={onClose} aria-label="Закрыть меню"><Icon name="close" /></button>
-      <div className="menu-kicker">АЗС SIMULATOR · v0.3.0</div><h2>Меню</h2>
+      <div className="menu-kicker">АЗС SIMULATOR · v{currentVersion}</div><h2>Меню</h2>
       <div className="menu-sections">{sections.map(([name,description]) =>
         <button type="button" key={name} onClick={() => { onSection(name); onClose(); }}><strong>{name}</strong><small>{description}</small></button>)}</div>
       <button type="button" className="menu-reset" onClick={()=>{if(window.confirm('Сбросить игру? Деньги, объекты, топливо, статистика и сохранение будут удалены.')){onReset();onClose();}}}>Сбросить игру</button>

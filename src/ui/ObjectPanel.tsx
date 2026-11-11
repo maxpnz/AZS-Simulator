@@ -3,6 +3,7 @@ import { FUEL_IDS, INITIAL_STATION, MAX_FUELS_PER_PUMP } from '../game/domain/co
 import { ECONOMY, supplierOffer, SUPPLIERS } from '../game/domain/economy';
 import type { FuelId, GameState, Vehicle } from '../game/domain/types';
 import type { ObjectId } from './scene/createStationScene';
+import { version as currentVersion } from '../../package.json';
 const litres=(ml:number,precision=3)=>(ml/1000).toLocaleString('ru-RU',{minimumFractionDigits:precision,maximumFractionDigits:precision})+' л';
 const rubles=(kop:number)=>(kop/100).toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2})+' ₽';
 interface Props {
@@ -45,7 +46,7 @@ export function ObjectPanel({id,state,prices,vehicles,onPrice,onBuildPump,onUpgr
     id==='price-sign'?'Стела с ценами':id==='tank'?'Резервуары':id==='delivery'?'Зона разгрузки':id==='shop'?'Магазин':'Строительство';
   const act=(success:boolean,message:string)=>{if(success){setNotice(message);setError('');}else setError('Действие недоступно: проверьте баланс, занятость, вместимость и наличие бригады.');};
   return <div className="object-panel" role="dialog" aria-label={name}>
-    <div className="object-heading"><div><small>v0.3.0 · ЖИВАЯ СИМУЛЯЦИЯ</small><h2>{name}</h2></div><button type="button" onClick={onClose} aria-label="Закрыть карточку">×</button></div>
+    <div className="object-heading"><div><small>v{currentVersion} · ЖИВАЯ СИМУЛЯЦИЯ</small><h2>{name}</h2></div><button type="button" onClick={onClose} aria-label="Закрыть карточку">×</button></div>
     {id==='price-sign'&&<>
       <p>Цены влияют на фактическую выручку. Погасшая цена означает, что топлива нет в доступном резервуаре.</p>
       {FUEL_IDS.map(fuel=><div className="price-row" key={fuel}><span>{station.fuels[fuel].name}</span>

@@ -4,6 +4,8 @@ export interface ApkUpdate {
   releaseUrl: string;
 }
 
+export const DEFAULT_GITHUB_REPO = 'maxpnz/AZS-Simulator';
+
 interface GithubRelease {
   tag_name?: string;
   html_url?: string;
@@ -25,7 +27,8 @@ export function compareVersions(left: string, right: string): number {
 }
 
 export async function findApkUpdate(repo: string | undefined, currentVersion: string, request: typeof fetch = fetch): Promise<ApkUpdate | null> {
-  if (!repo || !/^[\w.-]+\/[\w.-]+$/.test(repo)) return null;
+  repo = repo?.trim() || DEFAULT_GITHUB_REPO;
+  if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) return null;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8000);
   try {
