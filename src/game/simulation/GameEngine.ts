@@ -8,8 +8,9 @@ export class GameEngine {
   private lastSaved=0;
   private lastDiagnostic=0;
   private saveHealthy=true;
+  private loadError=false;
   constructor(){
-    if(typeof localStorage!=='undefined')try{const data=localStorage.getItem('azs-simulator-save');if(data)this.simulation=StationSimulation.importSave(JSON.parse(data));}catch{this.simulation=new StationSimulation();this.saveHealthy=false;}
+    if(typeof localStorage!=='undefined')try{const data=localStorage.getItem('azs-simulator-save');if(data)this.simulation=StationSimulation.importSave(JSON.parse(data));}catch{this.saveHealthy=false;this.loadError=true;}
     if(typeof localStorage!=='undefined')try{const speed=Number(localStorage.getItem('azs-simulator-speed'));if([1,2,5,10].includes(speed))this.speed=speed as TimeSpeed;}catch{/* storage unavailable */}
   }
   private speed:TimeSpeed=1;
@@ -23,6 +24,7 @@ export class GameEngine {
   getSnapshot():number {return this.simulation.gameSeconds;}
   getState():GameState {return this.simulation.snapshot();}
   getSpeed():TimeSpeed {return this.speed;}
+  getLoadError():boolean {return this.loadError;}
   subscribe(listener:(gameSeconds:number)=>void):()=>void {
     this.listeners.add(listener);return ()=>this.listeners.delete(listener);
   }
@@ -43,7 +45,14 @@ export class GameEngine {
   orderTrip(supplierId:string,sections:readonly {fuel:FuelId;litres:number}[]):boolean {return this.action(this.simulation.orderTrip(supplierId,sections));}
   exportSave():string {return JSON.stringify(this.simulation.exportSave());}
   importSave(json:string):void {this.simulation=StationSimulation.importSave(JSON.parse(json));this.publishState();}
-  save():void {if(this.saveHealthy&&typeof localStorage!=='undefined')try{localStorage.setItem('azs-simulator-save',this.exportSave());}catch{/* storage quota or access denied */}}
+  save():void {if(this.saveHealthy&&typeof localStorage!=='undefined')try{
+    const old=localStorage.getItem('azs-simulator-save');
+    if(old&&!localStorage.getItem('azs-simulator-save-v04-backup')){
+      const version=(JSON.parse(old) as {version?:string}).version;
+      if(version==='0.4.0')localStorage.setItem('azs-simulator-save-v04-backup',old);
+    }
+    localStorage.setItem('azs-simulator-save',this.exportSave());
+  }catch{this.saveHealthy=false;}}
   loadSaved():boolean {if(typeof localStorage==='undefined')return false;const data=localStorage.getItem('azs-simulator-save');if(!data)return false;try{this.importSave(data);return true;}catch{return false;}}
   reset():void {
     this.simulation=new StationSimulation();this.accumulator=0;this.paused=false;this.speed=1;this.saveHealthy=true;

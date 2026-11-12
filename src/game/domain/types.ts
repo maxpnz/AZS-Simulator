@@ -17,6 +17,8 @@ export interface Pump {
   status?: 'ready' | 'building' | 'upgrading';
   flowMultiplier?: number;
   enabled?: boolean;
+  lastDisplayMl?: number;
+  lastDisplayKopeks?: number;
 }
 
 export interface FuelTank {
@@ -126,6 +128,10 @@ export interface Vehicle {
   westbound: boolean;
   routeIndex: number;
   speed?: number;
+  refusalReason?: string;
+  servicePhase?: 'exiting'|'toBuilding'|'paying'|'returning'|'preparing'|'dispensing'|'boarding';
+  phaseRemainingSeconds?: number;
+  driverVariant?: number;
 }
 
 export interface Sale {
@@ -161,5 +167,6 @@ export interface GameState {
   expenses?: ExpenseTotals;
   supplierReservedLitres?: Record<string, number>;
   market?: import('./market').MarketState;
+  competition?: import('./competitors').CompetitionState;
   financeEvents?: FinanceEvent[];
 }

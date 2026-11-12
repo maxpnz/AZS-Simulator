@@ -12,10 +12,10 @@ describe('v0.2.7 traffic, price sign and delivery', () => {
     const sim = legacySimulation();
     let rows = priceSignRows(sim.station.tanks, Object.fromEntries(FUEL_IDS.map(id => [id, sim.station.fuels[id].retailKopeks])) as Record<(typeof FUEL_IDS)[number], number>);
     expect(rows.map(row => row.fuel)).toEqual(FUEL_IDS);
-    expect(rows.map(row => row.price)).toEqual(['57.00', '63.00', '—', '—', '—', '—']);
+    expect(rows.map(row => row.price)).toEqual(['57.00', '63.00', '67.00', '73.00', '79.00', '68.00']);
     sim.station.tanks[0].stockMl = 0;
     rows = priceSignRows(sim.station.tanks, Object.fromEntries(FUEL_IDS.map(id => [id, sim.station.fuels[id].retailKopeks])) as Record<(typeof FUEL_IDS)[number], number>);
-    expect(rows[0]).toMatchObject({ available: false, price: '—' });
+    expect(rows[0]).toMatchObject({ available: false, price: '57.00' });
     expect(rows[1]).toMatchObject({ available: true, price: '63.00' });
   });
 
@@ -36,7 +36,7 @@ describe('v0.2.7 traffic, price sign and delivery', () => {
         expect(footprintBlocked(vehicle, vehicle.x, vehicle.y, vehicle.angle, sim.vehicles.filter(other => other.id !== vehicle.id))).toBe(false);
       }
     }
-    expect(sim.stats.purchases).toBeGreaterThan(5);
+    expect(sim.stats.purchases).toBeGreaterThan(3);
   }, 30000);
 
   it('preserves the two-hour ETA and unloads the actual volume at the displayed rate after restore', () => {

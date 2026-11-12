@@ -56,10 +56,12 @@ export function createVehicle(id: number, gameSeconds: number, rng: RandomSource
   if(!compatibleModels.length){fuel=categoryModels[0].fuels[0];compatibleModels=categoryModels.filter(model=>model.fuels.includes(fuel));}
   const selectedModel = compatibleModels[Math.floor(rng.next() * compatibleModels.length)];
   const config = TRAFFIC_CONFIG.category[category];
-  const tankCapacityMl = Math.round(rng.between(config.tankLitres[0], config.tankLitres[1]) * 1000);
-  const currentFuelMl = Math.round(tankCapacityMl * rng.between(0.12, 0.55));
+  const truckTanks:Record<string,readonly [number,number]>={'medium-truck':[180,300],'heavy-truck':[350,600],'semi-trailer':[700,1100],'coach-bus':[280,480],'fuel-tanker':[350,550]};
+  const tankRange=truckTanks[selectedModel.id]??config.tankLitres;
+  const tankCapacityMl = Math.round(rng.between(tankRange[0], tankRange[1]) * 1000);
+  const currentFuelMl = Math.round(tankCapacityMl * rng.between(category==='truck'?.08:.12, category==='truck'?.38:.55));
   const behavior = rng.pickWeighted<FillBehavior>(['full', 'amount', 'volume'], [0.45, 0.35, 0.2]);
-  const typicalMl = Math.round(rng.between(config.purchaseLitres[0], config.purchaseLitres[1]) * 1000);
+  const typicalMl = Math.round(rng.between(category==='truck'?Math.max(config.purchaseLitres[0],tankCapacityMl/1000*.35):config.purchaseLitres[0], category==='truck'?Math.min(800,tankCapacityMl/1000*.82):config.purchaseLitres[1]) * 1000);
   const budgetKopeks = Math.round(typicalMl / 1000 * rng.between(85, 125) * 100);
   const westbound = rng.next() < 0.42;
   return {
@@ -68,7 +70,7 @@ export function createVehicle(id: number, gameSeconds: number, rng: RandomSource
     patienceSeconds: Math.round(rng.between(config.patienceMinutes[0], config.patienceMinutes[1]) * 60),
     waitedSeconds: 0, status: 'road', reservedMl: 0, salePriceKopeks: 0, serviceRemainingSeconds: 0, setupRemainingSeconds: 0, deliveredMl: 0, chargedKopeks: 0, route: [], laneId: '',
     x: 0, y: 0, angle: 0,
-    color: TRAFFIC_CONFIG.colors[id % TRAFFIC_CONFIG.colors.length], westbound, routeIndex: 0, speed: 0,
+    color: TRAFFIC_CONFIG.colors[id % TRAFFIC_CONFIG.colors.length], westbound, routeIndex: 0, speed: 0,driverVariant:id%12,
   };
 }
 
@@ -80,9 +82,8 @@ export function priceForVolume(volumeMl: number, priceKopeksPerLitre: number): n
 export function purchaseLimitMl(vehicle: Vehicle, retailKopeks: number, availableMl: number): number {
   if (retailKopeks <= 0 || availableMl <= 0) return 0;
   const tankRoom = Math.max(0, vehicle.tankCapacityMl - vehicle.currentFuelMl);
-  const affordable = Math.floor(vehicle.budgetKopeks * 1000 / retailKopeks);
-  const desired = vehicle.behavior === 'amount' ? affordable : vehicle.requestedMl;
-  return Math.max(0, Math.floor(Math.min(desired, tankRoom, affordable, availableMl)));
+  const desired = vehicle.behavior === 'amount' ? Math.floor(vehicle.budgetKopeks * 1000 / retailKopeks) : vehicle.requestedMl;
+  return Math.max(0, Math.floor(Math.min(desired, tankRoom)));
 }
 
 export function isKnownFuel(id: string): id is FuelId { return FUEL_IDS.includes(id as FuelId); }

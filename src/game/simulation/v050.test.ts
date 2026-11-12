@@ -1,0 +1,46 @@
+import {describe,expect,it} from 'vitest';
+import {cloneLegacyStation,FUEL_IDS} from '../domain/config';
+import {COMPETITORS,advanceCompetition,competitionVisitFactor,createCompetition,marketPosition,priceHistory} from '../domain/competitors';
+import {NEFTEOPT,nefteoptDiscount,SUPPLIERS} from '../domain/market';
+import {priceSignRows} from '../domain/stationGeometry';
+import {createVehicle,RandomSource} from './traffic';
+import {StationSimulation} from './StationSimulation';
+const start=86400+7*3600;
+function dieselSim(){const station=cloneLegacyStation();station.tanks.push({id:'diesel-tank',fuel:'diesel',capacityMl:2_500_000,stockMl:2_000_000,status:'active'});station.fuels.diesel.stockMl=2_000_000;station.fuels.diesel.capacityMl=2_500_000;station.pumps[0].fuels=['diesel'];station.pumps[1].enabled=false;return new StationSimulation(7,station);}
+describe('v0.5 competition and bulk supply',()=>{
+ it('has nine fixed assortments and separate saved stocks',()=>{const state=createCompetition(start,Object.fromEntries(FUEL_IDS.map(f=>[f,5000])) as Record<(typeof FUEL_IDS)[number],number>);expect(COMPETITORS).toHaveLength(9);expect(state.stations).toHaveLength(9);expect(state.stations[0].prices.ai100).toBeUndefined();expect(state.stations[0].prices.diesel).toBeDefined();expect(state.stations[6].prices.ai100).toBeDefined();});
+ it('reviews prices only on schedule and reacts gradually',()=>{const base=Object.fromEntries(FUEL_IDS.map(f=>[f,5000])) as Record<(typeof FUEL_IDS)[number],number>;const state=createCompetition(start,base);const old=state.stations[0].prices.ai92!;const next=state.stations[0].nextReviewSeconds;advanceCompetition(state,next-1,base,Object.fromEntries(FUEL_IDS.map(f=>[f,9999])) as typeof base);expect(state.stations[0].prices.ai92).toBe(old);advanceCompetition(state,next,base,Object.fromEntries(FUEL_IDS.map(f=>[f,9999])) as typeof base);expect(state.stations[0].prices.ai92).not.toBe(old);expect(Math.abs(state.stations[0].prices.ai92!-old)).toBeLessThanOrEqual(180);});
+ it('keeps demand positive and handles unavailable offers',()=>{const base=Object.fromEntries(FUEL_IDS.map(f=>[f,5000])) as Record<(typeof FUEL_IDS)[number],number>;const state=createCompetition(start,base);expect(competitionVisitFactor(state,'ai92',10000)).toBeGreaterThan(0);expect(competitionVisitFactor(state,'ai92',5300)).toBeGreaterThan(competitionVisitFactor(state,'ai92',5900));for(const s of state.stations)s.stockLitres.ai92=0;expect(marketPosition(state,'ai92',5300)).toBe('Нет предложений');expect(competitionVisitFactor(state,'ai92',5300)).toBeGreaterThan(1);});
+ it('keeps history across disruptions and all filters',()=>{const base=Object.fromEntries(FUEL_IDS.map(f=>[f,5000])) as Record<(typeof FUEL_IDS)[number],number>;const state=createCompetition(start,base);advanceCompetition(state,start+12*86400,base,base);const history=state.stations[0].history.length;state.stations[0].stockLitres.ai92=0;for(const period of ['day','week','month','all'] as const)expect(priceHistory(state.stations[0],period,start+12*86400).length).toBeGreaterThan(0);expect(state.stations[0].history).toHaveLength(history);});
+ it('applies the specified order thresholds and preserves other suppliers',()=>{expect(SUPPLIERS).toHaveLength(8);expect(NEFTEOPT.maxLitres).toBe(30000);for(const [volume,discount] of [[4999,0],[5000,.02],[9999,.02],[10000,.04],[19999,.04],[20000,.06],[30000,.06],[30001,.06]])expect(nefteoptDiscount(volume)).toBe(discount);
+   for(const volume of [4999,5000,9999,10000,19999,20000,30000,30001]){
+     const sim=dieselSim();sim.station.balanceKopeks=1_000_000_000;sim.market.warehouses.nefteopt.diesel.litres=40000;sim.station.tanks[2].capacityMl=40_000_000;
+     expect(sim.orderTrip('nefteopt',[{fuel:'diesel',litres:volume}])).toBe(volume>=5000&&volume<=30000);
+     if(volume>=5000&&volume<=30000)expect(sim.deliveries[0].unitPrices?.diesel).toBe(Math.round(sim.market.baseKopeks.diesel*(1-nefteoptDiscount(volume))));
+   }
+ });
+});
+describe('v0.5 service and migration',()=>{
+ it('does not overbook the same tank for simultaneous customers',()=>{
+   const initial=dieselSim().exportSave();initial.nextSpawnSeconds=start+1_000_000;const sim=StationSimulation.importSave(initial);
+   sim.station.tanks[2].stockMl=200_000;sim.station.fuels.diesel.stockMl=200_000;
+   sim.station.pumps.push({id:'pump-3',slot:2,fuels:['diesel'],status:'ready',flowMultiplier:1,enabled:true});
+   for(let i=0;i<2;i++){const v=createVehicle(100+i,start,new RandomSource(50+i));Object.assign(v,{fuel:'diesel',modelId:'medium-truck',category:'truck',status:'queued',route:[],routeIndex:0,x:i?1840:1850,y:i?820:685,angle:-Math.PI/2,westbound:true,laneId:'west_lane_1',tankCapacityMl:400_000,currentFuelMl:100_000,behavior:'volume',requestedMl:150_000,budgetKopeks:2_000_000});sim.vehicles.push(v);sim.queueIds.push(v.id);}
+   for(let i=0;i<500;i++){sim.step(3);const held=sim.vehicles.reduce((sum,v)=>sum+Math.max(0,v.reservedMl-v.deliveredMl),0);expect(held).toBeLessThanOrEqual(sim.station.fuels.diesel.stockMl);}
+   expect(sim.stats.soldMl).toBeLessThanOrEqual(200_000);
+ },30000);
+ it('allows every existing commercial truck to leave after service',()=>{
+   for(const modelId of ['medium-truck','heavy-truck','semi-trailer','coach-bus','fuel-tanker']){
+     const initial=dieselSim().exportSave();initial.nextSpawnSeconds=start+1_000_000;const sim=StationSimulation.importSave(initial);
+     const v=createVehicle(35,start,new RandomSource(35));Object.assign(v,{fuel:'diesel',modelId,category:'truck',status:'queued',route:[],routeIndex:0,x:1850,y:685,angle:-Math.PI/2,westbound:true,laneId:'west_lane_1',tankCapacityMl:1_000_000,currentFuelMl:200_000,behavior:'volume',requestedMl:150_000,budgetKopeks:5_000_000});sim.vehicles.push(v);sim.queueIds.push(v.id);
+     for(let i=0;i<2500&&sim.vehicles.includes(v);i++)sim.step(3);
+     expect(sim.recentSales[0]?.volumeMl,modelId).toBe(150_000);
+     expect(sim.vehicles.includes(v),`${modelId}: ${JSON.stringify(sim.trafficDiagnostics(10))}`).toBe(false);
+   }
+ },30000);
+ it('routes a semi-trailer to an even dispenser, sells diesel and clears the pump',()=>{const initial=dieselSim().exportSave();initial.nextSpawnSeconds=start+1_000_000;const sim=StationSimulation.importSave(initial);const v=createVehicle(33,start,new RandomSource(33));Object.assign(v,{fuel:'diesel',modelId:'semi-trailer',category:'truck',status:'queued',route:[],routeIndex:0,x:1850,y:685,angle:-Math.PI/2,westbound:true,laneId:'west_lane_1',tankCapacityMl:1_000_000,currentFuelMl:200_000,behavior:'volume',requestedMl:500_000,budgetKopeks:5_000_000});sim.vehicles.push(v);sim.queueIds.push(v.id);for(let i=0;i<7000&&!sim.recentSales.length;i++)sim.step(3);expect(v.pumpId).toBe('pump-1');expect(sim.recentSales[0]?.volumeMl,JSON.stringify({status:v.status,route:v.route[v.routeIndex],x:v.x,y:v.y,stalled:sim.trafficDiagnostics(10)})).toBe(500_000);for(let i=0;i<1000&&sim.vehicles.includes(v);i++)sim.step(3);expect(sim.vehicles.includes(v),JSON.stringify({x:v.x,y:v.y,angle:v.angle,diagnostics:sim.trafficDiagnostics(10)})).toBe(false);},30000);
+ it('preserves a 0.4 save and initializes competitors only once',()=>{const sim=dieselSim();sim.buildPump(2);sim.orderTrip('regional',[{fuel:'diesel',litres:100}]);const save=sim.exportSave();save.version='0.4.0';delete (save.state as {competition?:unknown}).competition;const restored=StationSimulation.importSave(save);const again=StationSimulation.importSave(restored.exportSave());expect(again.station.balanceKopeks).toBe(sim.station.balanceKopeks);expect(again.station.jobs).toEqual(sim.station.jobs);expect(again.deliveries).toEqual(sim.deliveries);expect(again.competition).toEqual(restored.competition);});
+ it('refuses a reservation larger than stock without partial sale',()=>{const sim=dieselSim();sim.station.tanks[2].stockMl=1000;sim.station.fuels.diesel.stockMl=1000;const v=createVehicle(1,start,new RandomSource(1));Object.assign(v,{fuel:'diesel',status:'fueling',pumpId:'pump-1',route:['pump_1'],reservedMl:100_000,salePriceKopeks:6800,servicePhase:'dispensing'});sim.vehicles.push(v);sim.step(10);expect(sim.stats.soldMl).toBe(0);expect(v.refusalReason).toBe('Недостаточно топлива');});
+ it('dispenses hundreds of litres, preserves counters and phases after save',()=>{const sim=dieselSim();const v=createVehicle(2,start,new RandomSource(2));Object.assign(v,{fuel:'diesel',modelId:'semi-trailer',category:'truck',status:'fueling',pumpId:'pump-1',route:['pump_1'],reservedMl:600_000,salePriceKopeks:6800,servicePhase:'exiting',phaseRemainingSeconds:4});sim.vehicles.push(v);sim.step(4);expect(v.servicePhase).toBe('toBuilding');const restored=StationSimulation.importSave(sim.exportSave());expect(restored.vehicles[0].servicePhase).toBe('toBuilding');for(let i=0;i<700&&!restored.recentSales.length;i++)restored.step(30);expect(restored.recentSales[0]?.volumeMl).toBe(600_000);expect(restored.station.pumps[0].lastDisplayMl).toBe(600_000);expect(restored.stats.soldMl).toBe(600_000);});
+ it('keeps last prices on unlit sign',()=>{const sim=dieselSim();sim.station.tanks[2].stockMl=0;const prices=Object.fromEntries(FUEL_IDS.map(f=>[f,sim.station.fuels[f].retailKopeks])) as Record<(typeof FUEL_IDS)[number],number>;expect(priceSignRows(sim.station.tanks,prices)[5]).toEqual({fuel:'diesel',available:false,price:'68.00'});});
+});

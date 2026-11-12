@@ -17,7 +17,10 @@ export const SUPPLIERS: readonly SupplierConfig[] = [
   {id:'regional',name:'РегионТопливо',profile:'Регулярные поставки',priceOffsetKopeks:0,etaHours:[8,18],capacityLitres:18000,initialRatio:.8,demandLitresPerHour:100,restockHours:16,batchLitres:7000,availability:.88},
   {id:'north',name:'СеверОйл',profile:'Специалист по ДТ',priceOffsetKopeks:80,etaHours:[12,36],capacityLitres:14000,initialRatio:.4,demandLitresPerHour:115,restockHours:20,batchLitres:5500,availability:.4,specialties:{diesel:{priceOffsetKopeks:-100,availability:.95}}},
   {id:'prime',name:'ПраймПетрол',profile:'Премиальные марки',priceOffsetKopeks:80,etaHours:[10,30],capacityLitres:9000,initialRatio:.4,demandLitresPerHour:100,restockHours:18,batchLitres:3500,availability:.4,specialties:{ai95plus:{priceOffsetKopeks:-65,availability:.9},ai98:{priceOffsetKopeks:-75,availability:.9},ai100:{priceOffsetKopeks:-85,availability:.9}}},
+  {id:'nefteopt',name:'НефтеОпт',profile:'Крупный оптовик · от 5 000 л',priceOffsetKopeks:0,etaHours:[72,120],capacityLitres:50000,initialRatio:.85,demandLitresPerHour:70,restockHours:72,batchLitres:28000,availability:.95},
 ];
+export const NEFTEOPT = {minLitres:5000,maxLitres:30000,maxFuels:3,tiers:[{from:5000,discount:.02},{from:10000,discount:.04},{from:20000,discount:.06}]} as const;
+export function nefteoptDiscount(litres:number):number {return [...NEFTEOPT.tiers].reverse().find(t=>litres>=t.from)?.discount??0;}
 export interface WarehouseFuel {litres:number;capacityLitres:number;nextRestockSeconds:number;consumptionRemainder:number}
 export interface MarketModifiers {
   basePriceBps?: Partial<Record<FuelId,number>>; supplierAvailabilityBps?: Partial<Record<string,number>>;
@@ -89,7 +92,7 @@ export interface FuelOffer {supplierId:string;fuel:FuelId;priceKopeks:number;ava
 export function marketOffer(market:MarketState,supplierId:string,fuel:FuelId,gameSeconds:number):FuelOffer|undefined {
   const s=supplierById(supplierId);if(!s)return undefined;
   const store=market.warehouses[s.id][fuel];const fi=fuelIndex(fuel),si=SUPPLIERS.indexOf(s);
-  const priceKopeks=Math.max(100,Math.round((market.baseKopeks[fuel]+(s.specialties?.[fuel]?.priceOffsetKopeks??s.priceOffsetKopeks)+(hash(si,fi,Math.floor(gameSeconds/(6*HOUR)))-.5)*45)*(market.modifiers.wholesaleBps??10000)/10000));
+  const priceKopeks=s.id==='nefteopt'?market.baseKopeks[fuel]:Math.max(100,Math.round((market.baseKopeks[fuel]+(s.specialties?.[fuel]?.priceOffsetKopeks??s.priceOffsetKopeks)+(hash(si,fi,Math.floor(gameSeconds/(6*HOUR)))-.5)*45)*(market.modifiers.wholesaleBps??10000)/10000));
   const etaHours=s.etaHours[0]+(s.etaHours[1]-s.etaHours[0])*hash(si,fi,Math.floor(gameSeconds/DAY)+73);
   const delay=s.id==='distant'&&hash(si,fi,Math.floor(gameSeconds/DAY)+97)<.045?48:0;
   return {supplierId:supplierId,fuel,priceKopeks,availableLitres:store.litres,

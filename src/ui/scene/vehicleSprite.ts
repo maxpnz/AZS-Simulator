@@ -1,4 +1,4 @@
-import { Container, Graphics, Rectangle, Sprite, Text, Texture } from 'pixi.js';
+import { Container, Graphics, Rectangle, Sprite, Texture } from 'pixi.js';
 import type { Vehicle } from '../../game/domain/types';
 import { modelById } from '../../game/domain/vehicleModels';
 import { metres } from '../../game/domain/world';
@@ -59,8 +59,13 @@ export function createVehicleVisual(vehicle: Vehicle): VehicleVisual {
     body.roundRect(length*.22,-width*.38,length*.22,width*.76,5).fill(bodyColor);
     for(let x=-length*.23;x<length*.22;x+=length*.17) body.moveTo(x,-width*.3).lineTo(x,width*.3).stroke({color:0x7d979e,width:2});
   } else if(model.silhouette==='box'||model.silhouette==='tractor') {
-    body.roundRect(-length*.46,-width*.43,length*.64,width*.86,4).fill(0xdce4e1).stroke({color:0x51636b,width:2});
-    body.roundRect(length*.18,-width*.42,length*.27,width*.84,4).fill(bodyColor);
+    body.roundRect(-length*.47,-width*.43,length*.65,width*.86,4).fill(0xdce4e1).stroke({color:0x51636b,width:2});
+    body.roundRect(length*.18,-width*.42,length*.27,width*.84,5).fill(bodyColor).stroke({color:tint(bodyColor,.55),width:2});
+    if(model.silhouette==='tractor'){
+      body.roundRect(length*.14,-width*.18,length*.08,width*.36,2).fill(0x26333a);
+      body.moveTo(-length*.46,0).lineTo(length*.44,0).stroke({color:0x8eaaa9,width:1});
+      for(const axle of [-.4,-.34,-.28,.27,.38])for(const side of [-1,1])body.roundRect(length*axle-6,side*width*.43-5,12,10,3).fill(0x111a1d).stroke({color:0x88979a,width:1});
+    }
   } else if(model.silhouette==='pickup') {
     body.roundRect(-length*.45,-width*.39,length*.38,width*.78,3).fill(tint(bodyColor,.65));
     body.roundRect(-length*.06,-width*.35,length*.34,width*.7,5).fill(0x263f4c);
@@ -87,7 +92,7 @@ export function createVehicleVisual(vehicle: Vehicle): VehicleVisual {
   }
   const texture=vehicleTextures.get(model.id);
   let tankerSprite:Sprite|undefined;
-  if(texture){
+  if(texture&&model.silhouette!=='tractor'){
     const sprite=new Sprite(texture);sprite.anchor.set(.5);
     if(model.id==='pickup'){sprite.width=length*1.05;sprite.height=width*1.4;}
     else if(passengerIds.includes(model.id)){sprite.width=length*1.08;sprite.height=width*2.1;}
@@ -96,21 +101,10 @@ export function createVehicleVisual(vehicle: Vehicle): VehicleVisual {
     root.addChild(sprite);
     if(model.id==='fuel-tanker')tankerSprite=sprite;
   } else root.addChild(body);
-  const readout=new Container();root.addChild(readout);
-  const progress=new Graphics();progress.y=width*.89;readout.addChild(progress);
-  const amount=new Text({text:'',style:{fontFamily:'Arial',fontSize:13,fontWeight:'bold',fill:0xffffff,stroke:{color:0x102027,width:3}}});
-  amount.anchor.set(.5);amount.y=width*1.22;readout.addChild(amount);
   return {root,update(next) {
-    root.position.set(next.x,next.y);root.rotation=next.angle;readout.rotation=-next.angle;
+    root.position.set(next.x,next.y);root.rotation=next.angle;
     // The tanker asset is a side view with wheels at the bottom. A 180° turn
     // at the pad would otherwise put them above the tank.
     if(tankerSprite)tankerSprite.scale.y=next.angle< -Math.PI*0.75?-Math.abs(tankerSprite.scale.y):Math.abs(tankerSprite.scale.y);
-    const filling=(next.status==='fueling'||next.status==='finishing')&&next.deliveredMl>0;
-    progress.visible=filling;amount.visible=filling;
-    if(filling) {
-      const ratio=next.reservedMl?Math.min(1,next.deliveredMl/next.reservedMl):0;
-      progress.clear().roundRect(-31,-4,62,8,3).fill(0x142329).roundRect(-29,-2,58*ratio,4,2).fill(0x72e3a3);
-      amount.text=(next.deliveredMl/1000).toFixed(1)+' л';
-    }
   }};
 }

@@ -39,10 +39,10 @@ describe('v0.2.4 station systems',()=>{
     expect(sim.deliveries[1].status).toBe('waiting');
     const copy=StationSimulation.importSave(sim.exportSave());
     expect(copy.snapshot()).toEqual(sim.snapshot());
-    for(let i=0;i<220;i++){sim.step(30);copy.step(30);}
+    for(let i=0;i<230;i++){sim.step(30);copy.step(30);}
     expect(copy.snapshot()).toEqual(sim.snapshot());
     expect(sim.station.tanks[0].stockMl).toBeLessThanOrEqual(sim.station.tanks[0].capacityMl);
-    expect(sim.deliveries).toHaveLength(0);
+    expect(sim.deliveries,JSON.stringify({deliveries:sim.deliveries.map(d=>({status:d.status,remaining:d.remainingMl,phase:d.phaseSeconds})),traffic:sim.trafficDiagnostics(30)})).toHaveLength(0);
   });
   it('routes two tankers through one unloading pad without traffic overlap',()=>{
     const sim=legacySimulation(12345);
@@ -79,9 +79,9 @@ describe('v0.2.4 station systems',()=>{
     const old={...sim.exportSave(),version:'0.2.4'};
     const restored=StationSimulation.importSave(old);
     expect(restored.snapshot()).toEqual(sim.snapshot());
-    expect(restored.exportSave().version).toBe('0.4.0');
+    expect(restored.exportSave().version).toBe('0.5.0');
   });
-  it('stops a sale at the last millilitre and charges only what was delivered',()=>{
+  it('refuses service when stock cannot cover the full reservation',()=>{
     const sim=legacySimulation(7);
     sim.station.tanks[0].stockMl=1_000;sim.station.fuels.ai92.stockMl=1_000;
     const v=createVehicle(999,sim.gameSeconds,new RandomSource(3));
@@ -90,15 +90,16 @@ describe('v0.2.4 station systems',()=>{
     sim.vehicles.push(v);
     const cash=sim.station.balanceKopeks;
     sim.step(60);
-    expect(sim.station.tanks[0].stockMl).toBe(0);
-    expect(sim.stats.soldMl).toBe(1_000);
+    expect(sim.station.tanks[0].stockMl).toBe(1_000);
+    expect(sim.stats.soldMl).toBe(0);
     const expenses=sim.expenses;
-    expect(sim.station.balanceKopeks-cash).toBe(5_700-expenses.lightingKopeks-expenses.pumpElectricityKopeks-
+    expect(sim.station.balanceKopeks-cash).toBe(0-expenses.lightingKopeks-expenses.pumpElectricityKopeks-
       expenses.tankMaintenanceKopeks-expenses.pumpingKopeks);
-    expect(sim.recentSales[0].volumeMl).toBe(1_000);
+    expect(sim.recentSales).toHaveLength(0);
+    expect(v.refusalReason).toBe('Недостаточно топлива');
     expect(v.status).toBe('finishing');
     sim.step(30);
-    expect(sim.stats.purchases).toBe(1);
+    expect(sim.stats.purchases).toBe(0);
   });
   it('blocks tank upgrade during service, then pauses connected channels for the job',()=>{
     const sim=legacySimulation(2);

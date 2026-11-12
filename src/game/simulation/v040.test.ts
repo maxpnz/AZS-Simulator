@@ -8,8 +8,8 @@ const HOUR=3600;
 describe('v0.4 market and demand',()=>{
   it('offers seven independent suppliers with configured specialties',()=>{
     const sim=new StationSimulation(10,cloneLegacyStation());
-    expect(SUPPLIERS).toHaveLength(7);
-    expect(new Set(SUPPLIERS.map(s=>s.id)).size).toBe(7);
+    expect(SUPPLIERS).toHaveLength(8);
+    expect(new Set(SUPPLIERS.map(s=>s.id)).size).toBe(8);
     expect(sim.getOffers('diesel').find(o=>o.supplierId==='north')!.priceKopeks)
       .toBeLessThan(sim.getOffers('diesel').find(o=>o.supplierId==='regional')!.priceKopeks);
     expect(sim.getOffers('ai98').find(o=>o.supplierId==='prime')!.priceKopeks)

@@ -3,6 +3,7 @@ import type { ConstructionJob, DeliveryTrip, FuelId, FuelTank, Pump, Vehicle } f
 import { PUMP_SLOTS, ROAD_LANES, WORLD_OBSTACLES } from '../../game/domain/world';
 import { ROAD_SURFACE_POLYGONS, ROAD_SURFACE_RECTS } from '../../game/domain/roadNetwork';
 import { deliveryPose } from '../../game/domain/deliveryMotion';
+import { driverPose } from '../../game/domain/driver';
 import { FUEL_IDS } from '../../game/domain/config';
 import { getHour } from '../../game/simulation/time';
 import { connectedPumpChannels, DELIVERY_PAD, FUEL_COLORS, FUEL_HATCH_SIZE, PUMP_ISLANDS, pumpChannelX, pumpNozzlePoint, priceSignRows, TANK_PAD, tankHatchPoint, vehicleFillerPoint } from '../../game/domain/stationGeometry';
@@ -75,10 +76,11 @@ function pumpGraphic(pump:Pump,vehicles:readonly Vehicle[],stock:Record<FuelId,n
     front.roundRect(badgeX-6,badgeY-6,12,12,2).fill(available?FUEL_COLORS[channel.fuel]:0x724845).stroke({color:0xe7e9db,width:.5});
     const t=new Text({text:channel.label,style:{fontFamily:'Arial',fontSize:7,fontWeight:'bold',fill:available?0x11242a:0xffd2c5}});
     t.anchor.set(.5);t.position.set(badgeX,badgeY);root.addChild(t);tags.push(t);
+    if(!available){const warning=label('НЕТ ТОПЛИВА',x,-31,5,0xff7777);warning.rotation=-Math.PI/2;root.addChild(warning);}
   }
   const active=vehicles.find(v=>v.pumpId===pump.id&&(v.status==='fueling'||v.status==='finishing'));
   const price=active?.salePriceKopeks??0;
-  display.text=active ? `${(active.deliveredMl/1000).toFixed(2)} л\n${(active.chargedKopeks/100).toFixed(2)} ₽\n${(price/100).toFixed(2)} ₽/л` : '0.00 л\n0.00 ₽\nГОТОВА';
+  display.text=active ? `${(active.deliveredMl/1000).toFixed(2)} л\n${(active.chargedKopeks/100).toFixed(2)} ₽\n${(price/100).toFixed(2)} ₽/л` : `${((pump.lastDisplayMl??0)/1000).toFixed(2)} л\n${((pump.lastDisplayKopeks??0)/100).toFixed(2)} ₽\nГОТОВА`;
   return {root,display,tags,active};
 }
 function constructionGraphic(slot:typeof PUMP_SLOTS[number],job:ConstructionJob|undefined,texture:Texture,upgrade=false) {
@@ -167,8 +169,24 @@ export async function createStationScene(initialPumps:readonly Pump[]):Promise<S
     const price=label('',27,y,27,0xe4ffb2);
     sign.addChild(name,glow,price);return {fuel,name,glow,price};
   });
-  const pumpLayer=new Container(),vehicleLayer=new Container(),effectLayer=new Container(),nozzleLayer=new Container(),deliveryLayer=new Container();root.addChild(effectLayer,pumpLayer,vehicleLayer,nozzleLayer,deliveryLayer);
+  const pumpLayer=new Container(),vehicleLayer=new Container(),driverLayer=new Container(),effectLayer=new Container(),nozzleLayer=new Container(),deliveryLayer=new Container();root.addChild(effectLayer,pumpLayer,vehicleLayer,driverLayer,nozzleLayer,deliveryLayer);
   const visuals=new Map<number,VehicleVisual>();
+  const drivers=new Map<number,Container>();
+  function drawDriver(vehicle:Vehicle){
+    const pose=driverPose(vehicle);let person=drivers.get(vehicle.id);
+    if(!pose.visible){if(person){driverLayer.removeChild(person);person.destroy({children:true});drivers.delete(vehicle.id);}return;}
+    if(!person){person=new Container();const variant=vehicle.driverVariant??0;const colors=[0x37699b,0x7a5646,0x41785e,0xae6b4d,0x555b9c,0x9d7778];const coat=colors[variant%colors.length];
+      const skin=[0xe0b89a,0x9e6b53,0xf0cfaa,0xba8b69][variant%4],bodyWidth=6+variant%3,hair=variant>=8?0xaeb5b4:[0x2c2629,0x664d35,0x372f32,0xb0925d][variant%4];
+      const g=new Graphics();g.ellipse(0,3,8,3).fill({color:0x101820,alpha:.4});
+      g.moveTo(-4,-2).lineTo(-5,-12).moveTo(4,-2).lineTo(5,-12).stroke({color:0x27343c,width:4});
+      g.roundRect(-bodyWidth,-26,bodyWidth*2,16,4).fill(coat).stroke({color:0x1b2931,width:1});
+      g.moveTo(-7,-22).lineTo(-10,-12).moveTo(7,-22).lineTo(10,-12).stroke({color:coat,width:3});
+      g.circle(0,-31,5).fill(skin);g.arc(0,-33,5,Math.PI,2*Math.PI).stroke({color:hair,width:variant%2===0?4:2});
+      if(variant%2===0)g.moveTo(-5,-32).lineTo(-5,-24).moveTo(5,-32).lineTo(5,-24).stroke({color:hair,width:3});
+      person.addChild(g);driverLayer.addChild(person);drivers.set(vehicle.id,person);}
+    person.position.set(pose.x,pose.y);person.scale.set((vehicle.category==='truck'?1.12:1)*(.92+(vehicle.driverVariant??0)%4*.055));
+    person.rotation=pose.walking?Math.sin(currentGameSeconds*8+vehicle.id)*.04:0;
+  }
   const motions=new Map<number,{root:Container;fromX:number;fromY:number;toX:number;toY:number;fromAngle:number;toAngle:number;elapsed:number}>();let vehicles:readonly Vehicle[]=[];let pumps:readonly Pump[]=initialPumps;let stocks={} as Record<FuelId,number>;let jobs:readonly ConstructionJob[]=[];let tanks:readonly FuelTank[]=[];
   let pumpSignature='';const displays=new Map<string,Text>();let prices={} as Record<FuelId,number>;let currentGameSeconds=0;
   const fuelNames:Record<FuelId,string>={ai92:'92',ai95:'95',ai95plus:'95+',ai98:'98',ai100:'100',diesel:'ДТ'};
@@ -214,7 +232,7 @@ export async function createStationScene(initialPumps:readonly Pump[]):Promise<S
     }
     for(const pump of pumps){const display=displays.get(pump.id);if(!display)continue;
       const active=vehicles.find(v=>v.pumpId===pump.id&&(v.status==='fueling'||v.status==='finishing'));
-      display.text=active?`${(active.deliveredMl/1000).toFixed(2)} л\n${(active.chargedKopeks/100).toFixed(2)} ₽\n${(active.salePriceKopeks/100).toFixed(2)} ₽/л`:'0.00 л\n0.00 ₽\nГОТОВА';
+      display.text=active?`${(active.deliveredMl/1000).toFixed(2)} л\n${(active.chargedKopeks/100).toFixed(2)} ₽\n${(active.salePriceKopeks/100).toFixed(2)} ₽/л`:`${((pump.lastDisplayMl??0)/1000).toFixed(2)} л\n${((pump.lastDisplayKopeks??0)/100).toFixed(2)} ₽\nГОТОВА`;
     }
   }
   function drawDeliveries(deliveries:readonly DeliveryTrip[]){
@@ -257,20 +275,21 @@ export async function createStationScene(initialPumps:readonly Pump[]):Promise<S
     },
     setDeliveries(nextDeliveries){drawDeliveries(nextDeliveries);},
     setVehicles(nextVehicles){vehicles=nextVehicles;const active=new Set(vehicles.map(v=>v.id));
-      for(const [id,visual] of visuals)if(!active.has(id)){vehicleLayer.removeChild(visual.root);visual.root.destroy({children:true});visuals.delete(id);motions.delete(id);}
+      for(const [id,visual] of visuals)if(!active.has(id)){vehicleLayer.removeChild(visual.root);visual.root.destroy({children:true});visuals.delete(id);motions.delete(id);const person=drivers.get(id);if(person){driverLayer.removeChild(person);person.destroy({children:true});drivers.delete(id);}}
       for(const vehicle of vehicles){let visual=visuals.get(vehicle.id);if(!visual){visual=createVehicleVisual(vehicle);visuals.set(vehicle.id,visual);vehicleLayer.addChild(visual.root);visual.update(vehicle);}else{
         const oldX=visual.root.x,oldY=visual.root.y,oldAngle=visual.root.rotation;visual.update(vehicle);
         const diff=Math.atan2(Math.sin(vehicle.angle-oldAngle),Math.cos(vehicle.angle-oldAngle));
         motions.set(vehicle.id,{root:visual.root,fromX:oldX,fromY:oldY,toX:vehicle.x,toY:vehicle.y,fromAngle:oldAngle,toAngle:oldAngle+diff,elapsed:0});
         visual.root.position.set(oldX,oldY);visual.root.rotation=oldAngle;
+        drawDriver(vehicle);
       }}
       drawPumps();effectLayer.removeChildren().forEach(child=>child.destroy());nozzleLayer.removeChildren().forEach(child=>child.destroy());
-      for(const v of vehicles.filter(v=>(v.status==='fueling'||v.status==='finishing')&&v.pumpId&&v.setupRemainingSeconds<60)){
+      for(const v of vehicles.filter(v=>v.status==='fueling'&&v.servicePhase==='dispensing'&&v.pumpId)){
         const pump=pumps.find(p=>p.id===v.pumpId),slot=pump&&PUMP_SLOTS[pump.slot];if(!slot)continue;
         const start=pumpNozzlePoint(pump,v.fuel),end=vehicleFillerPoint(v);if(!start)continue;
         const hose=shape(effectLayer,g=>g.moveTo(start.x,start.y).bezierCurveTo(start.x-12,start.y+42,end.x-19,end.y-18,end.x,end.y)
           .stroke({color:0x11191c,width:4}));
-        hose.alpha=v.status==='finishing'?Math.max(.2,v.setupRemainingSeconds/30):1;
+        hose.alpha=1;
         shape(nozzleLayer,g=>g.circle(end.x,end.y,4).fill(0x20292b).circle(end.x,end.y,1.5).fill(0xb8c7c1));
       }
     },tick(elapsedMs){for(const motion of motions.values()){motion.elapsed=Math.min(50,motion.elapsed+elapsedMs);const t=motion.elapsed/50;

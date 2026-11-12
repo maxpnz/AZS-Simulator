@@ -36,6 +36,8 @@ export const ROAD_NODES:readonly RoadNode[]=[
     {id:`pump_${slot.slot+1}_turn`,x:slot.stopX+48,y:628,next:[`pump_${slot.slot+1}_align`]},
     {id:`pump_${slot.slot+1}_align`,x:slot.stopX+40,y:slot.stopY,next:[`pump_${slot.slot+1}`]},
     {id:`pump_${slot.slot+1}`,x:slot.stopX,y:slot.stopY,next:[`pump_${slot.slot+1}_depart`]},
+    {id:`pump_${slot.slot+1}_truck_straight`,x:slot.stopX-110,y:slot.stopY,next:[`pump_${slot.slot+1}_truck_turn`]},
+    {id:`pump_${slot.slot+1}_truck_turn`,x:slot.stopX-180,y:700,next:['exit_lane']},
     {id:`pump_${slot.slot+1}_depart`,x:slot.stopX-24,y:630,next:[`pump_${slot.slot+1}_clear`]},
     {id:`pump_${slot.slot+1}_clear`,x:slot.stopX-66,y:685,next:[`pump_${slot.slot+1}_merge`]},
     {id:`pump_${slot.slot+1}_merge`,x:slot.stopX-90,y:700,next:['exit_lane']},

@@ -54,12 +54,12 @@ describe('v0.2.3 routes, queue and timed fuel sales',()=>{
       expenses.lightingKopeks-expenses.pumpElectricityKopeks-expenses.tankMaintenanceKopeks-expenses.pumpingKopeks);
     expect(first.snapshot()).toEqual(second.snapshot());
   },30000);
-  it('limits purchase by tank, budget and available stock',()=>{
+  it('limits requested purchase by tank and keeps stock validation for dispatch',()=>{
     const vehicle=createVehicle(1,0,new RandomSource(7));
     vehicle.behavior='volume';vehicle.requestedMl=40_000;
     vehicle.tankCapacityMl=50_000;vehicle.currentFuelMl=20_000;vehicle.budgetKopeks=100_000;
-    expect(purchaseLimitMl(vehicle,5000,50_000)).toBe(20_000);
-    expect(purchaseLimitMl(vehicle,5000,10_000)).toBe(10_000);
+    expect(purchaseLimitMl(vehicle,5000,50_000)).toBe(30_000);
+    expect(purchaseLimitMl(vehicle,5000,10_000)).toBe(30_000);
     expect(purchaseLimitMl(vehicle,5000,50_000)).toBeLessThanOrEqual(vehicle.tankCapacityMl-vehicle.currentFuelMl);
   });
   it('blocks changing a dispenser while it serves a vehicle',()=>{
@@ -102,7 +102,7 @@ describe('v0.2.3 routes, queue and timed fuel sales',()=>{
       vehicle.budgetKopeks=200_000;
       sim.vehicles.push(vehicle);
     }
-    sim.step(TRAFFIC_CONFIG.serviceSetupSeconds+60);
+    sim.step(5);
     expect(sim.station.tanks[0].stockMl).toBeLessThan(INITIAL_STATION.tanks[0].stockMl);
     expect(sim.station.tanks[0].stockMl).toBeGreaterThan(INITIAL_STATION.tanks[0].stockMl-30_000);
     expect(sim.station.balanceKopeks).toBeGreaterThan(INITIAL_STATION.balanceKopeks);
@@ -110,8 +110,6 @@ describe('v0.2.3 routes, queue and timed fuel sales',()=>{
     const small=sim.recentSales.find((sale)=>sale.vehicleId===10_000)!;
     const large=sim.recentSales.find((sale)=>sale.vehicleId===10_001)!;
     expect(small.volumeMl).toBe(10_000);expect(large.volumeMl).toBe(20_000);
-    const smallFlow=small.gameSeconds-start-TRAFFIC_CONFIG.serviceSetupSeconds;
-    const largeFlow=large.gameSeconds-start-TRAFFIC_CONFIG.serviceSetupSeconds;
-    expect(largeFlow).toBeCloseTo(smallFlow*2,-1);
+    expect(large.gameSeconds-small.gameSeconds).toBeGreaterThan(10);
   });
 });

@@ -14,7 +14,7 @@ export const FUEL_COLORS:Record<FuelId,number>={ai92:0x69c948,ai95:0x4da9ff,ai95
 export function priceSignRows(tanks:readonly FuelTank[],prices:Record<FuelId,number>) {
   return FUEL_IDS.map(fuel=>{
     const available=tanks.some(tank=>tank.fuel===fuel&&tank.status==='active'&&tank.stockMl>0);
-    return {fuel,available,price:available&&Number.isFinite(prices[fuel])?(prices[fuel]/100).toFixed(2):'—'};
+    return {fuel,available,price:Number.isFinite(prices[fuel])?(prices[fuel]/100).toFixed(2):'—'};
   });
 }
 

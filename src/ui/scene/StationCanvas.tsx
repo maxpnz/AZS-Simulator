@@ -5,9 +5,9 @@ import type { ConstructionJob, DeliveryTrip, FuelId, FuelTank, Pump, Vehicle } f
 import { createStationScene, hitTest, type ObjectId, SCENE_HEIGHT, SCENE_WIDTH } from './createStationScene';
 import { cameraTransform, INITIAL_CAMERA, limitPan, zoomAround, type Camera, type Point } from './camera';
 
-interface Props { pumps: readonly Pump[]; stocks: Record<FuelId,number>; jobs: readonly ConstructionJob[]; tanks: readonly FuelTank[]; deliveries: readonly DeliveryTrip[]; gameSeconds: number; prices: Record<FuelId,number>; engine: GameEngine; onObject: (id: ObjectId) => void }
+interface Props { pumps: readonly Pump[]; stocks: Record<FuelId,number>; jobs: readonly ConstructionJob[]; tanks: readonly FuelTank[]; deliveries: readonly DeliveryTrip[]; gameSeconds: number; prices: Record<FuelId,number>; engine: GameEngine; onObject: (id: ObjectId) => void; onVehicle:(id:number)=>void }
 
-export function StationCanvas({ pumps, stocks, jobs, tanks, deliveries, gameSeconds, prices, engine, onObject }: Props) {
+export function StationCanvas({ pumps, stocks, jobs, tanks, deliveries, gameSeconds, prices, engine, onObject,onVehicle }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const updateTimeRef = useRef<(seconds: number) => void>(() => undefined);
   const updatePricesRef = useRef<(prices: Record<FuelId,number>) => void>(() => undefined);
@@ -15,7 +15,9 @@ export function StationCanvas({ pumps, stocks, jobs, tanks, deliveries, gameSeco
   const updateDeliveriesRef = useRef<(deliveries: readonly DeliveryTrip[]) => void>(() => undefined);
   const updateVehiclesRef = useRef<(vehicles: readonly Vehicle[]) => void>(() => undefined);
   const onObjectRef = useRef(onObject);
+  const onVehicleRef=useRef(onVehicle);
   useEffect(() => { onObjectRef.current = onObject; }, [onObject]);
+  useEffect(() => { onVehicleRef.current = onVehicle; }, [onVehicle]);
 
   useEffect(() => { updateTimeRef.current(gameSeconds); }, [gameSeconds]);
   useEffect(() => { updatePricesRef.current(prices); }, [prices]);
@@ -117,8 +119,9 @@ export function StationCanvas({ pumps, stocks, jobs, tanks, deliveries, gameSeco
         if (event.type === 'pointerup' && pointers.size === 1 && tapStart && !dragged) {
           const point = local(event);
           const transform = cameraTransform(camera, baseScale(), viewport(), sceneSize);
-          const id = hitTest((point.x-transform.x)/transform.scale, (point.y-transform.y)/transform.scale);
-          if (id) onObjectRef.current(id);
+          const sx=(point.x-transform.x)/transform.scale,sy=(point.y-transform.y)/transform.scale;
+          const vehicle=[...engine.getState().vehicles].reverse().find(v=>Math.hypot(v.x-sx,v.y-sy)<Math.max(32,Math.min(115,(v.category==='truck'?85:45))));
+          if(vehicle)onVehicleRef.current(vehicle.id);else {const id=hitTest(sx,sy);if(id) onObjectRef.current(id);}
         }
         pointers.delete(event.pointerId);
         tapStart = null;
