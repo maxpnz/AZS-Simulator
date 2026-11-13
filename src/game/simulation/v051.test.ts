@@ -108,7 +108,7 @@ describe('v0.5.1 traffic fixes',()=>{
     try{
       const engine=new GameEngine();engine.save();
       expect(data.get('azs-simulator-save-v05-backup')).toBe(original);
-      expect(JSON.parse(data.get('azs-simulator-save')!).version).toBe('0.5.1');
+      expect(JSON.parse(data.get('azs-simulator-save')!).version).toBe('0.5.2');
       engine.save();expect(data.get('azs-simulator-save-v05-backup')).toBe(original);
     }finally{vi.unstubAllGlobals();}
   });

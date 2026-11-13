@@ -1,0 +1,132 @@
+{
+  "exit": {
+    "gameSeconds": 27960,
+    "id": 1,
+    "modelId": "compact-crossover",
+    "status": "leaving",
+    "x": 299.95,
+    "y": 680.85,
+    "heading": 2.8616,
+    "pumpId": "pump-1",
+    "route": [
+      "pump_1_depart",
+      "pump_1_clear",
+      "pump_1_merge",
+      "exit_lane",
+      "exit",
+      "exit_merge",
+      "west_lane_1_west"
+    ],
+    "routeIndex": 4,
+    "target": "exit",
+    "waitedSeconds": 0,
+    "serviceRemainingSeconds": 4,
+    "phaseRemainingSeconds": 0
+  },
+  "pump2": {
+    "gameSeconds": 29190,
+    "id": 27,
+    "modelId": "budget-sedan",
+    "status": "toPump",
+    "x": 849,
+    "y": 796.8,
+    "heading": 3.8416,
+    "pumpId": "pump-2",
+    "route": [
+      "pump_2_approach",
+      "pump_2_turn",
+      "pump_2_align",
+      "pump_2"
+    ],
+    "routeIndex": 0,
+    "target": "pump_2_approach",
+    "waitedSeconds": 0,
+    "serviceRemainingSeconds": 0,
+    "phaseRemainingSeconds": null
+  },
+  "queue": {
+    "gameSeconds": 29790,
+    "id": 31,
+    "modelId": "budget-sedan",
+    "status": "queued",
+    "x": 681,
+    "y": 755,
+    "heading": 3.9816,
+    "pumpId": "pump-1",
+    "route": [
+      "entrance_curve",
+      "entrance",
+      "pump_1_queue_entry",
+      "pump_1_queue"
+    ],
+    "routeIndex": 4,
+    "target": null,
+    "waitedSeconds": 0,
+    "serviceRemainingSeconds": 0,
+    "phaseRemainingSeconds": null
+  },
+  "delivery": [
+    {
+      "status": "approaching",
+      "phaseSeconds": 0,
+      "target": "delivery pad",
+      "remainingMl": 200000,
+      "x": 1960,
+      "y": 885,
+      "angle": -1.5707963267948966
+    },
+    {
+      "status": "approaching",
+      "phaseSeconds": 300,
+      "target": "delivery pad",
+      "remainingMl": 200000,
+      "x": 1960,
+      "y": 443,
+      "angle": -1.5707963267948966
+    },
+    {
+      "status": "approaching",
+      "phaseSeconds": 600,
+      "target": "delivery pad",
+      "remainingMl": 200000,
+      "x": 1805,
+      "y": 222,
+      "angle": -3.141592653589793
+    }
+  ],
+  "progress": [
+    {
+      "gameSeconds": 29820,
+      "id": 27,
+      "modelId": "budget-sedan",
+      "status": "leaving",
+      "x": 666.97,
+      "y": 650,
+      "heading": 3.1172,
+      "pumpId": "pump-2",
+      "route": [
+        "pump_2_depart",
+        "pump_2_clear",
+        "pump_2_merge",
+        "exit_lane",
+        "exit",
+        "exit_merge",
+        "west_lane_1_west"
+      ],
+      "routeIndex": 3,
+      "target": "exit_lane",
+      "waitedSeconds": 0,
+      "serviceRemainingSeconds": 4,
+      "phaseRemainingSeconds": 0
+    },
+    {
+      "gameSeconds": 30870,
+      "status": "gone"
+    }
+  ],
+  "final": {
+    "seconds": 30870,
+    "purchases": 2,
+    "stalls": []
+  }
+}

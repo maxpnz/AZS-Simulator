@@ -34,6 +34,7 @@ export class GameEngine {
   }
   private action(result:boolean):boolean {if(result){this.save();this.publishState();}return result;}
   setRetailPrice(fuel:FuelId,kopeks:number):boolean {return this.action(this.simulation.setRetailPrice(fuel,kopeks));}
+  setStationName(value:string):boolean {return this.action(this.simulation.setStationName(value));}
   setPumpFuels(pumpId:string,fuels:readonly FuelId[]):boolean {return this.action(this.simulation.setPumpFuels(pumpId,fuels));}
   buildPump(slot:number):boolean {return this.action(this.simulation.buildPump(slot));}
   upgradePump(id:string):boolean {return this.action(this.simulation.upgradePump(id));}
@@ -49,7 +50,7 @@ export class GameEngine {
     const old=localStorage.getItem('azs-simulator-save');
     if(old){
       const version=/^\s*\{\s*"version"\s*:\s*"([^"]+)"/.exec(old)?.[1]??(JSON.parse(old) as {version?:string}).version;
-      const backup=version==='0.4.0'?'azs-simulator-save-v04-backup':version==='0.5.0'?'azs-simulator-save-v05-backup':undefined;
+      const backup=version==='0.4.0'?'azs-simulator-save-v04-backup':version==='0.5.0'?'azs-simulator-save-v05-backup':version==='0.5.1'?'azs-simulator-save-v051-backup':undefined;
       if(backup&&!localStorage.getItem(backup))localStorage.setItem(backup,old);
     }
     localStorage.setItem('azs-simulator-save',this.exportSave());

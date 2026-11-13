@@ -36,6 +36,7 @@ export interface ConstructionJob {
 }
 
 export interface StationState {
+  name?: string;
   balanceKopeks: number;
   fuels: Record<FuelId, FuelStock>;
   tanks: FuelTank[];

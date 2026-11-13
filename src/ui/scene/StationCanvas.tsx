@@ -5,12 +5,13 @@ import type { ConstructionJob, DeliveryTrip, FuelId, FuelTank, Pump, Vehicle } f
 import { createStationScene, hitTest, type ObjectId, SCENE_HEIGHT, SCENE_WIDTH } from './createStationScene';
 import { cameraTransform, INITIAL_CAMERA, limitPan, zoomAround, type Camera, type Point } from './camera';
 
-interface Props { pumps: readonly Pump[]; stocks: Record<FuelId,number>; jobs: readonly ConstructionJob[]; tanks: readonly FuelTank[]; deliveries: readonly DeliveryTrip[]; gameSeconds: number; prices: Record<FuelId,number>; engine: GameEngine; onObject: (id: ObjectId) => void; onVehicle:(id:number)=>void }
+interface Props { stationName:string; pumps: readonly Pump[]; stocks: Record<FuelId,number>; jobs: readonly ConstructionJob[]; tanks: readonly FuelTank[]; deliveries: readonly DeliveryTrip[]; gameSeconds: number; prices: Record<FuelId,number>; engine: GameEngine; onObject: (id: ObjectId) => void; onVehicle:(id:number)=>void }
 
-export function StationCanvas({ pumps, stocks, jobs, tanks, deliveries, gameSeconds, prices, engine, onObject,onVehicle }: Props) {
+export function StationCanvas({ stationName,pumps, stocks, jobs, tanks, deliveries, gameSeconds, prices, engine, onObject,onVehicle }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const updateTimeRef = useRef<(seconds: number) => void>(() => undefined);
   const updatePricesRef = useRef<(prices: Record<FuelId,number>) => void>(() => undefined);
+  const updateNameRef = useRef<(name:string)=>void>(()=>undefined);
   const updatePumpsRef = useRef<(pumps: readonly Pump[], stocks: Record<FuelId,number>, jobs: readonly ConstructionJob[], tanks: readonly FuelTank[]) => void>(() => undefined);
   const updateDeliveriesRef = useRef<(deliveries: readonly DeliveryTrip[]) => void>(() => undefined);
   const updateVehiclesRef = useRef<(vehicles: readonly Vehicle[]) => void>(() => undefined);
@@ -21,6 +22,7 @@ export function StationCanvas({ pumps, stocks, jobs, tanks, deliveries, gameSeco
 
   useEffect(() => { updateTimeRef.current(gameSeconds); }, [gameSeconds]);
   useEffect(() => { updatePricesRef.current(prices); }, [prices]);
+  useEffect(() => { updateNameRef.current(stationName); }, [stationName]);
   useEffect(() => { updatePumpsRef.current(pumps, stocks, jobs, tanks); }, [pumps, stocks, jobs, tanks]);
   useEffect(() => { updateDeliveriesRef.current(deliveries); }, [deliveries]);
 
@@ -42,6 +44,7 @@ export function StationCanvas({ pumps, stocks, jobs, tanks, deliveries, gameSeco
       app.stage.addChild(scene.root);
       updateTimeRef.current = scene.setTime;
       updatePricesRef.current = scene.setPrices;
+      updateNameRef.current = scene.setName;
       updateVehiclesRef.current = scene.setVehicles;
       updatePumpsRef.current = scene.setPumps;
       updateDeliveriesRef.current = scene.setDeliveries;
@@ -51,6 +54,7 @@ export function StationCanvas({ pumps, stocks, jobs, tanks, deliveries, gameSeco
       scene.setVehicles(engine.getState().vehicles);
       unsubscribeVehicles = engine.subscribeState((state) => {updateVehiclesRef.current(state.vehicles);updateDeliveriesRef.current(state.deliveries??[]);}, 50);
       scene.setPrices(prices);
+      scene.setName(stationName);
       scene.setTime(gameSeconds);
       const sceneSize = { x: SCENE_WIDTH, y: SCENE_HEIGHT };
       const viewport = (): Point => ({ x: host.clientWidth, y: host.clientHeight });
@@ -160,6 +164,7 @@ export function StationCanvas({ pumps, stocks, jobs, tanks, deliveries, gameSeco
       updateDeliveriesRef.current = () => undefined;
       updateTimeRef.current = () => undefined;
       updatePricesRef.current = () => undefined;
+      updateNameRef.current = () => undefined;
       if (app.renderer) app.destroy(true, { children: true });
     };
   }, [engine]);
