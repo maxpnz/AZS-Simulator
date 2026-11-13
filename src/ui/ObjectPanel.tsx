@@ -27,7 +27,7 @@ export function ObjectPanel({id,state,prices,vehicles,onPrice,onBuildPump,onUpgr
   const submittingRef=useRef(false);
   const [channels,setChannels]=useState<FuelId[]>(()=>[...(pump?.fuels??[])]);
   const serving=pump?vehicles.find(v=>v.pumpId===pump.id&&(v.status==='fueling'||v.status==='finishing')):undefined;
-  const pumpBusy=pump?vehicles.some(v=>v.pumpId===pump.id&&['toPump','fueling','finishing','leaving'].includes(v.status)):false;
+  const pumpBusy=pump?vehicles.some(v=>v.pumpId===pump.id&&['entering','queued','toPump','fueling','finishing','leaving'].includes(v.status)):false;
   const activeFuels=FUEL_IDS.filter(f=>station.tanks.some(t=>t.fuel===f&&t.status==='active'));
   const cargoEntries:[[FuelId,number],...[FuelId,number][]]=[[chosenFuel,deliveryLitres],
     ...(secondFuel==='none'?[]:[[secondFuel,secondLitres] as [FuelId,number]]),
@@ -73,7 +73,7 @@ export function ObjectPanel({id,state,prices,vehicles,onPrice,onBuildPump,onUpgr
       {pump?<>
         <p>Состояние: {pump.status==='building'?'строится':pump.status==='upgrading'?'модернизируется':'готова'}.
           Каналы: {pump.fuels.map(f=>station.fuels[f].name).join(', ')||'не подключены'}. Производительность ×{(pump.flowMultiplier??1).toFixed(1)}.</p>
-        {serving&&<div className="pump-readout"><span>Фаза: {serving.servicePhase??'заправка'}</span><span>Литры: {litres(serving.deliveredMl,2)}</span><span>Стоимость: {rubles(serving.chargedKopeks)}</span>
+        {serving&&<div className="pump-readout"><span>Фаза: {serving.status==='finishing'?'Завершение':serving.servicePhase==='preparing'?'Подготовка':'Заправка'}</span><span>Литры: {litres(serving.deliveredMl,2)}</span><span>Стоимость: {rubles(serving.chargedKopeks)}</span>
           <span>Цена: {rubles(serving.salePriceKopeks)}/л</span></div>}
         {!serving&&<p>Последняя выдача: {litres(pump.lastDisplayMl??0,2)} · {rubles(pump.lastDisplayKopeks??0)}</p>}
         <button type="button" className="panel-action" disabled={pump.status!=='ready'||(pump.enabled!==false&&pumpBusy)}

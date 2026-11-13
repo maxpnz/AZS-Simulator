@@ -91,20 +91,14 @@ export function createVehicleVisual(vehicle: Vehicle): VehicleVisual {
     body.roundRect(-length*.49,side*width*.26-3,5,6,2).fill(0xd64c42);
   }
   const texture=vehicleTextures.get(model.id);
-  let tankerSprite:Sprite|undefined;
-  if(texture&&model.silhouette!=='tractor'){
+  if(texture&&model.silhouette!=='tractor'&&model.id!=='fuel-tanker'){
     const sprite=new Sprite(texture);sprite.anchor.set(.5);
     if(model.id==='pickup'){sprite.width=length*1.05;sprite.height=width*1.4;}
     else if(passengerIds.includes(model.id)){sprite.width=length*1.08;sprite.height=width*2.1;}
-    else if(model.id==='fuel-tanker'){sprite.width=length*1.25;sprite.height=width*1.65;}
     else{sprite.width=length*1.12;sprite.height=width*4.3;}
     root.addChild(sprite);
-    if(model.id==='fuel-tanker')tankerSprite=sprite;
   } else root.addChild(body);
   return {root,update(next) {
     root.position.set(next.x,next.y);root.rotation=next.angle;
-    // The tanker asset is a side view with wheels at the bottom. A 180° turn
-    // at the pad would otherwise put them above the tank.
-    if(tankerSprite)tankerSprite.scale.y=next.angle< -Math.PI*0.75?-Math.abs(tankerSprite.scale.y):Math.abs(tankerSprite.scale.y);
   }};
 }

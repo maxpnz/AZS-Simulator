@@ -1,8 +1,8 @@
 import { modelById } from '../game/domain/vehicleModels';
 import type { FuelId, Vehicle } from '../game/domain/types';
 const behavior={full:'До полного бака',amount:'На фиксированную сумму',volume:'Фиксированный объём'};
-const status={road:'На дороге',entering:'Въезжает',queued:'Ожидает ТРК',toPump:'Подъезжает к ТРК',fueling:'Обслуживание',finishing:'Посадка водителя',leaving:'Выезжает'};
-const phase={exiting:'Водитель выходит',toBuilding:'Идёт к зданию',paying:'Оплачивает',returning:'Возвращается',preparing:'Готовит пистолет',dispensing:'Заправляет',boarding:'Садится в автомобиль'};
+const status={road:'На дороге',entering:'К месту у ТРК',queued:'Ожидает ТРК',toPump:'Подъезжает к ТРК',fueling:'Обслуживание',finishing:'Завершает обслуживание',leaving:'Выезжает'};
+const phase={preparing:'Подготовка',dispensing:'Заправляет'};
 export function VehiclePanel({vehicle,fuelName,prices,onClose}:{vehicle:Vehicle;fuelName:Record<FuelId,string>;prices:Record<FuelId,number>;onClose:()=>void}){
   const model=modelById(vehicle.modelId);
   const current=vehicle.currentFuelMl+vehicle.deliveredMl;

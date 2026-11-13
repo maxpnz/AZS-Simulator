@@ -6,7 +6,7 @@ export const PUMP_SLOTS = CANOPY_SUPPORTS.flatMap((x, support) => [
   { slot: support * 2, support, side: 'left' as const, x: x - 54, y: 526, stopX: x - 84, stopY: 590 },
   { slot: support * 2 + 1, support, side: 'right' as const, x: x + 54, y: 526, stopX: x + 84, stopY: 590 },
 ]);
-export const ROAD_LANES = [885, 975, 1105, 1170] as const;
+export const ROAD_LANES = [940, 1000, 1120, 1170] as const;
 export const WORLD_OBSTACLES = [
   { id: 'shop', x: 475, y: 95, width: 670, height: 280 },
   { id: 'flower-west', x: 300, y: 425, width: 180, height: 90 },

@@ -38,6 +38,20 @@ export function createCompetition(seconds:number,base:Record<FuelId,number>):Com
     return {id:profile.id,prices,stockLitres,restockAt:{},nextReviewSeconds:seconds+reviewInterval(profile,index,0),history:[{seconds,prices:{...prices}}]};
   }),nextStockSeconds:(Math.floor(seconds/3600)+1)*3600};
 }
+export function enforceCompetitorPriceFloor(state:CompetitionState,seconds:number,base:Record<FuelId,number>):void {
+  for(const station of state.stations){
+    let changed=false;
+    for(const fuel of Object.keys(station.prices) as FuelId[]){
+      const floor=base[fuel]+1;
+      if((station.prices[fuel]??0)<floor){station.prices[fuel]=floor;changed=true;}
+    }
+    if(changed){
+      const last=station.history.at(-1);
+      if(last?.seconds===seconds)last.prices={...station.prices};
+      else station.history.push({seconds,prices:{...station.prices}});
+    }
+  }
+}
 export function advanceCompetition(state:CompetitionState,toSeconds:number,base:Record<FuelId,number>,ourPrices:Record<FuelId,number>):void {
   const day=COMPETITOR_CONFIG.daySeconds;
   for(const [index,station] of state.stations.entries()){
@@ -71,6 +85,9 @@ export function advanceCompetition(state:CompetitionState,toSeconds:number,base:
       }
     }
   }
+  // Wholesale prices move between scheduled reviews. The floor is a cost
+  // safeguard, recorded separately from a regular competitive price review.
+  enforceCompetitorPriceFloor(state,toSeconds,base);
 }
 export function availableCompetitorPrices(state:CompetitionState,fuel:FuelId):number[] {return state.stations.filter(s=>(s.stockLitres[fuel]??0)>0&&s.prices[fuel]!==undefined).map(s=>s.prices[fuel]!);}
 export function marketAverage(state:CompetitionState,fuel:FuelId):number|undefined {const prices=availableCompetitorPrices(state,fuel);return prices.length?Math.round(prices.reduce((a,b)=>a+b,0)/prices.length):undefined;}

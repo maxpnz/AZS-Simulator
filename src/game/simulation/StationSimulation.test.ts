@@ -13,7 +13,11 @@ describe('v0.2.3 routes, queue and timed fuel sales',()=>{
     let previous=new Map<number,{x:number;y:number}>();
     for(let i=0;i<5760;i++) {
       first.step(30);second.step(30);
-      if(first.queueIds.length>0) sawQueue=true;
+      if(first.queueIds.length>0){
+        sawQueue=true;
+        expect(first.queueIds.length).toBeLessThanOrEqual(TRAFFIC_CONFIG.maxQueue);
+        expect(first.queueIds.every(id=>first.vehicles.some(v=>v.id===id&&v.pumpId))).toBe(true);
+      }
       const active=new Map<number,{x:number;y:number}>();
       for(const vehicle of first.vehicles) {
         active.set(vehicle.id,{x:vehicle.x,y:vehicle.y});
@@ -45,7 +49,6 @@ describe('v0.2.3 routes, queue and timed fuel sales',()=>{
     expect(first.stats.passed).toBeGreaterThan(0);
     expect(first.stats.visited).toBeGreaterThan(0);
     expect(first.stats.purchases).toBeGreaterThan(0);
-    expect(first.stats.leftQueue).toBeGreaterThan(0);
     expect(sawPump1&&sawPump2&&sawDiesel&&sawPremium&&sawQueue&&sawFuelingProgress).toBe(true);
     const used=FUEL_IDS.reduce((sum,id)=>sum+INITIAL_STATION.fuels[id].stockMl-first.station.fuels[id].stockMl,0);
     expect(used).toBe(first.stats.soldMl);

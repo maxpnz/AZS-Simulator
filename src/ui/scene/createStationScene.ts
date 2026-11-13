@@ -1,9 +1,8 @@
 import { Assets, Container, Graphics, Sprite, Text, TilingSprite, type Texture } from 'pixi.js';
 import type { ConstructionJob, DeliveryTrip, FuelId, FuelTank, Pump, Vehicle } from '../../game/domain/types';
-import { PUMP_SLOTS, ROAD_LANES, WORLD_OBSTACLES } from '../../game/domain/world';
-import { ROAD_SURFACE_POLYGONS, ROAD_SURFACE_RECTS } from '../../game/domain/roadNetwork';
+import { PUMP_SLOTS, WORLD_OBSTACLES } from '../../game/domain/world';
+import { pumpQueuePoint, ROAD_SURFACE_POLYGONS, ROAD_SURFACE_RECTS } from '../../game/domain/roadNetwork';
 import { deliveryPose } from '../../game/domain/deliveryMotion';
-import { driverPose } from '../../game/domain/driver';
 import { FUEL_IDS } from '../../game/domain/config';
 import { getHour } from '../../game/simulation/time';
 import { connectedPumpChannels, DELIVERY_PAD, FUEL_COLORS, FUEL_HATCH_SIZE, PUMP_ISLANDS, pumpChannelX, pumpNozzlePoint, priceSignRows, TANK_PAD, tankHatchPoint, vehicleFillerPoint } from '../../game/domain/stationGeometry';
@@ -118,13 +117,22 @@ export async function createStationScene(initialPumps:readonly Pump[]):Promise<S
   roadMask.fill(0xffffff);
   const roadSurface=new TilingSprite({texture:asphaltTexture,width:SCENE_WIDTH,height:SCENE_HEIGHT});
   roadSurface.tileScale.set(.46);roadSurface.mask=roadMask;ground.addChild(roadSurface,roadMask);
-  for(const y of ROAD_LANES) {
-    const dash=new Graphics();for(let x=15;x<2000;x+=75)dash.rect(x,y+(y<1000?32:-31),37,3).fill({color:0xe8e3c8,alpha:.76});ground.addChild(dash);
+  // Two lanes each way. The uncovered grass strip is the physical median.
+  shape(ground,g=>g.rect(0,900,2000,4).fill(0xc1c6ba).rect(0,1036,2000,4).fill(0xc1c6ba)
+    .rect(0,1080,2000,4).fill(0xc1c6ba).rect(0,1196,2000,4).fill(0xc1c6ba));
+  for(const y of [970,1145]){
+    const dash=new Graphics();for(let x=15;x<2000;x+=82)dash.rect(x,y,43,4).fill({color:0xe8e3c8,alpha:.85});ground.addChild(dash);
   }
-  shape(ground,g=>g.rect(0,1032,2000,8).fill(0xd2be70).rect(0,1040,2000,8).fill(0x343e40));
-  shape(ground,g=>g.rect(275,565,1540,9).fill(0xb8bbb1).rect(270,756,1430,8).fill(0xa9afa5));
-  for(const x of [350,1860]) ground.addChild(label(x<1000?'ВЫЕЗД':'ВЪЕЗД',x,719,18));
-  for(const x of [570,820,1070,1320,1570]) shape(ground,g=>g.poly([x,693,x-16,685,x,677]).fill({color:0xe9e8d4,alpha:.48}));
+  shape(ground,g=>g.rect(275,565,1540,9).fill(0xb8bbb1).rect(270,896,1630,4).fill(0xa9afa5));
+  for(const slot of PUMP_SLOTS){
+    const {x,y}=pumpQueuePoint(slot.slot),line=new Graphics();
+    line.moveTo(x-51,y-30).lineTo(x+51,y-30).moveTo(x-51,y+30).lineTo(x+51,y+30)
+      .moveTo(x-51,y-30).lineTo(x-51,y-19).moveTo(x+51,y+19).lineTo(x+51,y+30)
+      .stroke({color:0xd9e4d5,width:2,alpha:.7});
+    ground.addChild(line,label(`ТРК ${slot.slot+1}`,x,y,12,0xd9e4d5));
+  }
+  for(const x of [350,1860]) ground.addChild(label(x<1000?'ВЫЕЗД':'ВЪЕЗД',x,x<1000?682:865,18));
+  for(const x of [570,820,1070,1320,1570]) shape(ground,g=>g.poly([x,653,x-16,645,x,637]).fill({color:0xe9e8d4,alpha:.48}));
   // The planted beds, shop, tanks and service pad are separate scene objects.
   for(const obstacle of WORLD_OBSTACLES.filter(o=>o.id.startsWith('flower'))) {
     image(root,flowerbedTexture,obstacle.x-10,obstacle.y-26,obstacle.width+20,obstacle.height+54);
@@ -169,24 +177,8 @@ export async function createStationScene(initialPumps:readonly Pump[]):Promise<S
     const price=label('',27,y,27,0xe4ffb2);
     sign.addChild(name,glow,price);return {fuel,name,glow,price};
   });
-  const pumpLayer=new Container(),vehicleLayer=new Container(),driverLayer=new Container(),effectLayer=new Container(),nozzleLayer=new Container(),deliveryLayer=new Container();root.addChild(effectLayer,pumpLayer,vehicleLayer,driverLayer,nozzleLayer,deliveryLayer);
+  const pumpLayer=new Container(),vehicleLayer=new Container(),effectLayer=new Container(),nozzleLayer=new Container(),deliveryLayer=new Container();root.addChild(effectLayer,pumpLayer,vehicleLayer,nozzleLayer,deliveryLayer);
   const visuals=new Map<number,VehicleVisual>();
-  const drivers=new Map<number,Container>();
-  function drawDriver(vehicle:Vehicle){
-    const pose=driverPose(vehicle);let person=drivers.get(vehicle.id);
-    if(!pose.visible){if(person){driverLayer.removeChild(person);person.destroy({children:true});drivers.delete(vehicle.id);}return;}
-    if(!person){person=new Container();const variant=vehicle.driverVariant??0;const colors=[0x37699b,0x7a5646,0x41785e,0xae6b4d,0x555b9c,0x9d7778];const coat=colors[variant%colors.length];
-      const skin=[0xe0b89a,0x9e6b53,0xf0cfaa,0xba8b69][variant%4],bodyWidth=6+variant%3,hair=variant>=8?0xaeb5b4:[0x2c2629,0x664d35,0x372f32,0xb0925d][variant%4];
-      const g=new Graphics();g.ellipse(0,3,8,3).fill({color:0x101820,alpha:.4});
-      g.moveTo(-4,-2).lineTo(-5,-12).moveTo(4,-2).lineTo(5,-12).stroke({color:0x27343c,width:4});
-      g.roundRect(-bodyWidth,-26,bodyWidth*2,16,4).fill(coat).stroke({color:0x1b2931,width:1});
-      g.moveTo(-7,-22).lineTo(-10,-12).moveTo(7,-22).lineTo(10,-12).stroke({color:coat,width:3});
-      g.circle(0,-31,5).fill(skin);g.arc(0,-33,5,Math.PI,2*Math.PI).stroke({color:hair,width:variant%2===0?4:2});
-      if(variant%2===0)g.moveTo(-5,-32).lineTo(-5,-24).moveTo(5,-32).lineTo(5,-24).stroke({color:hair,width:3});
-      person.addChild(g);driverLayer.addChild(person);drivers.set(vehicle.id,person);}
-    person.position.set(pose.x,pose.y);person.scale.set((vehicle.category==='truck'?1.12:1)*(.92+(vehicle.driverVariant??0)%4*.055));
-    person.rotation=pose.walking?Math.sin(currentGameSeconds*8+vehicle.id)*.04:0;
-  }
   const motions=new Map<number,{root:Container;fromX:number;fromY:number;toX:number;toY:number;fromAngle:number;toAngle:number;elapsed:number}>();let vehicles:readonly Vehicle[]=[];let pumps:readonly Pump[]=initialPumps;let stocks={} as Record<FuelId,number>;let jobs:readonly ConstructionJob[]=[];let tanks:readonly FuelTank[]=[];
   let pumpSignature='';const displays=new Map<string,Text>();let prices={} as Record<FuelId,number>;let currentGameSeconds=0;
   const fuelNames:Record<FuelId,string>={ai92:'92',ai95:'95',ai95plus:'95+',ai98:'98',ai100:'100',diesel:'ДТ'};
@@ -275,13 +267,12 @@ export async function createStationScene(initialPumps:readonly Pump[]):Promise<S
     },
     setDeliveries(nextDeliveries){drawDeliveries(nextDeliveries);},
     setVehicles(nextVehicles){vehicles=nextVehicles;const active=new Set(vehicles.map(v=>v.id));
-      for(const [id,visual] of visuals)if(!active.has(id)){vehicleLayer.removeChild(visual.root);visual.root.destroy({children:true});visuals.delete(id);motions.delete(id);const person=drivers.get(id);if(person){driverLayer.removeChild(person);person.destroy({children:true});drivers.delete(id);}}
+      for(const [id,visual] of visuals)if(!active.has(id)){vehicleLayer.removeChild(visual.root);visual.root.destroy({children:true});visuals.delete(id);motions.delete(id);}
       for(const vehicle of vehicles){let visual=visuals.get(vehicle.id);if(!visual){visual=createVehicleVisual(vehicle);visuals.set(vehicle.id,visual);vehicleLayer.addChild(visual.root);visual.update(vehicle);}else{
         const oldX=visual.root.x,oldY=visual.root.y,oldAngle=visual.root.rotation;visual.update(vehicle);
         const diff=Math.atan2(Math.sin(vehicle.angle-oldAngle),Math.cos(vehicle.angle-oldAngle));
         motions.set(vehicle.id,{root:visual.root,fromX:oldX,fromY:oldY,toX:vehicle.x,toY:vehicle.y,fromAngle:oldAngle,toAngle:oldAngle+diff,elapsed:0});
         visual.root.position.set(oldX,oldY);visual.root.rotation=oldAngle;
-        drawDriver(vehicle);
       }}
       drawPumps();effectLayer.removeChildren().forEach(child=>child.destroy());nozzleLayer.removeChildren().forEach(child=>child.destroy());
       for(const v of vehicles.filter(v=>v.status==='fueling'&&v.servicePhase==='dispensing'&&v.pumpId)){

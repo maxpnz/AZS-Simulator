@@ -47,9 +47,10 @@ export class GameEngine {
   importSave(json:string):void {this.simulation=StationSimulation.importSave(JSON.parse(json));this.publishState();}
   save():void {if(this.saveHealthy&&typeof localStorage!=='undefined')try{
     const old=localStorage.getItem('azs-simulator-save');
-    if(old&&!localStorage.getItem('azs-simulator-save-v04-backup')){
-      const version=(JSON.parse(old) as {version?:string}).version;
-      if(version==='0.4.0')localStorage.setItem('azs-simulator-save-v04-backup',old);
+    if(old){
+      const version=/^\s*\{\s*"version"\s*:\s*"([^"]+)"/.exec(old)?.[1]??(JSON.parse(old) as {version?:string}).version;
+      const backup=version==='0.4.0'?'azs-simulator-save-v04-backup':version==='0.5.0'?'azs-simulator-save-v05-backup':undefined;
+      if(backup&&!localStorage.getItem(backup))localStorage.setItem(backup,old);
     }
     localStorage.setItem('azs-simulator-save',this.exportSave());
   }catch{this.saveHealthy=false;}}

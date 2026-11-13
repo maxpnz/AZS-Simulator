@@ -79,7 +79,7 @@ describe('v0.2.4 station systems',()=>{
     const old={...sim.exportSave(),version:'0.2.4'};
     const restored=StationSimulation.importSave(old);
     expect(restored.snapshot()).toEqual(sim.snapshot());
-    expect(restored.exportSave().version).toBe('0.5.0');
+    expect(restored.exportSave().version).toBe('0.5.1');
   });
   it('refuses service when stock cannot cover the full reservation',()=>{
     const sim=legacySimulation(7);

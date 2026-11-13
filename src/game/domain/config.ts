@@ -43,8 +43,10 @@ export const TRAFFIC_CONFIG = {
   roadSpeed: 1.45,
   stationSpeed: 0.8,
   decisionX: 1.0,
-  maxQueue: 3,
-  serviceSetupSeconds: 90,
+  // A refusal for a long queue is possible only after six customers are waiting.
+  maxQueue: 6,
+  stalledVehicleSeconds: 1800,
+  serviceSetupSeconds: 20,
   fuelFlowMlPerSecond: 600,
   maxRecentSales: 5,
   categoryWeights: { compact: 0.19, sedan: 0.34, crossover: 0.19, suv: 0.10, van: 0.10, truck: 0.08 } satisfies Record<VehicleCategory, number>,

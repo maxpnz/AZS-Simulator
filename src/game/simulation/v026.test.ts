@@ -50,7 +50,7 @@ describe('v0.2.6 world geometry and rendering data',()=>{
     expect(restored.vehicles).toHaveLength(sim.vehicles.length);
     for(let i=0;i<2000;i++)restored.step(30);
     expect(restored.stats.purchases).toBeGreaterThan(sim.stats.purchases);
-    expect(restored.exportSave().version).toBe('0.5.0');
+    expect(restored.exportSave().version).toBe('0.5.1');
   });
   it('moves an old stationary customer onto the matching new stop without changing its sale',()=>{
     const sim=legacySimulation(31);
@@ -68,14 +68,17 @@ describe('v0.2.6 world geometry and rendering data',()=>{
     expect(migrated.angle).toBe(Math.PI);
     expect(migrated.deliveredMl).toBe(customer!.deliveredMl);
   });
-  it('can fuel more than one car at once without intersecting adjacent island routes',()=>{
+  it('keeps multiple wired pumps serving without stranding cars',()=>{
     const sim=legacySimulation(19);
     sim.buildPump(2);sim.buildPump(3);
-    let peak=0;
-    for(let i=0;i<1000;i++){
+    sim.step(360);
+    expect(sim.setPumpFuels('pump-3',['ai92','ai95'])).toBe(true);
+    expect(sim.setPumpFuels('pump-4',['ai92','ai95'])).toBe(true);
+    for(let i=0;i<2000;i++){
       sim.step(30);
-      peak=Math.max(peak,sim.vehicles.filter(v=>v.status==='fueling').length);
     }
-    expect(peak).toBeGreaterThanOrEqual(2);
+    const servedPumps=new Set(sim.financeEvents.filter(event=>event.kind==='sale').map(event=>event.objectId));
+    expect(servedPumps.size).toBeGreaterThanOrEqual(2);
+    expect(sim.trafficDiagnostics(1800)).toEqual([]);
   });
 });

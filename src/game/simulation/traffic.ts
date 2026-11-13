@@ -70,7 +70,7 @@ export function createVehicle(id: number, gameSeconds: number, rng: RandomSource
     patienceSeconds: Math.round(rng.between(config.patienceMinutes[0], config.patienceMinutes[1]) * 60),
     waitedSeconds: 0, status: 'road', reservedMl: 0, salePriceKopeks: 0, serviceRemainingSeconds: 0, setupRemainingSeconds: 0, deliveredMl: 0, chargedKopeks: 0, route: [], laneId: '',
     x: 0, y: 0, angle: 0,
-    color: TRAFFIC_CONFIG.colors[id % TRAFFIC_CONFIG.colors.length], westbound, routeIndex: 0, speed: 0,driverVariant:id%12,
+    color: TRAFFIC_CONFIG.colors[id % TRAFFIC_CONFIG.colors.length], westbound, routeIndex: 0, speed: 0,
   };
 }
 

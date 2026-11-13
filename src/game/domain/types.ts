@@ -129,9 +129,8 @@ export interface Vehicle {
   routeIndex: number;
   speed?: number;
   refusalReason?: string;
-  servicePhase?: 'exiting'|'toBuilding'|'paying'|'returning'|'preparing'|'dispensing'|'boarding';
+  servicePhase?: 'preparing'|'dispensing';
   phaseRemainingSeconds?: number;
-  driverVariant?: number;
 }
 
 export interface Sale {
