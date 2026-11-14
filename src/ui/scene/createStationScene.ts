@@ -17,6 +17,8 @@ import landscapeLampUrl from '../../assets/v025/landscape-lamp.webp';
 import tankHatchUrl from '../../assets/v025/tank-hatch.webp';
 import { VEHICLE_SPRITES } from './vehicleManifest';
 import { normalizeStationName } from '../../game/domain/stationName';
+import { condition, contractorPose } from '../../game/domain/technical';
+import type { TechnicalState } from '../../game/domain/technical';
 import { setVehicleTextures } from './vehicleSprite';
 
 export const SCENE_WIDTH=2000, SCENE_HEIGHT=1200;
@@ -118,7 +120,7 @@ function constructionGraphic(slot:typeof PUMP_SLOTS[number],job:ConstructionJob|
   const percent=label(`${Math.round(progress*100)}%`,0,-85,10,0xffdfa0);root.addChild(percent);
   return root;
 }
-export interface StationScene {root:Container;setTime:(seconds:number)=>void;setName:(name:string)=>void;setPrices:(prices:Record<FuelId,number>)=>void;setVehicles:(vehicles:readonly Vehicle[])=>void;setPumps:(pumps:readonly Pump[],stocks:Record<FuelId,number>,jobs?:readonly ConstructionJob[],tanks?:readonly FuelTank[])=>void;setDeliveries:(deliveries:readonly DeliveryTrip[])=>void;tick:(elapsedMs:number)=>void}
+export interface StationScene {root:Container;setTime:(seconds:number)=>void;setName:(name:string)=>void;setPrices:(prices:Record<FuelId,number>)=>void;setVehicles:(vehicles:readonly Vehicle[])=>void;setPumps:(pumps:readonly Pump[],stocks:Record<FuelId,number>,jobs?:readonly ConstructionJob[],tanks?:readonly FuelTank[])=>void;setDeliveries:(deliveries:readonly DeliveryTrip[])=>void;setTechnical:(technical:TechnicalState)=>void;tick:(elapsedMs:number)=>void}
 export async function createStationScene(initialPumps:readonly Pump[]):Promise<StationScene> {
   const [grassTexture,asphaltTexture,storeTexture,canopyTexture,pumpTexture,flowerbedTexture,landscapeLampTexture,tankHatchTexture]=
     await Promise.all([grassUrl,asphaltUrl,storeUrl,canopyUrl,pumpUrl,flowerbedUrl,landscapeLampUrl,tankHatchUrl].map(url=>Assets.load<Texture>(url)));
@@ -199,11 +201,13 @@ export async function createStationScene(initialPumps:readonly Pump[]):Promise<S
   });
   const pumpLayer=new Container(),vehicleLayer=new Container(),effectLayer=new Container(),nozzleLayer=new Container(),deliveryLayer=new Container();root.addChild(effectLayer,pumpLayer,vehicleLayer,nozzleLayer,deliveryLayer);
   const visuals=new Map<number,VehicleVisual>();
-  const motions=new Map<number,{root:Container;fromX:number;fromY:number;toX:number;toY:number;fromAngle:number;toAngle:number;elapsed:number}>();let vehicles:readonly Vehicle[]=[];let pumps:readonly Pump[]=initialPumps;let stocks={} as Record<FuelId,number>;let jobs:readonly ConstructionJob[]=[];let tanks:readonly FuelTank[]=[];
+  const motions=new Map<number,{root:Container;fromX:number;fromY:number;toX:number;toY:number;fromAngle:number;toAngle:number;elapsed:number}>();let vehicles:readonly Vehicle[]=[];let pumps:readonly Pump[]=initialPumps;let stocks={} as Record<FuelId,number>;let jobs:readonly ConstructionJob[]=[];let tanks:readonly FuelTank[]=[];let technical:TechnicalState|undefined;
   let pumpSignature='';const displays=new Map<string,Text>();let prices={} as Record<FuelId,number>;let currentGameSeconds=0;
   const fuelNames:Record<FuelId,string>={ai92:'92',ai95:'95',ai95plus:'95+',ai98:'98',ai100:'100',diesel:'ДТ'};
+  const usableTank=(tank:FuelTank)=>tank.status==='active'&&condition(tank)>0&&!technical?.tasks.some(task=>task.equipmentId===tank.id&&task.blocked!==false);
+  const refreshStocks=()=>{stocks=Object.fromEntries(FUEL_IDS.map(fuel=>[fuel,tanks.filter(t=>t.fuel===fuel&&usableTank(t)).reduce((sum,t)=>sum+t.stockMl,0)])) as Record<FuelId,number>;};
   function drawSign(){
-    priceSignRows(tanks,prices).forEach((data,index)=>{
+    priceSignRows(tanks.filter(usableTank),prices).forEach((data,index)=>{
       const row=signRows[index];drawLed(row.digits,data.price,-90+index*42);
       row.name.alpha=data.available?1:.42;row.digits.alpha=data.available?1:.45;
     });
@@ -295,18 +299,57 @@ export async function createStationScene(initialPumps:readonly Pump[]):Promise<S
     deliveryLayer.addChild(label(action,1805,181,13));
   }
   const night=new Graphics().rect(0,0,SCENE_WIDTH,SCENE_HEIGHT).fill(0x071525);root.addChild(night);
+  const technicalLayer=new Container();root.addChild(technicalLayer);
+  function drawTechnical(technical:TechnicalState){
+    technicalLayer.removeChildren().forEach(child=>child.destroy({children:true}));
+    const equipment=[...pumps,...tanks];
+    for(const item of equipment){
+      if(item.status==='building')continue;
+      const task=technical.tasks.find(t=>t.equipmentId===item.id&&t.blocked!==false);
+      const broken=condition(item)<=0;
+      const critical=condition(item)<=20;
+      if(!task&&!critical)continue;
+      const point='slot' in item?{x:PUMP_SLOTS[item.slot].x,y:PUMP_SLOTS[item.slot].y-99}:tankHatchPoint(tanks.indexOf(item));
+      const y='slot' in item?point.y:point.y-48;
+      const color=task?0x84dcb5:broken?0xff7777:0xffc36f;
+      shape(technicalLayer,g=>g.circle(point.x,y,17).fill(0x15242b).stroke({color,width:2}));
+      technicalLayer.addChild(label(task?'🔧':broken?'!':'⚠',point.x,y,17,color));
+      if(task?.phase==='working'&&task.durationSeconds>0){
+        const progress=Math.max(0,Math.min(1,1-task.phaseRemaining/task.durationSeconds));
+        shape(technicalLayer,g=>g.arc(point.x,y,21,-Math.PI/2,-Math.PI/2+Math.PI*2*progress).stroke({color:0x8af0bb,width:4}));
+      }
+    }
+    for(const tech of technical.technicians){
+      if(tech.phase==='inside'||tech.phase==='training')continue;
+      shape(technicalLayer,g=>g.circle(tech.x,tech.y-17,7).fill(0xf4c9a1).circle(tech.x,tech.y,10).fill(0x297895).rect(tech.x-8,tech.y+9,6,12).fill(0x23313a).rect(tech.x+2,tech.y+9,6,12).fill(0x23313a));
+    }
+    technical.departing.filter(d=>d.kind==='technician').forEach(d=>shape(technicalLayer,g=>g.circle(d.x,d.y-17,7).fill(0xf4c9a1).circle(d.x,d.y,10).fill(0x297895).rect(d.x-8,d.y+9,6,12).fill(0x23313a).rect(d.x+2,d.y+9,6,12).fill(0x23313a)));
+    technical.tasks.filter(t=>t.contractor&&(t.phaseRemaining<=600||t.phase!=='travel')).forEach(task=>{
+      const arrival=task.phase==='travel'?1-task.phaseRemaining/600:1;
+      const {x,y}=contractorPose(task.parkingSlot??0,arrival,'arrival');
+      shape(technicalLayer,g=>g.roundRect(x-21,y-10,42,24,4).fill(0xdce7eb).stroke({color:0x52717b,width:2})
+        .circle(x-12,y+15,5).fill(0x17232a).circle(x+12,y+15,5).fill(0x17232a));
+      if(task.phase!=='travel'){
+        const item=equipment.find(e=>e.id===task.equipmentId);
+        const point=item?('slot' in item?{x:PUMP_SLOTS[item.slot].x-25,y:455}:tankHatchPoint(tanks.indexOf(item))):{x,y};
+        shape(technicalLayer,g=>g.circle(point.x,point.y-17,7).fill(0xf4c9a1).circle(point.x,point.y,10).fill(0xd8a754).rect(point.x-8,point.y+9,6,12).fill(0x26303a).rect(point.x+2,point.y+9,6,12).fill(0x26303a));
+      }
+    });
+    technical.departing.filter(d=>d.kind==='contractor').forEach(d=>shape(technicalLayer,g=>g.roundRect(d.x-21,d.y-10,42,24,4).fill(0xdce7eb).stroke({color:0x52717b,width:2})
+      .circle(d.x-12,d.y+15,5).fill(0x17232a).circle(d.x+12,d.y+15,5).fill(0x17232a)));
+  }
   root.addChild(signLight,shopName,canopyGlow,canopyName);
   drawPumps();
   return {root,setName:setCanopyName,setTime(seconds){currentGameSeconds=seconds;const daylight=Math.max(0,Math.sin(((getHour(seconds)-5)/14)*Math.PI));night.alpha=.33*(1-daylight);},
     setPrices(nextPrices){prices=nextPrices;drawSign();},
     setPumps(nextPumps,nextStocks,nextJobs=[],nextTanks=[]){
       pumps=nextPumps;jobs=nextJobs;tanks=nextTanks;
-      stocks=Object.fromEntries(Object.keys(nextStocks).map(fuel=>[fuel,
-        tanks.filter(t=>t.fuel===fuel&&t.status==='active').reduce((sum,t)=>sum+t.stockMl,0)])) as Record<FuelId,number>;
+      stocks=nextStocks;refreshStocks();
       drawPumps();
       drawSign();
     },
     setDeliveries(nextDeliveries){drawDeliveries(nextDeliveries);},
+    setTechnical(nextTechnical){technical=nextTechnical;refreshStocks();drawPumps();drawSign();drawTechnical(nextTechnical);},
     setVehicles(nextVehicles){vehicles=nextVehicles;const active=new Set(vehicles.map(v=>v.id));
       for(const [id,visual] of visuals)if(!active.has(id)){vehicleLayer.removeChild(visual.root);visual.root.destroy({children:true});visuals.delete(id);motions.delete(id);}
       for(const vehicle of vehicles){let visual=visuals.get(vehicle.id);if(!visual){visual=createVehicleVisual(vehicle);visuals.set(vehicle.id,visual);vehicleLayer.addChild(visual.root);visual.update(vehicle);}else{

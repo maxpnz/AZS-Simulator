@@ -1,5 +1,6 @@
 import type { FuelId, GameState, TimeSpeed } from '../domain/types';
 import { StationSimulation } from './StationSimulation';
+import type { AutomationMode } from '../domain/technical';
 
 const FIXED_STEP_MS=50;
 const GAME_SECONDS_PER_REAL_SECOND=60;
@@ -11,7 +12,7 @@ export class GameEngine {
   private loadError=false;
   constructor(){
     if(typeof localStorage!=='undefined')try{const data=localStorage.getItem('azs-simulator-save');if(data)this.simulation=StationSimulation.importSave(JSON.parse(data));}catch{this.saveHealthy=false;this.loadError=true;}
-    if(typeof localStorage!=='undefined')try{const speed=Number(localStorage.getItem('azs-simulator-speed'));if([1,2,5,10].includes(speed))this.speed=speed as TimeSpeed;}catch{/* storage unavailable */}
+    if(typeof localStorage!=='undefined')try{const speed=Number(localStorage.getItem('azs-simulator-speed'));if([1,2,4,5,10].includes(speed))this.speed=speed as TimeSpeed;}catch{/* storage unavailable */}
   }
   private speed:TimeSpeed=1;
   private paused=false;
@@ -44,13 +45,23 @@ export class GameEngine {
   orderDelivery(fuel:FuelId,litres:number):boolean {return this.action(this.simulation.orderDelivery(fuel,litres));}
   getOffers(fuel:FuelId) {return this.simulation.getOffers(fuel);}
   orderTrip(supplierId:string,sections:readonly {fuel:FuelId;litres:number}[]):boolean {return this.action(this.simulation.orderTrip(supplierId,sections));}
+  setAutomation(mode:AutomationMode):boolean {return this.action(this.simulation.setAutomation(mode));}
+  hireTechnician(name?:string):boolean {return this.action(this.simulation.hireTechnician(name));}
+  renameTechnician(id:string,name:string):boolean {return this.action(this.simulation.renameTechnician(id,name));}
+  fireTechnician(id:string):boolean {return this.action(this.simulation.fireTechnician(id));}
+  trainTechnician(id:string):boolean {return this.action(this.simulation.trainTechnician(id));}
+  assignRepair(equipmentId:string,technicianId:string):boolean {return this.action(this.simulation.assignRepair(equipmentId,technicianId));}
+  callContractor(equipmentId:string,type:'budget'|'standard'|'urgent'):boolean {return this.action(this.simulation.callContractor(equipmentId,type));}
+  cancelRepair(equipmentId:string):boolean {return this.action(this.simulation.cancelManualRepair(equipmentId));}
+  sellPump(id:string):boolean {return this.action(this.simulation.sellPump(id));}
+  sellTank(id:string):boolean {return this.action(this.simulation.sellTank(id));}
   exportSave():string {return JSON.stringify(this.simulation.exportSave());}
   importSave(json:string):void {this.simulation=StationSimulation.importSave(JSON.parse(json));this.publishState();}
   save():void {if(this.saveHealthy&&typeof localStorage!=='undefined')try{
     const old=localStorage.getItem('azs-simulator-save');
     if(old){
       const version=/^\s*\{\s*"version"\s*:\s*"([^"]+)"/.exec(old)?.[1]??(JSON.parse(old) as {version?:string}).version;
-      const backup=version==='0.4.0'?'azs-simulator-save-v04-backup':version==='0.5.0'?'azs-simulator-save-v05-backup':version==='0.5.1'?'azs-simulator-save-v051-backup':undefined;
+      const backup=version==='0.4.0'?'azs-simulator-save-v04-backup':version==='0.5.0'?'azs-simulator-save-v05-backup':version==='0.5.1'?'azs-simulator-save-v051-backup':version==='0.5.2'?'azs-simulator-save-v052-backup':undefined;
       if(backup&&!localStorage.getItem(backup))localStorage.setItem(backup,old);
     }
     localStorage.setItem('azs-simulator-save',this.exportSave());

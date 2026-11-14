@@ -2,29 +2,34 @@ import { useEffect, useRef } from 'react';
 import { Application } from 'pixi.js';
 import type { GameEngine } from '../../game/simulation/GameEngine';
 import type { ConstructionJob, DeliveryTrip, FuelId, FuelTank, Pump, Vehicle } from '../../game/domain/types';
+import type { TechnicalState } from '../../game/domain/technical';
 import { createStationScene, hitTest, type ObjectId, SCENE_HEIGHT, SCENE_WIDTH } from './createStationScene';
 import { cameraTransform, INITIAL_CAMERA, limitPan, zoomAround, type Camera, type Point } from './camera';
 
-interface Props { stationName:string; pumps: readonly Pump[]; stocks: Record<FuelId,number>; jobs: readonly ConstructionJob[]; tanks: readonly FuelTank[]; deliveries: readonly DeliveryTrip[]; gameSeconds: number; prices: Record<FuelId,number>; engine: GameEngine; onObject: (id: ObjectId) => void; onVehicle:(id:number)=>void }
+interface Props { stationName:string; pumps: readonly Pump[]; stocks: Record<FuelId,number>; jobs: readonly ConstructionJob[]; tanks: readonly FuelTank[]; deliveries: readonly DeliveryTrip[]; technical:TechnicalState; gameSeconds: number; prices: Record<FuelId,number>; engine: GameEngine; onObject: (id: ObjectId) => void; onVehicle:(id:number)=>void;onTechnician:(id:string)=>void }
 
-export function StationCanvas({ stationName,pumps, stocks, jobs, tanks, deliveries, gameSeconds, prices, engine, onObject,onVehicle }: Props) {
+export function StationCanvas({ stationName,pumps, stocks, jobs, tanks, deliveries, technical, gameSeconds, prices, engine, onObject,onVehicle,onTechnician }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const updateTimeRef = useRef<(seconds: number) => void>(() => undefined);
   const updatePricesRef = useRef<(prices: Record<FuelId,number>) => void>(() => undefined);
   const updateNameRef = useRef<(name:string)=>void>(()=>undefined);
   const updatePumpsRef = useRef<(pumps: readonly Pump[], stocks: Record<FuelId,number>, jobs: readonly ConstructionJob[], tanks: readonly FuelTank[]) => void>(() => undefined);
   const updateDeliveriesRef = useRef<(deliveries: readonly DeliveryTrip[]) => void>(() => undefined);
+  const updateTechnicalRef = useRef<(technical:TechnicalState) => void>(() => undefined);
   const updateVehiclesRef = useRef<(vehicles: readonly Vehicle[]) => void>(() => undefined);
   const onObjectRef = useRef(onObject);
   const onVehicleRef=useRef(onVehicle);
+  const onTechnicianRef=useRef(onTechnician);
   useEffect(() => { onObjectRef.current = onObject; }, [onObject]);
   useEffect(() => { onVehicleRef.current = onVehicle; }, [onVehicle]);
+  useEffect(() => { onTechnicianRef.current = onTechnician; }, [onTechnician]);
 
   useEffect(() => { updateTimeRef.current(gameSeconds); }, [gameSeconds]);
   useEffect(() => { updatePricesRef.current(prices); }, [prices]);
   useEffect(() => { updateNameRef.current(stationName); }, [stationName]);
   useEffect(() => { updatePumpsRef.current(pumps, stocks, jobs, tanks); }, [pumps, stocks, jobs, tanks]);
   useEffect(() => { updateDeliveriesRef.current(deliveries); }, [deliveries]);
+  useEffect(() => { updateTechnicalRef.current(technical); }, [technical]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -48,6 +53,7 @@ export function StationCanvas({ stationName,pumps, stocks, jobs, tanks, deliveri
       updateVehiclesRef.current = scene.setVehicles;
       updatePumpsRef.current = scene.setPumps;
       updateDeliveriesRef.current = scene.setDeliveries;
+      updateTechnicalRef.current = scene.setTechnical;
       app.ticker.add((ticker)=>scene.tick(ticker.deltaMS));
       scene.setPumps(pumps, stocks, jobs, tanks);
       scene.setDeliveries(deliveries);
@@ -125,7 +131,8 @@ export function StationCanvas({ stationName,pumps, stocks, jobs, tanks, deliveri
           const transform = cameraTransform(camera, baseScale(), viewport(), sceneSize);
           const sx=(point.x-transform.x)/transform.scale,sy=(point.y-transform.y)/transform.scale;
           const vehicle=[...engine.getState().vehicles].reverse().find(v=>Math.hypot(v.x-sx,v.y-sy)<Math.max(32,Math.min(115,(v.category==='truck'?85:45))));
-          if(vehicle)onVehicleRef.current(vehicle.id);else {const id=hitTest(sx,sy);if(id) onObjectRef.current(id);}
+          const technician=engine.getState().technical?.technicians.find(t=>!['inside','training'].includes(t.phase)&&Math.hypot(t.x-sx,t.y-sy)<30);
+          if(vehicle)onVehicleRef.current(vehicle.id);else if(technician)onTechnicianRef.current(technician.id);else {const id=hitTest(sx,sy);if(id) onObjectRef.current(id);}
         }
         pointers.delete(event.pointerId);
         tapStart = null;
@@ -162,6 +169,7 @@ export function StationCanvas({ stationName,pumps, stocks, jobs, tanks, deliveri
       updateVehiclesRef.current = () => undefined;
       updatePumpsRef.current = () => undefined;
       updateDeliveriesRef.current = () => undefined;
+      updateTechnicalRef.current = () => undefined;
       updateTimeRef.current = () => undefined;
       updatePricesRef.current = () => undefined;
       updateNameRef.current = () => undefined;

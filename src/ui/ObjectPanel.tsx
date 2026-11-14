@@ -4,16 +4,21 @@ import { marketOffer, nefteoptDiscount, NEFTEOPT, SUPPLIERS } from '../game/doma
 import type { FuelId, GameState, Vehicle } from '../game/domain/types';
 import type { ObjectId } from './scene/createStationScene';
 import { version as currentVersion } from '../../package.json';
+import { condition, estimateRepair, resaleKopeks } from '../game/domain/technical';
+import type { RepairTask } from '../game/domain/technical';
 const litres=(ml:number,precision=3)=>(ml/1000).toLocaleString('ru-RU',{minimumFractionDigits:precision,maximumFractionDigits:precision})+' л';
 const rubles=(kop:number)=>(kop/100).toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2})+' ₽';
+const repairStage=(task:RepairTask)=>task.blocked===false?'Ремонт назначен':task.phase==='working'?`Ремонт: ${Math.round((1-task.phaseRemaining/task.durationSeconds)*100)}%`:
+  task.phase==='travel'?task.contractor?'Подрядчик в пути':'Техник в пути':'Ожидание освобождения';
 interface Props {
   id:ObjectId;state:GameState;prices:Record<FuelId,number>;vehicles:readonly Vehicle[];
   onPrice:(fuel:FuelId,kopeks:number)=>void;onBuildPump:(slot:number)=>boolean;onUpgradePump:(id:string)=>boolean;
   onSetPumpEnabled:(id:string,enabled:boolean)=>boolean;
   onSetPumpFuels:(id:string,fuels:FuelId[])=>boolean;onBuildTank:(fuel:FuelId)=>boolean;onUpgradeTank:(id:string)=>boolean;
   onDelivery:(supplierId:string,sections:readonly {fuel:FuelId;litres:number}[])=>boolean;onClose:()=>void;onBack:()=>void;onCompetitors:()=>void;
+  onTechnical:()=>void;onSellPump:(id:string)=>boolean;onSellTank:(id:string)=>boolean;
 }
-export function ObjectPanel({id,state,prices,vehicles,onPrice,onBuildPump,onUpgradePump,onSetPumpEnabled,onSetPumpFuels,onBuildTank,onUpgradeTank,onDelivery,onClose,onBack,onCompetitors}:Props) {
+export function ObjectPanel({id,state,prices,vehicles,onPrice,onBuildPump,onUpgradePump,onSetPumpEnabled,onSetPumpFuels,onBuildTank,onUpgradeTank,onDelivery,onClose,onBack,onCompetitors,onTechnical,onSellPump,onSellTank}:Props) {
   const station=state.station;
   const slot=id.startsWith('slot-')?Number(id.slice(5)):id.startsWith('pump-')?Number(id.slice(5))-1:-1;
   const pump=station.pumps.find(p=>p.slot===slot);
@@ -28,7 +33,7 @@ export function ObjectPanel({id,state,prices,vehicles,onPrice,onBuildPump,onUpgr
   const [channels,setChannels]=useState<FuelId[]>(()=>[...(pump?.fuels??[])]);
   const serving=pump?vehicles.find(v=>v.pumpId===pump.id&&(v.status==='fueling'||v.status==='finishing')):undefined;
   const pumpBusy=pump?vehicles.some(v=>v.pumpId===pump.id&&['entering','queued','toPump','fueling','finishing','leaving'].includes(v.status)):false;
-  const activeFuels=FUEL_IDS.filter(f=>station.tanks.some(t=>t.fuel===f&&t.status==='active'));
+  const activeFuels=FUEL_IDS.filter(f=>station.tanks.some(t=>t.fuel===f&&t.status==='active'&&condition(t)>0&&!state.technical?.tasks.some(job=>job.equipmentId===t.id&&job.blocked!==false)));
   const cargoEntries:[[FuelId,number],...[FuelId,number][]]=[[chosenFuel,deliveryLitres],
     ...(secondFuel==='none'?[]:[[secondFuel,secondLitres] as [FuelId,number]]),
     ...(thirdFuel==='none'?[]:[[thirdFuel,thirdLitres] as [FuelId,number]])];
@@ -39,7 +44,7 @@ export function ObjectPanel({id,state,prices,vehicles,onPrice,onBuildPump,onUpgr
   const discount=bulk?nefteoptDiscount(totalLitres):0;
   const orderCost=cargoEntries.reduce((sum,[fuel,amount])=>sum+amount*(bulk?Math.round((state.market?.baseKopeks[fuel]??0)*(1-discount)):(offerFor(fuel)?.priceKopeks??0)),0);
   const requestedByFuel=(fuel:FuelId)=>cargoEntries.filter(([id])=>id===fuel).reduce((sum,[,amount])=>sum+amount,0);
-  const freeFor=(fuel:FuelId)=>station.tanks.filter(t=>t.fuel===fuel&&t.status==='active').reduce((sum,t)=>sum+t.capacityMl-t.stockMl,0)-
+  const freeFor=(fuel:FuelId)=>station.tanks.filter(t=>t.fuel===fuel&&t.status==='active'&&condition(t)>0&&!state.technical?.tasks.some(job=>job.equipmentId===t.id&&job.blocked!==false)).reduce((sum,t)=>sum+t.capacityMl-t.stockMl,0)-
     (state.deliveries??[]).reduce((sum,trip)=>sum+(trip.remainingCargo?.[fuel]??trip.cargo[fuel]??0),0);
   const validCargo=totalLitres<=(bulk?NEFTEOPT.maxLitres:24000)&&(!bulk||totalLitres>=NEFTEOPT.minLitres)&&cargoEntries.every(([fuel,amount])=>Number.isInteger(amount)&&amount>0&&amount<=(bulk?NEFTEOPT.maxLitres:8_000)&&
     requestedByFuel(fuel)<=(offerFor(fuel)?.availableLitres??0)&&requestedByFuel(fuel)*1000<=freeFor(fuel))&&
@@ -69,6 +74,10 @@ export function ObjectPanel({id,state,prices,vehicles,onPrice,onBuildPump,onUpgr
         <small>{station.fuels[fuel].stockMl>0?`Рынок: ${rubles(state.market?.competitorKopeks[fuel]??prices[fuel])}/л`:'Нет топлива'}</small></div>)}
     </>}
     {slot>=0&&<>
+      {pump&&<div className="tech-object-summary"><p>Состояние: <strong>{condition(pump).toFixed(2)}%</strong> · запчасти {rubles(estimateRepair('pump',condition(pump)).partsKopeks)} · базовая работа {Math.ceil(estimateRepair('pump',condition(pump)).durationSeconds/60)} мин</p>
+        <p>{state.technical?.tasks.find(t=>t.equipmentId===pump.id)?`${repairStage(state.technical.tasks.find(t=>t.equipmentId===pump.id)!)} · ${state.technical.tasks.find(t=>t.equipmentId===pump.id)!.executorName}`:condition(pump)===0?'Остановлена':condition(pump)===100?'Исправна · обслуживание не требуется':'Работает'}</p>
+        <button type="button" className="panel-action" onClick={onTechnical}>Ремонт и назначения →</button>
+        <button type="button" disabled={pumpBusy||pump.status!=='ready'||!!state.technical?.tasks.find(t=>t.equipmentId===pump.id&&t.paid)} onClick={()=>{const amount=resaleKopeks(pump);if(window.confirm(`Продать ТРК за ${rubles(amount)}?`))act(onSellPump(pump.id),`ТРК продана за ${rubles(amount)}.`);}}>Продать ТРК · {rubles(resaleKopeks(pump))}</button></div>}
       <p>Опора {Math.floor(slot/2)+1}, {slot%2?'правая':'левая'} сторона · место {slot+1} из 10.</p>
       {pump?<>
         <p>Состояние: {pump.status==='building'?'строится':pump.status==='upgrading'?'модернизируется':'готова'}.
@@ -89,9 +98,13 @@ export function ObjectPanel({id,state,prices,vehicles,onPrice,onBuildPump,onUpgr
       <p>Каждый резервуар расположен под землёй. На сцене видны технологические люки; заполнение показано в разрезе ниже.</p>
       {station.tanks.map(t=>{const ratio=t.capacityMl?t.stockMl/t.capacityMl:0;return <div className="tank-card" key={t.id}>
         <strong>{station.fuels[t.fuel].name} · {t.id}</strong><span>{litres(t.stockMl)} из {litres(t.capacityMl)}</span>
+        <small>Состояние {condition(t).toFixed(2)}% · запчасти {rubles(estimateRepair('tank',condition(t)).partsKopeks)} · базовая работа {Math.ceil(estimateRepair('tank',condition(t)).durationSeconds/60)} мин</small>
+        <small>{state.technical?.tasks.find(job=>job.equipmentId===t.id)?repairStage(state.technical.tasks.find(job=>job.equipmentId===t.id)!):condition(t)===100?'Обслуживание не требуется':condition(t)===0?'Остановлен':'Работает'}</small>
         <div className="tank-cutaway"><div style={{width:`${Math.max(0,Math.min(100,ratio*100))}%`}}/></div>
         <small>{t.status==='active'?'Работает':t.status==='building'?'Строится':'Модернизируется'}</small>
         <button type="button" className="panel-action" disabled={t.status!=='active'} onClick={()=>act(onUpgradeTank(t.id),'Модернизация резервуара поставлена в очередь.')}>Увеличить ёмкость · 20 000 ₽</button>
+        <button type="button" className="panel-action" onClick={onTechnical}>Ремонт и назначения →</button>
+        <button type="button" disabled={t.status!=='active'||t.stockMl>0||!!state.technical?.tasks.find(job=>job.equipmentId===t.id&&job.paid)} onClick={()=>{const amount=resaleKopeks(t);if(window.confirm(`Продать резервуар за ${rubles(amount)}?`))act(onSellTank(t.id),`Резервуар продан за ${rubles(amount)}.`);}}>Продать пустой резервуар · {rubles(resaleKopeks(t))}</button>
       </div>;})}
       <h3>Новый резервуар</h3><select value={chosenFuel} onChange={e=>setChosenFuel(e.target.value as FuelId)}>{FUEL_IDS.map(f=><option key={f} value={f}>{INITIAL_STATION.fuels[f].name}</option>)}</select>
       <button type="button" className="panel-action" onClick={()=>act(onBuildTank(chosenFuel),'Строительство резервуара поставлено в очередь.')}>Построить · 40 000 ₽</button>

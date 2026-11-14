@@ -5,8 +5,8 @@ import { getClock } from '../game/simulation/time';
 
 const money=(kopeks:number)=>(kopeks/100).toLocaleString('ru-RU',{maximumFractionDigits:2})+' ₽';
 const litres=(ml:number)=>(ml/1000).toLocaleString('ru-RU',{maximumFractionDigits:1})+' л';
-const expenseKinds:FinanceKind[]=['lighting','pumpElectricity','tankMaintenance','pumping'];
-const labels:Record<FinanceKind,string>={sale:'Продажа топлива',lighting:'Освещение',pumpElectricity:'Электроэнергия ТРК',tankMaintenance:'Обслуживание резервуаров',pumping:'Прокачка топлива',purchase:'Закупка топлива',construction:'Строительство',upgrade:'Модернизация'};
+const expenseKinds:FinanceKind[]=['lighting','pumpElectricity','tankMaintenance','pumping','technicianSalary','equipmentRepair','technicianStaff'];
+const labels:Record<FinanceKind,string>={sale:'Продажа топлива',lighting:'Освещение',pumpElectricity:'Электроэнергия ТРК',tankMaintenance:'Обслуживание резервуаров',pumping:'Прокачка топлива',purchase:'Закупка топлива',construction:'Строительство',upgrade:'Модернизация',technicianSalary:'Зарплата техников',equipmentRepair:'Ремонт оборудования',technicianStaff:'Найм и обучение',resale:'Продажа оборудования'};
 const periods=[['День',86400],['Неделя',604800],['Месяц',2592000],['Всё время',Infinity]] as const;
 interface Props {state:GameState;onClose:()=>void;onBack:()=>void}
 export function FinancePanel({state,onClose,onBack}:Props){
@@ -18,7 +18,7 @@ export function FinancePanel({state,onClose,onBack}:Props){
   const revenue=sum('sale'),cost=events.reduce((total,e)=>total+(e.kind==='sale'?e.costKopeks??0:0),0);
   const operating=expenseKinds.reduce((total,kind)=>total+sum(kind),0);
   const profit=revenue-cost-operating;
-  const purchases=sum('purchase'),construction=sum('construction'),upgrades=sum('upgrade');
+  const purchases=sum('purchase'),construction=sum('construction'),upgrades=sum('upgrade'),resale=sum('resale');
   const buckets=Array.from({length:period===0?12:period===1?7:period===2?10:10},(_,index)=>{
     const span=range===Infinity?Math.max(1,state.gameSeconds-(events[0]?.gameSeconds??state.gameSeconds)):range;
     const from=state.gameSeconds-span+span*index/(period===0?12:period===1?7:10);
@@ -46,9 +46,9 @@ export function FinancePanel({state,onClose,onBack}:Props){
         const rows=events.filter(e=>e.kind==='sale'&&e.fuel===fuel);const ml=rows.reduce((v,e)=>v+(e.volumeMl??0),0);const r=rows.reduce((v,e)=>v+e.amountKopeks,0);const c=rows.reduce((v,e)=>v+(e.costKopeks??0),0);
         return <tr key={fuel}><th>{state.station.fuels[fuel as FuelId].name}</th><td>{litres(ml)}</td><td>{money(r)}</td><td>{ml?money(Math.round(r*1000/ml)):'—'}</td><td>{money(c)}</td><td>{money(r-c)}</td><td>{r?((r-c)/r*100).toFixed(1):'0,0'}%</td></tr>;
       })}</tbody></table></div>
-      <div className="finance-columns"><div><h3>Операционные расходы</h3>{expenseKinds.map(kind=><div className="finance-line" key={kind}><span>{labels[kind]}</span><b>{money(sum(kind))}</b></div>)}</div><div><h3>Движение денег</h3><div className="finance-line"><span>Поступления от продаж</span><b>{money(revenue)}</b></div><div className="finance-line"><span>Оплаченные закупки</span><b>{money(-purchases)}</b></div><div className="finance-line"><span>Операционные платежи</span><b>{money(-operating)}</b></div><div className="finance-line"><span>Строительство</span><b>{money(-construction)}</b></div><div className="finance-line"><span>Модернизация</span><b>{money(-upgrades)}</b></div><div className="finance-line total"><span>Чистое изменение</span><b>{money(revenue-purchases-operating-construction-upgrades)}</b></div></div></div>
+      <div className="finance-columns"><div><h3>Операционные расходы</h3>{expenseKinds.map(kind=><div className="finance-line" key={kind}><span>{labels[kind]}</span><b>{money(sum(kind))}</b></div>)}</div><div><h3>Движение денег</h3><div className="finance-line"><span>Поступления от продаж</span><b>{money(revenue)}</b></div><div className="finance-line"><span>Продажа оборудования</span><b>{money(resale)}</b></div><div className="finance-line"><span>Оплаченные закупки</span><b>{money(-purchases)}</b></div><div className="finance-line"><span>Операционные платежи</span><b>{money(-operating)}</b></div><div className="finance-line"><span>Строительство</span><b>{money(-construction)}</b></div><div className="finance-line"><span>Модернизация</span><b>{money(-upgrades)}</b></div><div className="finance-line total"><span>Чистое изменение</span><b>{money(revenue+resale-purchases-operating-construction-upgrades)}</b></div></div></div>
       <p>Стоимость запасов: {money(Object.values(state.expenses?.stockValueKopeks??{}).reduce((a,b)=>a+b,0))}. Оплаченные закупки и строительство отражены в денежном потоке; себестоимость признаётся при продаже.</p>
-      <h3>История операций</h3>{events.length?<div className="event-list">{[...events].reverse().slice(0,150).map((event,index)=><div className="finance-line" key={index}><span>{clock(event.gameSeconds)} · {labels[event.kind]}{event.fuel?` · ${state.station.fuels[event.fuel].name}`:''}{event.volumeMl?` · ${litres(event.volumeMl)}`:''}</span><b>{event.kind==='sale'?'+':'−'}{money(event.amountKopeks)}</b></div>)}</div>:<p>За выбранный период операций нет. Для сохранений v0.3.1 новая история начинается с момента обновления; прошлые операции не восстанавливаются.</p>}
+      <h3>История операций</h3>{events.length?<div className="event-list">{[...events].reverse().slice(0,150).map((event,index)=><div className="finance-line" key={index}><span>{clock(event.gameSeconds)} · {labels[event.kind]}{event.fuel?` · ${state.station.fuels[event.fuel].name}`:''}{event.volumeMl?` · ${litres(event.volumeMl)}`:''}</span><b>{event.kind==='sale'||event.kind==='resale'?'+':'−'}{money(event.amountKopeks)}</b></div>)}</div>:<p>За выбранный период операций нет. Для сохранений v0.3.1 новая история начинается с момента обновления; прошлые операции не восстанавливаются.</p>}
     </div>
   </section>;
 }

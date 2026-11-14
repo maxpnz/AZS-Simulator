@@ -19,6 +19,10 @@ export interface Pump {
   enabled?: boolean;
   lastDisplayMl?: number;
   lastDisplayKopeks?: number;
+  condition?: number;
+  pumpedMlSinceRepair?: number;
+  purchasePriceKopeks?: number;
+  paidUpgradeKopeks?: number;
 }
 
 export interface FuelTank {
@@ -27,6 +31,9 @@ export interface FuelTank {
   capacityMl: number;
   stockMl: number;
   status: 'active' | 'building' | 'upgrading';
+  condition?: number;
+  purchasePriceKopeks?: number;
+  paidUpgradeKopeks?: number;
 }
 
 export interface ConstructionJob {
@@ -58,6 +65,8 @@ export interface DeliveryTrip {
   orderDay?: number;
   unitPrices?: Partial<Record<FuelId, number>>;
   sections?: { fuel: FuelId; totalMl: number; remainingMl: number }[];
+  unloadingTankId?: string;
+  unloadingFuelId?: FuelId;
 }
 
 export interface ExpenseTotals {
@@ -75,7 +84,7 @@ export interface ExpenseTotals {
   stockValueKopeks: Record<FuelId, number>;
 }
 
-export type FinanceKind = 'sale' | 'lighting' | 'pumpElectricity' | 'tankMaintenance' | 'pumping' | 'purchase' | 'construction' | 'upgrade';
+export type FinanceKind = 'sale' | 'lighting' | 'pumpElectricity' | 'tankMaintenance' | 'pumping' | 'purchase' | 'construction' | 'upgrade' | 'technicianSalary' | 'equipmentRepair' | 'technicianStaff' | 'resale';
 export interface FinanceEvent {
   gameSeconds: number;
   kind: FinanceKind;
@@ -84,9 +93,10 @@ export interface FinanceEvent {
   fuel?: FuelId;
   volumeMl?: number;
   objectId?: string;
+  id?: string;
 }
 
-export type TimeSpeed = 1 | 2 | 5 | 10;
+export type TimeSpeed = 1 | 2 | 4 | 5 | 10;
 
 export interface ClockSnapshot {
   gameSeconds: number;
@@ -132,6 +142,7 @@ export interface Vehicle {
   refusalReason?: string;
   servicePhase?: 'preparing'|'dispensing';
   phaseRemainingSeconds?: number;
+  tankIds?: string[];
 }
 
 export interface Sale {
@@ -169,4 +180,5 @@ export interface GameState {
   market?: import('./market').MarketState;
   competition?: import('./competitors').CompetitionState;
   financeEvents?: FinanceEvent[];
+  technical?: import('./technical').TechnicalState;
 }
