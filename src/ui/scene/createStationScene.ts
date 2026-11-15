@@ -1,7 +1,7 @@
 import { Assets, Container, Graphics, Sprite, Text, TilingSprite, type Texture } from 'pixi.js';
 import type { ConstructionJob, DeliveryTrip, FuelId, FuelTank, Pump, Vehicle } from '../../game/domain/types';
 import { PUMP_SLOTS, WORLD_OBSTACLES } from '../../game/domain/world';
-import { pumpQueuePoint, ROAD_SURFACE_POLYGONS, ROAD_SURFACE_RECTS } from '../../game/domain/roadNetwork';
+import { PARKING_X, pumpQueuePoint, ROAD_SURFACE_POLYGONS, ROAD_SURFACE_RECTS } from '../../game/domain/roadNetwork';
 import { deliveryPose } from '../../game/domain/deliveryMotion';
 import { FUEL_IDS } from '../../game/domain/config';
 import { getHour } from '../../game/simulation/time';
@@ -148,6 +148,7 @@ export async function createStationScene(initialPumps:readonly Pump[]):Promise<S
     .rect(0,896,50,4).fill(0xa9afa5).rect(300,896,1380,4).fill(0xa9afa5)
     .rect(1940,896,60,4).fill(0xa9afa5));
   const markingLayer=new Container();ground.addChild(markingLayer);
+  PARKING_X.forEach((x,i)=>{shape(markingLayer,g=>g.moveTo(x-35,414).lineTo(x-35,515).lineTo(x+35,515).lineTo(x+35,414).stroke({color:0xdce5d7,width:2,alpha:.7}));markingLayer.addChild(label(`P${i+1}`,x,431,11,0xf4f5e9));});
   for(const x of [350,1860]) ground.addChild(label(x<1000?'ВЫЕЗД':'ВЪЕЗД',x,x<1000?682:865,18));
   for(const x of [570,820,1070,1320,1570]) shape(ground,g=>g.poly([x,653,x-16,645,x,637]).fill({color:0xe9e8d4,alpha:.48}));
   shape(ground,g=>g.poly([1845,753,1834,773,1856,773]).fill({color:0xe9e8d4,alpha:.65})
@@ -157,8 +158,9 @@ export async function createStationScene(initialPumps:readonly Pump[]):Promise<S
     image(root,flowerbedTexture,obstacle.x-10,obstacle.y-26,obstacle.width+20,obstacle.height+54);
   }
   image(root,storeTexture,455,8,760,390);
-  shape(root,g=>g.roundRect(600,194,400,51,9).fill({color:0x19202a,alpha:.9}).stroke({color:0xf5a753,width:2}));
-  const shopName=label('МАРКЕТ. КАФЕ',800,219,29,0xffcf8a);root.addChild(shopName);
+  const facadeSign=new Container();facadeSign.position.set(600,194);facadeSign.skew.x=-.13;root.addChild(facadeSign);
+  shape(facadeSign,g=>g.poly([0,0,400,0,389,51,-11,51]).fill({color:0x19202a,alpha:.95}).stroke({color:0xf5a753,width:2}));
+  facadeSign.addChild(label('МАРКЕТ. КАФЕ',195,25,29,0xffcf8a));
   shape(root,g=>g.roundRect(TANK_PAD.x,TANK_PAD.y,TANK_PAD.width,TANK_PAD.height,8).fill(0x3c4549).stroke({color:0x9ca39b,width:3})
     .roundRect(TANK_PAD.x+9,TANK_PAD.y+9,TANK_PAD.width-18,TANK_PAD.height-18,6).stroke({color:0x63716e,width:1}));
   texturedPad(root,asphaltTexture,TANK_PAD.x+10,TANK_PAD.y+10,TANK_PAD.width-20,TANK_PAD.height-20);
@@ -280,11 +282,13 @@ export async function createStationScene(initialPumps:readonly Pump[]):Promise<S
         deliveryLayer.addChild(label('БЕНЗОВОЗ ЧЕРЕЗ',1805,201,12,0xe2eadf));
         deliveryLayer.addChild(label(`${Math.floor(minutes/60)} ч ${String(minutes%60).padStart(2,'0')} мин`,1805,228,19,0xffd68b));
       }else if(deliveries.some(d=>d.status==='waiting'))deliveryLayer.addChild(label('ОЖИДАЕТ ВЪЕЗДА',1805,214,13,0xffd68b));
+      else deliveryLayer.addChild(label('ПОСТАВОК НЕТ',1805,214,13,0xe2eadf));
       return;
     }
     const {x,y,angle}=deliveryPose(trip);
     const vehicle={id:-1,modelId:'fuel-tanker',color:0xc5473b,x,y,angle,status:'road',deliveredMl:0,reservedMl:0} as Vehicle;
     const tanker=createVehicleVisual(vehicle);tanker.update(vehicle);deliveryLayer.addChild(tanker.root);
+    if(trip.status==='unloading')deliveryLayer.addChild(label('БЕНЗОВОЗ НА РАЗГРУЗКЕ',1805,331,12,0xffd68b));
     if(trip.status==='unloading'||trip.status==='disconnecting')shape(deliveryLayer,g=>g.moveTo(x+57,y+17).bezierCurveTo(x+72,y+55,1815,281,1822,256).stroke({color:0x152328,width:5})
       .circle(1822,256,5).fill(0x202b2d));
     const ratio=trip.totalMl?1-(trip.remainingMl??0)/trip.totalMl:0;
@@ -338,7 +342,7 @@ export async function createStationScene(initialPumps:readonly Pump[]):Promise<S
     technical.departing.filter(d=>d.kind==='contractor').forEach(d=>shape(technicalLayer,g=>g.roundRect(d.x-21,d.y-10,42,24,4).fill(0xdce7eb).stroke({color:0x52717b,width:2})
       .circle(d.x-12,d.y+15,5).fill(0x17232a).circle(d.x+12,d.y+15,5).fill(0x17232a)));
   }
-  root.addChild(signLight,shopName,canopyGlow,canopyName);
+  root.addChild(signLight,facadeSign,canopyGlow,canopyName);
   drawPumps();
   return {root,setName:setCanopyName,setTime(seconds){currentGameSeconds=seconds;const daylight=Math.max(0,Math.sin(((getHour(seconds)-5)/14)*Math.PI));night.alpha=.33*(1-daylight);},
     setPrices(nextPrices){prices=nextPrices;drawSign();},

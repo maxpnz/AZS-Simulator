@@ -3,6 +3,7 @@ import { FUEL_IDS } from '../game/domain/config';
 import type { FuelId } from '../game/domain/types';
 import { GameEngine } from '../game/simulation/GameEngine';
 import { getClock } from '../game/simulation/time';
+import { CommercePanel } from './CommercePanel';
 import { FinancePanel } from './FinancePanel';
 import { TechnicalPanel } from './TechnicalPanel';
 import { installWakeLock } from '../platform/wakeLock';
@@ -20,7 +21,7 @@ import { InteractionGate } from './interactionGate';
 const engine=new GameEngine();
 const interactionGate=new InteractionGate();
 useUiStore.setState({speed:engine.getSpeed()});
-type Screen='menu'|'overview'|'finances'|'competitors'|'technical'|'settings'|ObjectId|null;
+type Screen='menu'|'overview'|'finances'|'competitors'|'technical'|'settings'|'commerce'|'start'|ObjectId|null;
 export function App() {
   const [gameState,setGameState]=useState(engine.getState());
   const [fuelOpen,setFuelOpen]=useState(false);
@@ -55,8 +56,8 @@ export function App() {
   const clock=getClock(gameState.gameSeconds);
   const time=String(clock.hour).padStart(2,'0')+':'+String(clock.minute).padStart(2,'0');
   const prices=Object.fromEntries(FUEL_IDS.map((id)=>[id,gameState.station.fuels[id].retailKopeks])) as Record<FuelId,number>;
-  const openSection=(name:string)=>{if(name==='Обзор')setScreen('overview');else if(name==='Цены')setScreen('price-sign');else if(name==='Конкуренты')setScreen('competitors');else if(name==='Техническая служба')setScreen('technical');else if(name==='Настройки')setScreen('settings');};
-  const objectId=screen!==null&&!['menu','overview','finances','competitors','technical','settings'].includes(screen)?screen as ObjectId:null;
+  const openSection=(name:string)=>{if(name==='Обзор')setScreen('overview');else if(name==='Цены')setScreen('price-sign');else if(name==='Конкуренты')setScreen('competitors');else if(name==='Техническая служба')setScreen('technical');else if(name==='Магазин и кафе'||name==='Закупки'||name==='Склады')setScreen('commerce');else if(name==='Настройки')setScreen('settings');};
+  const objectId=screen!==null&&!['menu','overview','finances','competitors','technical','settings','commerce','start'].includes(screen)?screen as ObjectId:null;
   return <div className="app-shell">
     <TopBar clock={clock} time={time} station={gameState.station} stats={gameState.stats} queueCount={gameState.vehicles.filter(v=>v.status==='queued'||v.status==='entering').length} paused={manualPause} speed={speed} fuelOpen={fuelOpen}
       onPause={togglePause} onSpeed={cycleSpeed} onFuel={()=>setFuelOpen(v=>!v)} onFinance={()=>{setFuelOpen(false);setScreen('finances');}} onMenu={()=>{setFuelOpen(false);setScreen(current=>current==='menu'?null:'menu');}} />
@@ -65,10 +66,12 @@ export function App() {
         onObject={(id)=>{setNotice('');setScreen(id);}} onVehicle={setSelectedVehicle} onTechnician={id=>{setSelectedTechnician(id);setScreen('technical');}} />
       {notice&&<div className="section-notice" role="status">{notice}<button type="button" onClick={()=>setNotice('')} aria-label="Закрыть">×</button></div>}
     </main>
-    {screen==='menu'&&<GameMenu onClose={()=>setScreen(null)} onSection={openSection} onReset={()=>{engine.reset();engine.setControls(true,1);resetControls();setGameState(engine.getState());setSceneKey(k=>k+1);setNotice('Новая игра начата.');}} />}
-    {screen==='settings'&&<GameMenu settings stationName={gameState.station.name??'АЗС'} onStationName={name=>{engine.setStationName(name);setGameState(engine.getState());}} onBack={()=>setScreen('menu')} onClose={()=>setScreen(null)} onSection={openSection} onReset={()=>{engine.reset();engine.setControls(true,1);resetControls();setGameState(engine.getState());setSceneKey(k=>k+1);setNotice('Новая игра начата.');}} />}
+    {screen==='start'&&<section className="full-screen" role="dialog" aria-label="Стартовый экран"><div className="start-content"><img src="/icon-app-192.png" alt="AZS Simulator" width="128" height="128" /><h1>AZS Simulator</h1><button className="panel-action" onClick={()=>setScreen(null)}>Продолжить игру</button><button className="panel-action" onClick={()=>{if(window.confirm('Начать новую игру? Текущий прогресс будет сброшен.')){engine.reset();resetControls();setGameState(engine.getState());setSceneKey(k=>k+1);setScreen(null);}}}>Новая игра</button></div></section>}
+    {screen==='menu'&&<GameMenu onClose={()=>setScreen(null)} onSection={openSection} onSaveSlot={slot=>engine.saveSlot(slot)} onLoadSlot={slot=>{const ok=engine.loadSlot(slot);if(ok){setGameState(engine.getState());setSceneKey(k=>k+1);}return ok;}} hasSlot={slot=>engine.hasSlot(slot)} onExit={()=>{engine.save();setScreen('start');}} onReset={()=>{engine.reset();engine.setControls(true,1);resetControls();setGameState(engine.getState());setSceneKey(k=>k+1);setNotice('Новая игра начата.');}} />}
+    {screen==='settings'&&<GameMenu settings stationName={gameState.station.name??'АЗС'} onStationName={name=>{engine.setStationName(name);setGameState(engine.getState());}} onBack={()=>setScreen('menu')} onClose={()=>setScreen(null)} onSection={openSection} onSaveSlot={slot=>engine.saveSlot(slot)} onLoadSlot={slot=>{const ok=engine.loadSlot(slot);if(ok){setGameState(engine.getState());setSceneKey(k=>k+1);}return ok;}} hasSlot={slot=>engine.hasSlot(slot)} onExit={()=>{engine.save();setScreen('start');}} onReset={()=>{engine.reset();engine.setControls(true,1);resetControls();setGameState(engine.getState());setSceneKey(k=>k+1);setNotice('Новая игра начата.');}} />}
     {screen==='overview'&&<OverviewPanel state={gameState} onClose={()=>setScreen(null)} onBack={()=>setScreen('menu')} />}
     {screen==='finances'&&<FinancePanel state={gameState} onClose={()=>setScreen(null)} onBack={()=>setScreen('menu')} />}
+    {screen==='commerce'&&<CommercePanel state={gameState} engine={engine} refresh={()=>setGameState(engine.getState())} onClose={()=>setScreen(null)} onBack={()=>setScreen('menu')} />}
     {screen==='technical'&&<TechnicalPanel state={gameState} engine={engine} focusedId={selectedTechnician} refresh={()=>setGameState(engine.getState())} onClose={()=>{setSelectedTechnician(null);setScreen(null);}} onBack={()=>{setSelectedTechnician(null);setScreen('menu');}} />}
     {screen==='competitors'&&<CompetitorsPanel state={gameState} onClose={()=>setScreen(null)} onBack={()=>setScreen('menu')} />}
     {objectId&&<ObjectPanel key={objectId} id={objectId} state={gameState} prices={prices} vehicles={gameState.vehicles}
@@ -81,11 +84,11 @@ export function App() {
       onDelivery={(supplier,cargo)=>{const ok=engine.orderTrip(supplier,cargo);setGameState(engine.getState());return ok;}}
       onSetPumpEnabled={(id,enabled)=>{const ok=engine.setPumpEnabled(id,enabled);setGameState(engine.getState());return ok;}}
       onCompetitors={()=>setScreen('competitors')}
-      onTechnical={()=>setScreen('technical')}
+      onTechnical={()=>setScreen('technical')} onCommerce={()=>setScreen('commerce')}
       onSellPump={id=>{const ok=engine.sellPump(id);setGameState(engine.getState());return ok;}}
       onSellTank={id=>{const ok=engine.sellTank(id);setGameState(engine.getState());return ok;}}
       onBack={()=>setScreen('menu')} onClose={()=>setScreen(null)} />}
-    {selectedVehicle!==null&&gameState.vehicles.some(v=>v.id===selectedVehicle)&&<VehiclePanel vehicle={gameState.vehicles.find(v=>v.id===selectedVehicle)!} fuelName={Object.fromEntries(FUEL_IDS.map(id=>[id,gameState.station.fuels[id].name])) as Record<FuelId,string>} prices={prices} onClose={()=>setSelectedVehicle(null)} />}
+    {selectedVehicle!==null&&gameState.vehicles.some(v=>v.id===selectedVehicle)&&<VehiclePanel vehicle={gameState.vehicles.find(v=>v.id===selectedVehicle)!} fuelName={Object.fromEntries(FUEL_IDS.map(id=>[id,gameState.station.fuels[id].name])) as Record<FuelId,string>} prices={prices} customer={gameState.commerce?.customers[selectedVehicle]} onClose={()=>setSelectedVehicle(null)} />}
     <UpdateNotice />
   </div>;
 }

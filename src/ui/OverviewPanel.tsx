@@ -1,9 +1,12 @@
+import {useState} from 'react';
 import type { GameState } from '../game/domain/types';
 
 const money=(kopeks:number)=>(kopeks/100).toLocaleString('ru-RU',{maximumFractionDigits:2})+' ₽';
 interface Props { state:GameState; onClose:()=>void; onBack:()=>void }
 export function OverviewPanel({state,onClose,onBack}:Props) {
-  const {stats,recentSales,station,queueIds}=state;
+  const [period,setPeriod]=useState<'day'|'all'>('all');
+  const {recentSales,station,queueIds}=state;
+  const stats=period==='day'?(state.trafficDaily?.[Math.floor(state.gameSeconds/86400)]??{passed:0,visited:0,departed:0,purchases:0,leftQueue:0,unserved:0,soldMl:0,revenueKopeks:0,costKopeks:0}):state.stats;
   const expenses=state.expenses;
   const operating=(expenses?.lightingKopeks??0)+(expenses?.pumpElectricityKopeks??0)+(expenses?.tankMaintenanceKopeks??0)+(expenses?.pumpingKopeks??0);
   const inTransit=(state.deliveries??[]).reduce((sum,trip)=>sum+Object.entries(trip.remainingCargo??trip.cargo).reduce((cost,[fuel,ml])=>
@@ -11,14 +14,14 @@ export function OverviewPanel({state,onClose,onBack}:Props) {
   return <section className="full-screen" role="dialog" aria-label="Обзор АЗС">
     <header className="screen-header"><button type="button" onClick={onBack}>← Меню</button><div><h2>Обзор АЗС</h2><small>Трафик, продажи и остатки</small></div><button type="button" onClick={onClose} aria-label="Закрыть обзор">×</button></header>
     <div className="screen-content overview-panel">
-    <p>С начала игры или миграции сохранения. Поток трассы и заезды считаются отдельно.</p>
+    <div className="periods"><button className={period==='day'?'active':''} onClick={()=>setPeriod('day')}>Сегодня</button><button className={period==='all'?'active':''} onClick={()=>setPeriod('all')}>Всё время</button></div><p>Трафик и заезды считаются отдельно. Для старых сохранений дневная статистика начинается после обновления.</p>
     <div className="overview-grid">
       <div><strong>{stats.passed}</strong><span>проехало мимо</span></div>
       <div><strong>{stats.visited}</strong><span>заехало</span></div>
-      <div><strong>{stats.purchases}</strong><span>купило топливо</span></div>
+      <div><strong>{stats.departed}</strong><span>уехало</span></div><div><strong>{stats.purchases}</strong><span>купило топливо</span></div>
       <div><strong>{stats.leftQueue}</strong><span>уехало из очереди</span></div>
       <div><strong>{queueIds.length}</strong><span>сейчас в очереди</span></div>
-      <div><strong>{stats.unserved}</strong><span>не обслужено</span></div>
+      <div><strong>{stats.unserved}</strong><span>не обслужено</span></div><div><strong>{stats.visited?Math.round(stats.purchases/stats.visited*100):0}%</strong><span>конверсия в топливо</span></div>
       <div><strong>{Math.round(stats.soldMl/1000)} л</strong><span>продано</span></div>
     </div>
     <div className="overview-total"><span>Выручка</span><strong>{money(stats.revenueKopeks)}</strong></div>

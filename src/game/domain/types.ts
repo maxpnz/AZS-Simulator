@@ -84,7 +84,7 @@ export interface ExpenseTotals {
   stockValueKopeks: Record<FuelId, number>;
 }
 
-export type FinanceKind = 'sale' | 'lighting' | 'pumpElectricity' | 'tankMaintenance' | 'pumping' | 'purchase' | 'construction' | 'upgrade' | 'technicianSalary' | 'equipmentRepair' | 'technicianStaff' | 'resale';
+export type FinanceKind = 'sale' | 'lighting' | 'pumpElectricity' | 'tankMaintenance' | 'pumping' | 'purchase' | 'construction' | 'upgrade' | 'technicianSalary' | 'equipmentRepair' | 'technicianStaff' | 'resale' | 'goodsPurchase' | 'goodsSale' | 'goodsSalary' | 'goodsMaintenance' | 'goodsCapital';
 export interface FinanceEvent {
   gameSeconds: number;
   kind: FinanceKind;
@@ -106,7 +106,7 @@ export interface ClockSnapshot {
 }
 
 export type VehicleCategory = 'compact' | 'sedan' | 'crossover' | 'suv' | 'van' | 'truck';
-export type VehicleStatus = 'road' | 'entering' | 'queued' | 'toPump' | 'fueling' | 'finishing' | 'leaving';
+export type VehicleStatus = 'road' | 'entering' | 'queued' | 'toPump' | 'fueling' | 'finishing' | 'leaving' | 'toParking' | 'parked';
 export type FillBehavior = 'full' | 'amount' | 'volume';
 
 export interface Vehicle {
@@ -143,6 +143,9 @@ export interface Vehicle {
   servicePhase?: 'preparing'|'dispensing';
   phaseRemainingSeconds?: number;
   tankIds?: string[];
+  parkSlot?:number;
+  wantsShop?:boolean;
+  wantsCafe?:boolean;
 }
 
 export interface Sale {
@@ -159,6 +162,7 @@ export interface Sale {
 export interface TrafficStats {
   passed: number;
   visited: number;
+  departed:number;
   purchases: number;
   leftQueue: number;
   unserved: number;
@@ -173,6 +177,7 @@ export interface GameState {
   vehicles: Vehicle[];
   queueIds: number[];
   stats: TrafficStats;
+  trafficDaily?:Record<number,TrafficStats>;
   recentSales: Sale[];
   deliveries?: DeliveryTrip[];
   expenses?: ExpenseTotals;
@@ -181,4 +186,5 @@ export interface GameState {
   competition?: import('./competitors').CompetitionState;
   financeEvents?: FinanceEvent[];
   technical?: import('./technical').TechnicalState;
+  commerce?:import('./commerce').CommerceState;
 }

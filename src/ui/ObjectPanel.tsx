@@ -16,9 +16,9 @@ interface Props {
   onSetPumpEnabled:(id:string,enabled:boolean)=>boolean;
   onSetPumpFuels:(id:string,fuels:FuelId[])=>boolean;onBuildTank:(fuel:FuelId)=>boolean;onUpgradeTank:(id:string)=>boolean;
   onDelivery:(supplierId:string,sections:readonly {fuel:FuelId;litres:number}[])=>boolean;onClose:()=>void;onBack:()=>void;onCompetitors:()=>void;
-  onTechnical:()=>void;onSellPump:(id:string)=>boolean;onSellTank:(id:string)=>boolean;
+  onTechnical:()=>void;onCommerce:()=>void;onSellPump:(id:string)=>boolean;onSellTank:(id:string)=>boolean;
 }
-export function ObjectPanel({id,state,prices,vehicles,onPrice,onBuildPump,onUpgradePump,onSetPumpEnabled,onSetPumpFuels,onBuildTank,onUpgradeTank,onDelivery,onClose,onBack,onCompetitors,onTechnical,onSellPump,onSellTank}:Props) {
+export function ObjectPanel({id,state,prices,vehicles,onPrice,onBuildPump,onUpgradePump,onSetPumpEnabled,onSetPumpFuels,onBuildTank,onUpgradeTank,onDelivery,onClose,onBack,onCompetitors,onTechnical,onCommerce,onSellPump,onSellTank}:Props) {
   const station=state.station;
   const slot=id.startsWith('slot-')?Number(id.slice(5)):id.startsWith('pump-')?Number(id.slice(5))-1:-1;
   const pump=station.pumps.find(p=>p.slot===slot);
@@ -71,13 +71,13 @@ export function ObjectPanel({id,state,prices,vehicles,onPrice,onBuildPump,onUpgr
         <button type="button" aria-label={`Уменьшить цену ${station.fuels[fuel].name}`} disabled={prices[fuel]<=100} onClick={()=>onPrice(fuel,prices[fuel]-10)}>−</button>
         <strong>{(prices[fuel]/100).toFixed(2)} ₽</strong>
         <button type="button" aria-label={`Увеличить цену ${station.fuels[fuel].name}`} disabled={prices[fuel]>=99900} onClick={()=>onPrice(fuel,prices[fuel]+10)}>+</button>
-        <small>{station.fuels[fuel].stockMl>0?`Рынок: ${rubles(state.market?.competitorKopeks[fuel]??prices[fuel])}/л`:'Нет топлива'}</small></div>)}
+        <button type="button" onClick={()=>onPrice(fuel,Math.round((state.market?.competitorKopeks[fuel]??prices[fuel])/10)*10)}>Рынок</button><small>{station.fuels[fuel].stockMl>0?`Рынок: ${rubles(state.market?.competitorKopeks[fuel]??prices[fuel])}/л`:'Нет топлива'}</small></div>)}
     </>}
     {slot>=0&&<>
       {pump&&<div className="tech-object-summary"><p>Состояние: <strong>{condition(pump).toFixed(2)}%</strong> · запчасти {rubles(estimateRepair('pump',condition(pump)).partsKopeks)} · базовая работа {Math.ceil(estimateRepair('pump',condition(pump)).durationSeconds/60)} мин</p>
         <p>{state.technical?.tasks.find(t=>t.equipmentId===pump.id)?`${repairStage(state.technical.tasks.find(t=>t.equipmentId===pump.id)!)} · ${state.technical.tasks.find(t=>t.equipmentId===pump.id)!.executorName}`:condition(pump)===0?'Остановлена':condition(pump)===100?'Исправна · обслуживание не требуется':'Работает'}</p>
         <button type="button" className="panel-action" onClick={onTechnical}>Ремонт и назначения →</button>
-        <button type="button" disabled={pumpBusy||pump.status!=='ready'||!!state.technical?.tasks.find(t=>t.equipmentId===pump.id&&t.paid)} onClick={()=>{const amount=resaleKopeks(pump);if(window.confirm(`Продать ТРК за ${rubles(amount)}?`))act(onSellPump(pump.id),`ТРК продана за ${rubles(amount)}.`);}}>Продать ТРК · {rubles(resaleKopeks(pump))}</button></div>}
+        <button type="button" className="panel-action" disabled={pumpBusy||pump.status!=='ready'||!!state.technical?.tasks.find(t=>t.equipmentId===pump.id&&t.paid)} onClick={()=>{const amount=resaleKopeks(pump);if(window.confirm(`Продать ТРК за ${rubles(amount)}? Ожидающие автомобили могут уехать без заправки.`))act(onSellPump(pump.id),`ТРК продана за ${rubles(amount)}.`);}}>Продать ТРК · {rubles(resaleKopeks(pump))}</button></div>}
       <p>Опора {Math.floor(slot/2)+1}, {slot%2?'правая':'левая'} сторона · место {slot+1} из 10.</p>
       {pump?<>
         <p>Состояние: {pump.status==='building'?'строится':pump.status==='upgrading'?'модернизируется':'готова'}.
@@ -88,23 +88,23 @@ export function ObjectPanel({id,state,prices,vehicles,onPrice,onBuildPump,onUpgr
         <button type="button" className="panel-action" disabled={pump.status!=='ready'||(pump.enabled!==false&&pumpBusy)}
           onClick={()=>act(onSetPumpEnabled(pump.id,pump.enabled===false),pump.enabled===false?'ТРК включена.':'ТРК выключена.')}>{pump.enabled===false?'Включить ТРК':'Выключить ТРК'}</button>
         <button type="button" className="panel-action" disabled={pump.status==='building'||pump.status==='upgrading'||pumpBusy} onClick={()=>act(onUpgradePump(pump.id),'Модернизация поставлена в очередь.')}>Модернизировать · 12 000 ₽</button>
-        <h3>Подключённые пистолеты</h3>
+        {(station.jobs??[]).filter(j=>j.kind==='rewire'&&j.targetId===pump.id).map(j=><p key={j.id}>Ожидает переподключения: {j.fuels?.map(f=>station.fuels[f].name).join(', ')}. Применится после текущего автомобиля.</p>)}<h3>Подключённые пистолеты</h3>
         <div className="fuel-choice">{activeFuels.map(f=><label key={f}><input type="checkbox" checked={channels.includes(f)} onChange={e=>setChannels(old=>e.target.checked?[...old,f].slice(0,MAX_FUELS_PER_PUMP):old.filter(x=>x!==f))}/>{station.fuels[f].name}</label>)}</div>
-        <button type="button" className="panel-action" disabled={pump.status==='building'||pump.status==='upgrading'||pumpBusy} onClick={()=>act(onSetPumpFuels(pump.id,channels),'Переподключение займёт 3 игровые минуты.')}>Переподключить каналы</button>
+        <button type="button" className="panel-action" disabled={pump.status==='building'||pump.status==='upgrading'||(station.jobs??[]).some(j=>j.kind==='rewire'&&j.targetId===pump.id)} onClick={()=>act(onSetPumpFuels(pump.id,channels),'Переподключение займёт 3 игровые минуты.')}>Переподключить каналы</button>
       </>:<button type="button" className="panel-action" onClick={()=>act(onBuildPump(slot),'Строительство ТРК поставлено в очередь.')}>Построить ТРК · 25 000 ₽</button>}
       {(station.jobs??[]).filter(j=>j.targetId===pump?.id).map(j=><p key={j.id}>{j.status==='active'?'Бригада работает':'Ожидает бригаду'} · {Math.ceil(j.remainingSeconds)} игровых с</p>)}
     </>}
     {id==='tank'&&<>
       <p>Каждый резервуар расположен под землёй. На сцене видны технологические люки; заполнение показано в разрезе ниже.</p>
       {station.tanks.map(t=>{const ratio=t.capacityMl?t.stockMl/t.capacityMl:0;return <div className="tank-card" key={t.id}>
-        <strong>{station.fuels[t.fuel].name} · {t.id}</strong><span>{litres(t.stockMl)} из {litres(t.capacityMl)}</span>
+        <strong>Резервуар №{station.tanks.indexOf(t)+1} · {station.fuels[t.fuel].name}</strong><span>{litres(t.stockMl)} из {litres(t.capacityMl)}</span>
         <small>Состояние {condition(t).toFixed(2)}% · запчасти {rubles(estimateRepair('tank',condition(t)).partsKopeks)} · базовая работа {Math.ceil(estimateRepair('tank',condition(t)).durationSeconds/60)} мин</small>
         <small>{state.technical?.tasks.find(job=>job.equipmentId===t.id)?repairStage(state.technical.tasks.find(job=>job.equipmentId===t.id)!):condition(t)===100?'Обслуживание не требуется':condition(t)===0?'Остановлен':'Работает'}</small>
         <div className="tank-cutaway"><div style={{width:`${Math.max(0,Math.min(100,ratio*100))}%`}}/></div>
         <small>{t.status==='active'?'Работает':t.status==='building'?'Строится':'Модернизируется'}</small>
         <button type="button" className="panel-action" disabled={t.status!=='active'} onClick={()=>act(onUpgradeTank(t.id),'Модернизация резервуара поставлена в очередь.')}>Увеличить ёмкость · 20 000 ₽</button>
         <button type="button" className="panel-action" onClick={onTechnical}>Ремонт и назначения →</button>
-        <button type="button" disabled={t.status!=='active'||t.stockMl>0||!!state.technical?.tasks.find(job=>job.equipmentId===t.id&&job.paid)} onClick={()=>{const amount=resaleKopeks(t);if(window.confirm(`Продать резервуар за ${rubles(amount)}?`))act(onSellTank(t.id),`Резервуар продан за ${rubles(amount)}.`);}}>Продать пустой резервуар · {rubles(resaleKopeks(t))}</button>
+        <button type="button" className="panel-action" disabled={t.status!=='active'||t.stockMl>0||!!state.technical?.tasks.find(job=>job.equipmentId===t.id&&job.paid)} onClick={()=>{const amount=resaleKopeks(t);if(window.confirm(`Продать резервуар за ${rubles(amount)}? Связанные каналы ТРК будут отключены.`))act(onSellTank(t.id),`Резервуар продан за ${rubles(amount)}.`);}}>Продать пустой резервуар · {rubles(resaleKopeks(t))}</button>
       </div>;})}
       <h3>Новый резервуар</h3><select value={chosenFuel} onChange={e=>setChosenFuel(e.target.value as FuelId)}>{FUEL_IDS.map(f=><option key={f} value={f}>{INITIAL_STATION.fuels[f].name}</option>)}</select>
       <button type="button" className="panel-action" onClick={()=>act(onBuildTank(chosenFuel),'Строительство резервуара поставлено в очередь.')}>Построить · 40 000 ₽</button>
@@ -123,12 +123,13 @@ export function ObjectPanel({id,state,prices,vehicles,onPrice,onBuildPump,onUpgr
       {!station.tanks.some(t=>t.status==='active')&&<p>Перед заказом постройте резервуар нужного сорта.</p>}
       {orderProblem&&<p className="panel-error" role="status">{orderProblem}</p>}
       <p>Стоимость заказа: <strong>{rubles(orderCost)}</strong>{bulk&&<> · скидка <strong>{Math.round(discount*100)}%</strong> от базовой оптовой цены</>} · Доступный баланс: <strong>{rubles(station.balanceKopeks)}</strong></p>
-      <button type="button" className="panel-action" disabled={!validCargo||submitting} onClick={()=>{if(submittingRef.current)return;submittingRef.current=true;setSubmitting(true);const ok=onDelivery(supplierId,cargoEntries.map(([fuel,amount])=>({fuel,litres:amount})));act(ok,'Поставка заказана.');if(!ok){submittingRef.current=false;setSubmitting(false);}}}>Заказать бензовоз · {rubles(orderCost)}</button>
-      {state.deliveries?.map(d=><p key={d.id}>{d.id} · {SUPPLIERS.find(s=>s.id===d.supplierId)?.name??'Поставка'}: {{enroute:'в пути',waiting:'ожидает площадку',approaching:'подъезжает',connecting:'подключает рукав',unloading:'разгрузка',disconnecting:'отключает рукав',leaving:'выезжает'}[d.status??'enroute']} · осталось {litres(d.remainingMl??0,0)}</p>)}
+      <button type="button" className="panel-action" disabled={!validCargo||submitting} onClick={()=>{if(submittingRef.current)return;submittingRef.current=true;setSubmitting(true);if(!window.confirm(`Заказать у ${SUPPLIERS.find(s=>s.id===supplierId)?.name} ${cargoEntries.map(([f,n])=>`${station.fuels[f].name} ${n} л`).join(', ')} за ${rubles(orderCost)}? Прибытие примерно через ${Math.round((offerFor(chosenFuel)?.etaGameSeconds??0)/60)} игровых минут.`)){submittingRef.current=false;setSubmitting(false);return;}const ok=onDelivery(supplierId,cargoEntries.map(([fuel,amount])=>({fuel,litres:amount})));act(ok,'Поставка заказана.');if(!ok){submittingRef.current=false;setSubmitting(false);}}}>Заказать бензовоз · {rubles(orderCost)}</button>
+      <p>{(state.deliveries??[]).some(d=>d.status==='unloading')?'Бензовоз на разгрузке':(state.deliveries??[]).some(d=>d.status==='enroute')?`До ближайшего прибытия: ${Math.max(0,Math.ceil((Math.min(...(state.deliveries??[]).filter(d=>d.status==='enroute').map(d=>d.arrivalGameSeconds))-state.gameSeconds)/60))} игровых мин`:'Поставок нет'}</p>
+      {state.deliveries?.map(d=><p key={d.id}>Заказ №{d.id.split('-').at(-1)} · {SUPPLIERS.find(s=>s.id===d.supplierId)?.name??'Поставка'} · {Object.entries(d.cargo).map(([f,ml])=>`${station.fuels[f as FuelId].name} ${litres(ml??0,0)}`).join(', ')} · {{enroute:'в пути',waiting:'ожидает площадку',approaching:'подъезжает',connecting:'подключает рукав',unloading:'разгрузка',disconnecting:'отключает рукав',leaving:'выезжает'}[d.status??'enroute']} · прибытие: день {Math.floor(d.arrivalGameSeconds/86400)+1}, {String(Math.floor(d.arrivalGameSeconds%86400/3600)).padStart(2,'0')}:{String(Math.floor(d.arrivalGameSeconds%3600/60)).padStart(2,'0')} · осталось {litres(d.remainingMl??0,0)}</p>)}
     </>}
     {id==='expansion'&&<><p>Две строительные бригады. Новые ТРК приобретаются через пустые монтажные места под навесом; резервуары — через карточку люков.</p>
       {(station.jobs??[]).map(j=><p key={j.id}>{j.targetId}: {j.status==='active'?'в работе':'в очереди'} · {Math.ceil(j.remainingSeconds)} игровых с</p>)}</>}
-    {id==='shop'&&<p>Магазин пока декоративный объект станции. Продажи магазина в экономике не учитываются.</p>}
+    {id==='shop'&&<><p>Магазин и кафе работают независимо. Парковка: 10 мест.</p><p>Магазин: {state.commerce?.venues.shop.level?'открыт':'не открыт'} · кафе: {state.commerce?.venues.cafe.level?'открыто':'не открыто'}.</p><button className="panel-action" onClick={onCommerce}>Магазин, кафе и закупки →</button></>}
     {notice&&<p role="status">{notice}</p>}{error&&<p className="panel-error" role="alert">{error}</p>}
     </div>
   </section>;

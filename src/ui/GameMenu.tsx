@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { Icon } from './Icon';
 import { version as currentVersion } from '../../package.json';
 import { normalizeStationName } from '../game/domain/stationName';
-interface Props { onClose:()=>void; onSection:(name:string)=>void; onReset:()=>void; settings?:boolean; onBack?:()=>void; stationName?:string; onStationName?:(value:string)=>void }
-export function GameMenu({onClose,onSection,onReset,settings=false,onBack,stationName='АЗС',onStationName}:Props){
+interface Props { onClose:()=>void; onSection:(name:string)=>void; onReset:()=>void; settings?:boolean; onBack?:()=>void; stationName?:string; onStationName?:(value:string)=>void;onSaveSlot?:(slot:number)=>boolean;onLoadSlot?:(slot:number)=>boolean;hasSlot?:(slot:number)=>boolean;onExit?:()=>void }
+export function GameMenu({onClose,onSection,onReset,settings=false,onBack,stationName='АЗС',onStationName,onSaveSlot,onLoadSlot,hasSlot,onExit}:Props){
   const [confirmReset,setConfirmReset]=useState(false);
   const [draftName,setDraftName]=useState(stationName);
   return <section className="full-screen" role="dialog" aria-label={settings?'Настройки':'Главное меню'}>
@@ -16,8 +16,8 @@ export function GameMenu({onClose,onSection,onReset,settings=false,onBack,statio
         </form></div>
       <div className="settings-card"><h3>Управление камерой</h3><p>Сдвигайте сцену одним пальцем или мышью. Масштабируйте двумя пальцами или колесом мыши. Кнопка «Сброс камеры» возвращает исходный вид.</p></div>
       <div className="settings-card"><h3>Версия</h3><p>v{currentVersion}</p></div>
-      <div className="settings-card"><h3>Прогресс</h3><button type="button" className="menu-reset" onClick={()=>setConfirmReset(true)}>Сбросить прогресс</button></div>
+      <div className="settings-card"><h3>Прогресс</h3><div className="slot-grid">{[1,2,3].map(slot=><div key={slot}><strong>Слот {slot}</strong><button type="button" onClick={()=>onSaveSlot?.(slot)}>Сохранить</button><button type="button" disabled={!hasSlot?.(slot)} onClick={()=>{if(window.confirm(`Загрузить слот ${slot}? Текущая игра будет заменена.`))onLoadSlot?.(slot);}}>Загрузить</button></div>)}</div><button type="button" className="menu-reset" onClick={()=>setConfirmReset(true)}>Сбросить прогресс</button></div>
       {confirmReset&&<div className="reset-dialog" role="alertdialog" aria-label="Подтверждение сброса"><h3>Начать новую игру?</h3><p>Деньги, объекты, топливо, статистика и сохранение будут заменены начальным состоянием.</p><div><button type="button" onClick={()=>setConfirmReset(false)}>Отмена</button><button type="button" className="menu-reset" onClick={()=>{onReset();setConfirmReset(false);onClose();}}>Сбросить</button></div></div>}
-    </>:<div className="menu-grid">{[['Обзор','Продажи, трафик и остатки'],['Цены','Розничные цены на стеле'],['Конкуренты','Цены и наличие топлива на рынке'],['Техническая служба','Ремонт, техники и журнал'],['Настройки','Управление и версия']] .map(([name,description])=><button type="button" key={name} onClick={()=>onSection(name)}><strong>{name}</strong><small>{description}</small></button>)}</div>}</div>
+    </>:<div className="menu-grid">{[['Обзор','Продажи, трафик и остатки'],['Цены','Розничные цены на стеле'],['Конкуренты','Цены и наличие топлива на рынке'],['Техническая служба','Ремонт, техники и журнал'],['Магазин и кафе','Торговля, закупки и склады'],['Настройки','Управление и версия']] .map(([name,description])=><button type="button" key={name} onClick={()=>onSection(name)}><strong>{name}</strong><small>{description}</small></button>)}</div>}{!settings&&<button type="button" className="panel-action" onClick={()=>{if(window.confirm('Сохранить игру и выйти на стартовый экран?'))onExit?.();}}>Выход из игры</button>}</div>
   </section>;
 }

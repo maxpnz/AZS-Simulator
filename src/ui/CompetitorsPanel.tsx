@@ -26,7 +26,7 @@ export function CompetitorsPanel({state,onClose,onBack}:{state:GameState;onClose
   return <section className="full-screen" role="dialog" aria-label="Конкуренты">
     <header className="screen-header"><button type="button" onClick={selected?()=>setSelected(null):onBack}>← {selected?'Конкуренты':'Меню'}</button><div><h2>{profile?.name??'Конкуренты'}</h2><small>АЗС Simulator · v{version}</small></div><button type="button" onClick={onClose} aria-label="Вернуться к игре">×</button></header>
     <div className="screen-content competitors-panel">{!station?<>
-      <p>Цены обновляются по игровому времени. Во время просмотра симуляция приостановлена. На узком экране таблицу можно прокручивать в сторону.</p>
+      <p>Сравните цены и доступность топлива у соседних АЗС. Выберите конкурента, чтобы посмотреть его историю цен.</p>
       <div className="competitor-table"><table><thead><tr><th>АЗС</th>{FUEL_IDS.map(f=><th key={f}>{state.station.fuels[f].name}</th>)}</tr></thead><tbody>
         <tr><th>Наша АЗС</th>{FUEL_IDS.map(f=><td key={f}>{price(state.station.fuels[f].retailKopeks)}<small>{marketPosition(competition,f,state.station.fuels[f].retailKopeks)}</small></td>)}</tr>
         {competition.stations.map((s,index)=><tr key={s.id} onClick={()=>setSelected(s.id)}><th><button type="button" onClick={()=>setSelected(s.id)}>{COMPETITORS[index].name} →</button></th>{FUEL_IDS.map(f=><td key={f} className={s.prices[f]===undefined?'':s.prices[f]!>state.station.fuels[f].retailKopeks?'competitor-more':'competitor-less'}>{s.prices[f]===undefined?'—':(s.stockLitres[f]??0)<=0?'Нет топлива':price(s.prices[f]!)}</td>)}</tr>)}

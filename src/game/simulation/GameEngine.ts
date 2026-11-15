@@ -1,3 +1,4 @@
+import type { Venue, Sku, Product, Supplier } from '../domain/commerce';
 import type { FuelId, GameState, TimeSpeed } from '../domain/types';
 import { StationSimulation } from './StationSimulation';
 import type { AutomationMode } from '../domain/technical';
@@ -11,7 +12,7 @@ export class GameEngine {
   private saveHealthy=true;
   private loadError=false;
   constructor(){
-    if(typeof localStorage!=='undefined')try{const data=localStorage.getItem('azs-simulator-save');if(data)this.simulation=StationSimulation.importSave(JSON.parse(data));}catch{this.saveHealthy=false;this.loadError=true;}
+    if(typeof localStorage!=='undefined'){let found=false;for(const key of ['azs-simulator-save','azs-simulator-save-previous']){try{const data=localStorage.getItem(key);if(data){this.simulation=StationSimulation.importSave(JSON.parse(data));found=true;break;}}catch{this.loadError=true;}}if(found)this.loadError=false;else if(this.loadError)this.saveHealthy=false;}
     if(typeof localStorage!=='undefined')try{const speed=Number(localStorage.getItem('azs-simulator-speed'));if([1,2,4,5,10].includes(speed))this.speed=speed as TimeSpeed;}catch{/* storage unavailable */}
   }
   private speed:TimeSpeed=1;
@@ -33,6 +34,14 @@ export class GameEngine {
     this.stateListeners.set(listener,{interval,last:-Infinity});
     return ()=>this.stateListeners.delete(listener);
   }
+  openVenue(venue:Venue):boolean {return this.action(this.simulation.openVenue(venue));}
+  upgradeVenue(venue:Venue):boolean {return this.action(this.simulation.upgradeVenue(venue));}
+  trainVenue(venue:Venue):boolean {return this.action(this.simulation.trainVenue(venue));}
+  setGoodsPrice(product:Product,price:number):boolean {return this.action(this.simulation.setGoodsPrice(product,price));}
+  orderGoods(supplier:Supplier,request:Partial<Record<Sku,number>>):boolean {return this.action(this.simulation.orderGoods(supplier,request));}
+  saveSlot(slot:number):boolean {if(![1,2,3].includes(slot))return false;try{localStorage.setItem(`azs-simulator-slot-${slot}`,this.exportSave());return true;}catch{return false;}}
+  loadSlot(slot:number):boolean {if(![1,2,3].includes(slot))return false;try{const data=localStorage.getItem(`azs-simulator-slot-${slot}`);if(!data)return false;this.importSave(data);this.save();return true;}catch{return false;}}
+  hasSlot(slot:number):boolean {try{return !!localStorage.getItem(`azs-simulator-slot-${slot}`);}catch{return false;}}
   private action(result:boolean):boolean {if(result){this.save();this.publishState();}return result;}
   setRetailPrice(fuel:FuelId,kopeks:number):boolean {return this.action(this.simulation.setRetailPrice(fuel,kopeks));}
   setStationName(value:string):boolean {return this.action(this.simulation.setStationName(value));}
@@ -59,18 +68,23 @@ export class GameEngine {
   importSave(json:string):void {this.simulation=StationSimulation.importSave(JSON.parse(json));this.publishState();}
   save():void {if(this.saveHealthy&&typeof localStorage!=='undefined')try{
     const old=localStorage.getItem('azs-simulator-save');
-    if(old){
+    if(old)try{
       const version=/^\s*\{\s*"version"\s*:\s*"([^"]+)"/.exec(old)?.[1]??(JSON.parse(old) as {version?:string}).version;
-      const backup=version==='0.4.0'?'azs-simulator-save-v04-backup':version==='0.5.0'?'azs-simulator-save-v05-backup':version==='0.5.1'?'azs-simulator-save-v051-backup':version==='0.5.2'?'azs-simulator-save-v052-backup':undefined;
+      const backup=version==='0.4.0'?'azs-simulator-save-v04-backup':version==='0.5.0'?'azs-simulator-save-v05-backup':version==='0.5.1'?'azs-simulator-save-v051-backup':version==='0.5.2'?'azs-simulator-save-v052-backup':version==='0.6.0'?'azs-simulator-save-v06-backup':undefined;
       if(backup&&!localStorage.getItem(backup))localStorage.setItem(backup,old);
-    }
-    localStorage.setItem('azs-simulator-save',this.exportSave());
+    }catch{/* damaged previous save */}
+    const next=this.exportSave();
+    localStorage.setItem('azs-simulator-save-pending',next);
+    if(old){try{StationSimulation.importSave(JSON.parse(old));localStorage.setItem('azs-simulator-save-previous',old);}catch{/* corrupted old record */}}
+    localStorage.setItem('azs-simulator-save',next);
+    localStorage.removeItem('azs-simulator-save-pending');
   }catch{this.saveHealthy=false;}}
   loadSaved():boolean {if(typeof localStorage==='undefined')return false;const data=localStorage.getItem('azs-simulator-save');if(!data)return false;try{this.importSave(data);return true;}catch{return false;}}
   reset():void {
     this.simulation=new StationSimulation();this.accumulator=0;this.paused=false;this.speed=1;this.saveHealthy=true;
     this.lastRealTime=performance.now();
-    this.save();this.publishState();
+    try{localStorage.removeItem('azs-simulator-save');localStorage.removeItem('azs-simulator-save-previous');localStorage.removeItem('azs-simulator-save-pending');}catch{/* storage unavailable */}
+    this.save();this.lastSaved=performance.now();this.publishState();
     for(const listener of this.listeners)listener(this.simulation.gameSeconds);
   }
   private publishState():void {const state=this.simulation.snapshot();for(const listener of this.stateListeners.keys())listener(state);}
@@ -82,7 +96,7 @@ export class GameEngine {
   resetClock(now=performance.now()):void {this.lastRealTime=now;this.accumulator=0;}
   start():void {
     if(this.timer) return;
-    this.lastRealTime=performance.now();this.lastPublished=this.lastRealTime;
+    this.lastRealTime=performance.now();this.lastPublished=this.lastRealTime;this.lastSaved=this.lastRealTime;
     this.timer=setInterval(()=>this.pulse(performance.now()),25);
   }
   stop():void {if(this.timer) clearInterval(this.timer);this.timer=undefined;}
@@ -101,7 +115,7 @@ export class GameEngine {
       this.lastPublished=now;
       for(const listener of this.listeners) listener(this.simulation.gameSeconds);
     }
-    if(now-this.lastSaved>=5000){this.lastSaved=now;this.save();}
+    if(now-this.lastSaved>=60000){this.lastSaved=now;this.save();}
     if(import.meta.env.DEV&&now-this.lastDiagnostic>=5000){this.lastDiagnostic=now;for(const issue of this.simulation.trafficDiagnostics())console.debug('[AZS traffic]',issue);}
     for(const [listener,meta] of this.stateListeners) if(now-meta.last>=meta.interval) {
       meta.last=now;listener(this.simulation.snapshot());
