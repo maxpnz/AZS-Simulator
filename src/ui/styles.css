@@ -172,3 +172,90 @@ button:focus-visible{outline:2px solid #8cb8ff;outline-offset:2px}
 .tank-mini{display:block;width:45px;height:42px;object-fit:contain}
 .pump-panel-art{display:block;float:left;width:88px;height:125px;object-fit:contain;margin:0 18px 10px 0;filter:drop-shadow(0 8px 12px #0008)}
 .object-panel .supplier-grid button:before{display:none}.supplier-tanker{display:block;width:100%;height:52px;object-fit:contain;object-position:left center;filter:drop-shadow(0 5px 5px #0008)}
+/* v0.7.2: illustrated, compact landscape menu */
+.menu-content{max-width:1380px;padding:12px max(14px,env(safe-area-inset-left)) 14px}
+.menu-hero{position:relative;display:flex;align-items:center;min-height:160px;margin-bottom:12px;padding:22px 32px;overflow:hidden;border:1px solid #3f8e78;border-radius:16px;background-size:cover;background-position:center 54%;box-shadow:inset 0 0 0 1px #8bffc322,0 14px 28px #0007}
+.menu-hero::after{content:'';position:absolute;inset:auto 0 0;height:3px;background:linear-gradient(90deg,#39ff65,#ffc83d77,transparent)}
+.menu-hero>div{position:relative;z-index:1;text-shadow:0 3px 9px #000}
+.menu-hero span{font-size:11px;font-weight:900;letter-spacing:.24em;color:#a8d7c8}
+.menu-hero h3{margin:5px 0 0!important;font-size:clamp(27px,4.3vw,55px);line-height:1.05;color:#fff0d5!important}
+.menu-hero h3 em{font-style:normal;color:#39ff65}
+.menu-hero p{margin:7px 0 0;color:#edf9ff!important;font-size:14px}
+.menu-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:11px}
+.menu-grid .menu-tile{position:relative;display:flex;align-items:center;gap:15px;min-height:142px;padding:18px;overflow:hidden;border:1px solid #417b75;border-radius:15px;background:radial-gradient(circle at 90% 115%,#1c5c49 0%,#102d35 52%,#0b2028 100%);box-shadow:inset 0 1px #d6fff425,0 9px 22px #0005;transition:transform .15s,border-color .15s,box-shadow .15s}
+.menu-grid .menu-tile:nth-child(2n){background:radial-gradient(circle at 88% 110%,#564d2b 0%,#112f34 48%,#0b2028 100%)}
+.menu-grid .menu-tile:hover{transform:translateY(-2px);border-color:#39ff65;box-shadow:0 0 0 1px #39ff653b,0 12px 24px #0008}
+.menu-tile .menu-tile-art{position:relative;z-index:1;flex:none;display:grid;place-items:center;width:62px;height:62px;margin:0;border:1px solid #46e585;border-radius:13px;background:linear-gradient(145deg,#124336,#0a272d);color:#39ff65;box-shadow:0 0 16px #39ff6530}
+.menu-tile .menu-tile-art svg{width:33px;height:33px}
+.menu-tile-copy{position:relative;z-index:1;max-width:64%}
+.menu-tile-copy strong{font-size:clamp(18px,2vw,25px);line-height:1.06;color:#fff0d5}
+.menu-tile-copy small{margin-top:8px;font-size:12px;line-height:1.25;color:#b6d0cd}
+.menu-tile-watermark{position:absolute;right:4%;bottom:-25%;width:42%;aspect-ratio:1;color:#78ffc2;opacity:.11;transform:rotate(-11deg)}
+.menu-tile-watermark svg{width:100%;height:100%;filter:drop-shadow(0 0 20px #39ff65)}
+.menu-tile-arrow{position:absolute;right:14px;top:9px;color:#98d5bd;font-size:21px}
+.menu-content>.menu-exit-button{max-width:none;width:100%;margin:11px auto 0;min-height:43px;background:#123e35;border-color:#3ba46f}
+.settings-visual{min-height:280px;justify-content:flex-end;background:#0b2028}
+.settings-visual img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:65% center}
+.settings-visual::after{content:'';position:absolute;inset:35% 0 0;background:linear-gradient(transparent,#06131de8)}
+.settings-visual>span{position:relative;z-index:1;width:auto;background:none;font-size:23px;font-weight:900;letter-spacing:.01em}
+@media(max-height:550px){.menu-content{padding-top:7px}.menu-hero{min-height:75px;padding:10px 22px;margin-bottom:7px}.menu-hero h3{font-size:27px}.menu-hero p,.menu-hero span{display:none}.menu-grid{gap:6px}.menu-grid .menu-tile{min-height:90px;padding:9px 12px;gap:10px}.menu-tile .menu-tile-art{width:42px;height:42px}.menu-tile .menu-tile-art svg{width:24px;height:24px}.menu-tile-copy strong{font-size:16px}.menu-tile-copy small{font-size:10px;margin-top:3px}.menu-content>.menu-exit-button{min-height:36px;margin-top:7px}}
+@media(max-width:760px){.menu-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.menu-tile-copy small{display:none}.menu-hero{min-height:75px}}
+/* Illustrated commerce and service panels */
+.venue-hero{position:relative;max-width:none;min-height:142px;align-items:flex-end;overflow:hidden;padding:18px 23px;background-size:cover;background-position:center;border-color:#418f72;box-shadow:inset 0 -1px #39ff65,0 12px 22px #0005}
+.venue-hero.cafe{background-position:82% center}
+.venue-hero.shop{background-position:18% center}
+.venue-hero h3{font-size:clamp(24px,3vw,36px);color:#fff0d5}
+.venue-hero p{color:#e5f5ee!important;text-shadow:0 2px 5px #000}
+.hero-eyebrow{display:block;margin-bottom:4px;color:#39ff65;font-size:10px;font-weight:900;letter-spacing:.2em}
+.venue-products{max-width:none}
+.venue-products>div{border-color:#31645b;background:linear-gradient(145deg,#173b36,#102b33);min-height:66px}
+.venue-products strong{color:#fff0d5}
+.venue-products span{font-size:15px;font-weight:900}
+.technical-art{display:flex;flex-direction:column;justify-content:flex-end;min-height:120px;margin:-13px -13px 14px;padding:13px 16px;border-radius:12px 12px 0 0;background-size:cover;background-position:68% center;box-shadow:inset 0 -2px #39ff65}
+.technical-art span{color:#39ff65;font-size:10px;font-weight:900;letter-spacing:.15em}
+.technical-art strong{color:#fff0d5;font-size:20px;text-shadow:0 2px 5px #000}
+@media(max-height:500px){.venue-hero{min-height:78px;padding:8px 16px}.venue-hero h3{font-size:22px}.venue-hero p{font-size:11px}.technical-art{min-height:72px}}
+.menu-tile-photo{position:absolute;right:0;top:0;width:58%;height:100%;object-fit:cover;object-position:60% center;opacity:.65;pointer-events:none;mask-image:linear-gradient(90deg,transparent,#000 35%)}
+.menu-tile-0 .menu-tile-photo{object-position:78% center}
+.menu-tile-1 .menu-tile-photo{object-fit:contain;object-position:75% 50%;filter:hue-rotate(110deg) saturate(1.3);opacity:.82}
+.menu-tile-2 .menu-tile-photo{object-position:52% 62%;filter:hue-rotate(18deg)}
+.menu-tile-3 .menu-tile-photo{object-position:68% 50%;opacity:.75}
+.menu-tile-4 .menu-tile-photo{object-position:77% center;opacity:.8}
+.menu-tile-5 .menu-tile-photo{width:38%;object-fit:contain;opacity:.5;filter:drop-shadow(0 0 14px #39ff65)}
+.menu-grid .menu-tile::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,#09232de8 0%,#09232db3 46%,#09232d14 100%);pointer-events:none}
+.menu-grid .menu-tile>*:not(.menu-tile-photo){z-index:1}
+/* Operational dashboard uses the three approved counter groups. */
+.overview-sections{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;max-width:1200px;margin:12px auto 16px}
+.overview-section{min-width:0;padding:13px;border:1px solid #32715d;border-radius:14px;background:linear-gradient(145deg,#143835,#0b2028);box-shadow:inset 0 1px #b6ffe01b,0 9px 18px #0004}
+.overview-section:nth-child(2){border-color:#426b78;background:linear-gradient(145deg,#16353e,#0b2028)}
+.overview-section:nth-child(3){border-color:#856d35;background:linear-gradient(145deg,#343526,#0b2028)}
+.overview-section h3{margin:0 0 8px!important;color:#fff0d5;font-size:16px}
+.overview-section .overview-grid{display:grid;grid-template-columns:1fr;gap:5px}
+.overview-section .overview-grid>div{display:flex;align-items:center;justify-content:space-between;min-height:47px;padding:7px 10px;border:1px solid #ffffff17;border-left:2px solid #39ff65;border-radius:7px;background:#061a21a8}
+.overview-section:nth-child(3) .overview-grid>div{border-left-color:#ffc83d}
+.overview-section .overview-grid strong{order:2;white-space:nowrap;color:#fff0d5;font-size:21px}
+.overview-section .overview-grid span{order:1;color:#b5ccca;font-size:12px}
+@media(max-width:760px){.overview-sections{grid-template-columns:1fr}.overview-section .overview-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.overview-section .overview-grid>div{display:grid}.overview-section .overview-grid strong{order:1}.overview-section .overview-grid span{order:2}}
+/* The price sign remains live DOM text and reads its numbers from the simulation. */
+.price-sign-visual{position:relative;transform:perspective(800px) rotateY(-6deg);padding:20px 15px 26px;border:3px solid #355e58;border-radius:9px;background:linear-gradient(105deg,#283333 0%,#0a171c 15%,#0b2028 78%,#28403a 100%);box-shadow:8px 9px 0 #061217,14px 20px 28px #000a,inset 0 0 20px #000a}
+.price-sign-visual::after{content:'';position:absolute;bottom:-12px;left:-7%;width:114%;height:12px;border-radius:2px;background:linear-gradient(#48605a,#17242d);box-shadow:0 8px 12px #0008}
+.sign-heading{margin:-5px -2px 8px;padding:6px;color:#fff0d5;font-size:32px;text-shadow:0 0 12px #39ff65a0;border-color:#39ff65}
+.price-sign-visual>div:not(.sign-heading){padding:9px 5px;border-color:#2d5b57;font-weight:800}
+.price-sign-visual>div strong{color:#39ff65;text-shadow:0 0 8px #39ff6570;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:20px}
+.price-card{background:linear-gradient(145deg,#153c37,#102732);border-color:#337567;box-shadow:inset 0 1px #ffffff0d}
+.price-card-values>strong{font-size:21px;color:#fff0d5}
+.price-card-actions button{background:#163f37;border-color:#3e796b;font-weight:850}
+.price-card-actions button:hover{border-color:#39ff65;background:#1c5c3f}
+.supplier-grid button{position:relative;overflow:hidden;background:linear-gradient(140deg,#173a35,#0e2630);border-color:#397365;box-shadow:inset 0 1px #ffffff13}
+.supplier-grid button.selected{border-color:#39ff65;box-shadow:inset 0 0 0 1px #39ff65,0 0 18px #39ff6530}
+.object-panel .supplier-tanker{height:70px;object-position:center;filter:drop-shadow(0 6px 8px #0009)}
+@media(max-height:500px){.overview-section .overview-grid>div{min-height:35px;padding:4px 8px}.overview-section .overview-grid strong{font-size:16px}.overview-section h3{font-size:14px}.price-sign-visual{padding:10px}.price-sign-visual>div:not(.sign-heading){padding:5px}.price-sign-visual>div strong{font-size:15px}}
+.overview-section .overview-grid>div{flex-direction:row;text-align:left}
+.overview-note{max-width:1200px!important;margin:4px auto 14px;color:#8da9ac!important;font-size:11px}
+.tank-empty{display:flex;align-items:center;gap:32px;min-height:230px;max-width:900px;margin:28px auto;padding:28px;border:1px solid #32755c;border-radius:18px;background:radial-gradient(circle at 16% 50%,#235544,#102c35 45%,#0a2028);box-shadow:inset 0 1px #ffffff20}
+.tank-empty img{width:150px;height:150px;object-fit:contain;filter:drop-shadow(0 0 24px #39ff6570)}
+.tank-empty span{color:#39ff65;font-size:11px;font-weight:900;letter-spacing:.15em}
+.tank-empty h3{margin:6px 0!important;font-size:26px;color:#fff0d5}
+.tank-empty p{max-width:500px;margin:0 0 15px;color:#c6d8d4}
+.tank-empty .panel-action{width:auto;padding:0 18px}
+@media(max-height:500px){.tank-empty{min-height:160px;margin:10px auto;padding:15px}.tank-empty img{width:110px;height:110px}.tank-empty h3{font-size:20px}}

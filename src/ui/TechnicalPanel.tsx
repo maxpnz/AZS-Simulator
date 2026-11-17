@@ -3,6 +3,7 @@ import type { GameState } from '../game/domain/types';
 import { condition, CONTRACTORS, estimateRepair, LEVELS, TECH_NAMES } from '../game/domain/technical';
 import type { AutomationMode } from '../game/domain/technical';
 import { getClock } from '../game/simulation/time';
+import workshopArt from '../assets/workshop-v072.webp';
 import type { GameEngine } from '../game/simulation/GameEngine';
 const money=(kopeks:number)=>(kopeks/100).toLocaleString('ru-RU',{maximumFractionDigits:2})+' ₽';
 const duration=(seconds:number)=>`${Math.floor(seconds/3600)} ч ${Math.ceil(seconds%3600/60)} мин`;
@@ -24,7 +25,7 @@ export function TechnicalPanel({state,engine,focusedId,refresh,onClose,onBack}:P
     <header className="screen-header"><button type="button" onClick={onBack}>← Меню</button><div><h2>Техническая служба</h2><small>Ремонт и персонал</small></div><button type="button" onClick={onClose} aria-label="Вернуться к игре">×</button></header>
     <div className="screen-content technical-content">
       <h3>Режим</h3><div className="periods">{([['automatic','Автоматический ремонт и профилактика'],['critical','Только критический ремонт'],['manual','Ручное управление']] as [AutomationMode,string][]).map(([mode,label])=><button type="button" key={mode} className={tech.mode===mode?'active':''} onClick={()=>act(engine.setAutomation(mode))}>{label}</button>)}</div>
-      <div className="technical-columns"><div className="technical-personnel">      <h3>Сотрудники · {tech.technicians.length}/3</h3><div className="tech-hire"><input aria-label="Имя нового техника" maxLength={24} value={name} placeholder={suggestion} onChange={e=>setName(e.target.value)}/><button type="button" disabled={tech.technicians.length>=3||state.station.balanceKopeks<200000} onClick={()=>{act(engine.hireTechnician(name.trim()||suggestion));setName('');}}>Нанять · 2 000 ₽</button></div>
+      <div className="technical-columns"><div className="technical-personnel"><div className="technical-art" style={{backgroundImage:`linear-gradient(90deg,#071820dc,#07182015),url(${workshopArt})`}}><span>МАСТЕРСКАЯ</span><strong>Сотрудники · {tech.technicians.length}/3</strong></div><div className="tech-hire"><input aria-label="Имя нового техника" maxLength={24} value={name} placeholder={suggestion} onChange={e=>setName(e.target.value)}/><button type="button" disabled={tech.technicians.length>=3||state.station.balanceKopeks<200000} onClick={()=>{act(engine.hireTechnician(name.trim()||suggestion));setName('');}}>Нанять · 2 000 ₽</button></div>
       <div className="tech-grid">{tech.technicians.map(t=>{const task=tech.tasks.find(job=>job.technicianId===t.id);return <article className={`tech-card ${focusedId===t.id?'focused':''}`} key={t.id}>
         <h4>{t.name} <small>{LEVELS[t.level-1].name}</small></h4><p>{money(LEVELS[t.level-1].salary*100)}/сутки · скорость {LEVELS[t.level-1].speed}×</p>
         <p>{t.phase==='training'?`Обучение: ${duration(t.trainingRemaining)}`:t.phase==='returning'?'Возвращается в здание':task?`${task.equipmentId}: ${phases[task.phase]}${task.phase==='working'?` ${Math.round((1-task.phaseRemaining/task.durationSeconds)*100)}%`:''}`:'Свободен в служебном здании'}</p>

@@ -33,7 +33,7 @@ export function App() {
   const [selectedTechnician,setSelectedTechnician]=useState<string|null>(null);
   const lastTechnicalNotice=useRef(0);
   const manualPause=useUiStore((s)=>s.paused),backgroundPause=useUiStore((s)=>s.backgroundPause),interfacePause=useUiStore((s)=>s.interfacePause),speed=useUiStore((s)=>s.speed);
-  const togglePause=useUiStore((s)=>s.togglePause),setSpeed=useUiStore((s)=>s.setSpeed),resetControls=useUiStore((s)=>s.resetControls);
+  const togglePause=useUiStore((s)=>s.togglePause),cycleSpeed=useUiStore((s)=>s.cycleSpeed),resetControls=useUiStore((s)=>s.resetControls);
   useEffect(()=>{const unsubscribe=engine.subscribeState(setGameState);engine.start();return()=>{unsubscribe();engine.stop();};},[]);
   useEffect(()=>interactionGate.attach(document),[]);
   useEffect(()=>installWakeLock(),[]);
@@ -61,7 +61,7 @@ export function App() {
   const objectId=screen!==null&&!['menu','overview','finances','competitors','technical','settings','commerce','start'].includes(screen)?screen as ObjectId:null;
   return <div className="app-shell">
     <TopBar clock={clock} time={time} station={gameState.station} queueCount={gameState.queueIds.length} paused={manualPause} speed={speed} fuelOpen={fuelOpen}
-      onPause={togglePause} onSpeed={setSpeed} onFuel={()=>setFuelOpen(v=>!v)} onFinance={()=>{setFuelOpen(false);setScreen('finances');}} onSettings={()=>{setFuelOpen(false);setScreen('settings');}} onMenu={()=>{setFuelOpen(false);setScreen(current=>current==='menu'?null:'menu');}} />
+      onPause={togglePause} onSpeed={cycleSpeed} onFuel={()=>setFuelOpen(v=>!v)} onFinance={()=>{setFuelOpen(false);setScreen('finances');}} onSettings={()=>{setFuelOpen(false);setScreen('settings');}} onMenu={()=>{setFuelOpen(false);setScreen(current=>current==='menu'?null:'menu');}} />
     <main className="game-stage" aria-label="Территория АЗС">
       <StationCanvas key={sceneKey} resetCameraVersion={cameraVersion} stationName={gameState.station.name??'АЗС'} pumps={gameState.station.pumps} jobs={gameState.station.jobs??[]} tanks={gameState.station.tanks} deliveries={gameState.deliveries??[]} technical={gameState.technical!} stocks={Object.fromEntries(FUEL_IDS.map(id=>[id,gameState.station.fuels[id].stockMl])) as Record<FuelId,number>} gameSeconds={gameState.gameSeconds} prices={prices} engine={engine}
         onObject={(id)=>{setNotice('');setScreen(id);}} onVehicle={setSelectedVehicle} onTechnician={id=>{setSelectedTechnician(id);setScreen('technical');}} />

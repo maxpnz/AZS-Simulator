@@ -17,7 +17,7 @@ interface Props {
   speed: TimeSpeed;
   fuelOpen: boolean;
   onPause: () => void;
-  onSpeed: (value:TimeSpeed) => void;
+  onSpeed: () => void;
   onFuel: () => void;
   onMenu: () => void;
   onFinance: () => void;
@@ -44,7 +44,7 @@ export function TopBar({ clock, time, station, queueCount, paused, speed, fuelOp
       <div className="top-chip clock-chip"><Icon name="clock" /><strong>{time}</strong></div>
       <div className="time-controls" aria-label="Управление временем">
         <button type="button" className="control-pause" onClick={onPause} aria-label={paused ? 'Продолжить игру' : 'Пауза'} aria-pressed={paused}><Icon name={paused ? 'play' : 'pause'} /></button>
-        {[1,2,4].map(value=><button type="button" key={value} className={`speed ${speed===value?'active':''}`} onClick={()=>onSpeed(value as TimeSpeed)} aria-label={`Скорость ${value}×`} aria-pressed={speed===value}>{value}×</button>)}
+        <button type="button" className="speed active" onClick={onSpeed} aria-label={`Скорость ${speed}×. Следующая скорость`}>{speed}×</button>
       </div>
       <div className="top-grow" />
       <div className="top-chip traffic-chip" title={`Очередь: ${queueCount}`}><Icon name="traffic" /><span>Очередь</span><strong>{queueCount}</strong></div>

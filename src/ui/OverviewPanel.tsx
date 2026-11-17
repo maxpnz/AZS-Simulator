@@ -14,16 +14,19 @@ export function OverviewPanel({state,onClose,onBack}:Props) {
   return <section className="full-screen" role="dialog" aria-label="Обзор АЗС">
     <header className="screen-header"><button type="button" onClick={onBack}>← Меню</button><div><h2>Обзор АЗС</h2><small>Трафик, продажи и остатки</small></div><button type="button" onClick={onClose} aria-label="Закрыть обзор">×</button></header>
     <div className="screen-content overview-panel">
-    <div className="periods"><button className={period==='day'?'active':''} onClick={()=>setPeriod('day')}>Сегодня</button><button className={period==='all'?'active':''} onClick={()=>setPeriod('all')}>Всё время</button></div><p>Трафик и заезды считаются отдельно. Для старых сохранений дневная статистика начинается после обновления.</p>
-    <div className="overview-grid">
-      <div><strong>{stats.passed}</strong><span>проехало мимо</span></div>
-      <div><strong>{stats.visited}</strong><span>заехало</span></div>
-      <div><strong>{stats.departed}</strong><span>уехало</span></div><div><strong>{stats.purchases}</strong><span>купило топливо</span></div>
-      <div><strong>{stats.leftQueue}</strong><span>уехало из очереди</span></div>
-      <div><strong>{queueIds.length}</strong><span>сейчас в очереди</span></div>
-      <div><strong>{stats.unserved}</strong><span>не обслужено</span></div><div><strong>{stats.visited?Math.round(stats.purchases/stats.visited*100):0}%</strong><span>конверсия в топливо</span></div>
-      <div><strong>{Math.round(stats.soldMl/1000)} л</strong><span>продано</span></div>
+    <div className="periods"><button className={period==='day'?'active':''} onClick={()=>setPeriod('day')}>Сегодня</button><button className={period==='all'?'active':''} onClick={()=>setPeriod('all')}>Всё время</button></div>
+    <div className="overview-sections">
+      <section className="overview-section"><h3>Трафик</h3><div className="overview-grid">
+        <div><strong>{stats.passed}</strong><span>проехало мимо</span></div><div><strong>{stats.visited}</strong><span>заехало</span></div><div><strong>{stats.departed}</strong><span>уехало</span></div>
+      </div></section>
+      <section className="overview-section"><h3>Обслуживание</h3><div className="overview-grid">
+        <div><strong>{stats.purchases}</strong><span>купило топливо</span></div><div><strong>{stats.leftQueue}</strong><span>уехало из очереди</span></div><div><strong>{queueIds.length}</strong><span>сейчас в очереди</span></div>
+      </div></section>
+      <section className="overview-section"><h3>Продажи</h3><div className="overview-grid">
+        <div><strong>{stats.unserved}</strong><span>не обслужено</span></div><div><strong>{stats.visited?Math.round(stats.purchases/stats.visited*100):0}%</strong><span>конверсия в топливо</span></div><div><strong>{Math.round(stats.soldMl/1000)} л</strong><span>продано</span></div>
+      </div></section>
     </div>
+    <p className="overview-note">Трафик и заезды считаются отдельно. Для старых сохранений дневная статистика начинается после обновления.</p>
     <div className="overview-total"><span>Выручка</span><strong>{money(stats.revenueKopeks)}</strong></div>
     <div className="overview-total"><span>Себестоимость проданного топлива</span><strong>{money(stats.costKopeks)}</strong></div>
     <div className="overview-total"><span>Валовая прибыль</span><strong>{money(stats.revenueKopeks-stats.costKopeks)}</strong></div>

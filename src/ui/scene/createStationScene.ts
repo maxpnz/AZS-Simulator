@@ -9,9 +9,9 @@ import { connectedPumpChannels, DELIVERY_PAD, FUEL_COLORS, FUEL_HATCH_SIZE, PUMP
 import { createVehicleVisual, type VehicleVisual } from './vehicleSprite';
 import grassUrl from '../../assets/v025/grass.webp';
 import asphaltUrl from '../../assets/v025/asphalt.webp';
-import storeUrl from '../../assets/v025/store.webp';
-import canopyUrl from '../../assets/v025/canopy.webp';
-import pumpUrl from '../../assets/v027/pump-front.webp';
+import storeUrl from '../../assets/v025/store-v072.webp';
+import canopyUrl from '../../assets/v025/canopy-v072.webp';
+import pumpUrl from '../../assets/v027/pump-front-v072.webp';
 import flowerbedUrl from '../../assets/v025/flowerbed.webp';
 import landscapeLampUrl from '../../assets/v025/landscape-lamp.webp';
 import tankHatchUrl from '../../assets/v025/tank-hatch.webp';
@@ -60,9 +60,9 @@ function drawLed(g:Graphics,value:string,y:number):void {
       [2,0,10,2.5],[12,2,2.5,9],[12,13,2.5,9],[2,22,10,2.5],
       [0,13,2.5,9],[0,2,2.5,9],[2,11,10,2.5],
     ];
-    parts.forEach(([px,py,w,h],segment)=>g.roundRect(x+px,y-12+py,w,h,1).fill(active.includes(segment)?0xff6449:0x3b2022));
+    parts.forEach(([px,py,w,h],segment)=>g.roundRect(x+px,y-12+py,w,h,1).fill(active.includes(segment)?0x39ff65:0x17382b));
   }
-  if(value.includes('.'))g.circle(left+(digits.length-2)*16-3,y+10,2).fill(0xff6449);
+  if(value.includes('.'))g.circle(left+(digits.length-2)*16-3,y+10,2).fill(0x39ff65);
 }
 function shape(root:Container,draw:(g:Graphics)=>void) {const g=new Graphics();draw(g);root.addChild(g);return g;}
 function asphalt(root:Container,x:number,y:number,w:number,h:number) {shape(root,g=>g.rect(x,y,w,h).fill(0x38444a).rect(x,y,w,4).fill({color:0x718087,alpha:.34}));}
@@ -158,7 +158,7 @@ export async function createStationScene(initialPumps:readonly Pump[]):Promise<S
     image(root,flowerbedTexture,obstacle.x-10,obstacle.y-26,obstacle.width+20,obstacle.height+54);
   }
   image(root,storeTexture,455,8,760,390);
-  const facadeSign=new Container();facadeSign.position.set(600,194);root.addChild(facadeSign);
+  const facadeSign=new Container();facadeSign.position.set(600,158);root.addChild(facadeSign);
   shape(facadeSign,g=>g.rect(0,0,400,51).fill(0x17242d).stroke({color:0x39ff65,width:2})
     .rect(2,46,396,4).fill(0xffc83d));
   const facadeGlow=label('МАРКЕТ · КАФЕ',200,25,29,0xfff0d5);
