@@ -3,6 +3,7 @@ import { COMPETITORS, marketPosition, priceHistory, type CompetitorState, type H
 import { FUEL_IDS } from '../game/domain/config';
 import type { FuelId, GameState } from '../game/domain/types';
 import { version } from '../../package.json';
+import { formatPriceDifference, priceDifference, priceDifferenceClass } from './priceComparison';
 const periods:readonly [HistoryPeriod,string][]=[['day','День'],['week','Неделя'],['month','Месяц'],['all','Всё время']];
 const chartColors:Record<FuelId,string>={ai92:'#80d76c',ai95:'#62b2f5',ai95plus:'#b9a1f8',ai98:'#ffba69',ai100:'#f28e8e',diesel:'#f4dc80'};
 function PriceChart({station,period,now,names}:{station:CompetitorState;period:HistoryPeriod;now:number;names:Record<FuelId,string>}){
@@ -29,11 +30,11 @@ export function CompetitorsPanel({state,onClose,onBack}:{state:GameState;onClose
       <p>Сравните цены и доступность топлива у соседних АЗС. Выберите конкурента, чтобы посмотреть его историю цен.</p>
       <div className="competitor-table"><table><thead><tr><th>АЗС</th>{FUEL_IDS.map(f=><th key={f}>{state.station.fuels[f].name}</th>)}</tr></thead><tbody>
         <tr><th>Наша АЗС</th>{FUEL_IDS.map(f=><td key={f}>{price(state.station.fuels[f].retailKopeks)}<small>{marketPosition(competition,f,state.station.fuels[f].retailKopeks)}</small></td>)}</tr>
-        {competition.stations.map((s,index)=><tr key={s.id} onClick={()=>setSelected(s.id)}><th><button type="button" onClick={()=>setSelected(s.id)}>{COMPETITORS[index].name} →</button></th>{FUEL_IDS.map(f=><td key={f} className={s.prices[f]===undefined?'':s.prices[f]!>state.station.fuels[f].retailKopeks?'competitor-more':'competitor-less'}>{s.prices[f]===undefined?'—':(s.stockLitres[f]??0)<=0?'Нет топлива':price(s.prices[f]!)}</td>)}</tr>)}
+        {competition.stations.map((s,index)=><tr key={s.id} onClick={()=>setSelected(s.id)}><th><button type="button" onClick={()=>setSelected(s.id)}>{COMPETITORS[index].name} →</button></th>{FUEL_IDS.map(f=>{const available=s.prices[f]!==undefined&&(s.stockLitres[f]??0)>0;const difference=priceDifference(state.station.fuels[f].retailKopeks,available?s.prices[f]:undefined);return <td key={f}>{!available?s.prices[f]===undefined?'—':'Нет топлива':price(s.prices[f]!)}<small className={priceDifferenceClass(difference)}>{formatPriceDifference(difference)}</small></td>})}</tr>)}
       </tbody></table></div>
     </>:<>
       <p>{profile?.description} · {profile?.kind==='small'?'Малая одиночная':profile?.kind==='large'?'Крупная одиночная':profile?.kind==='local'?'Местная сеть':'Федеральная сеть'}</p>
-      <div className="competitor-fuels">{FUEL_IDS.map(f=><div key={f}><strong>{state.station.fuels[f].name}</strong><span>{station.prices[f]===undefined?'—':(station.stockLitres[f]??0)<=0?'Нет топлива':price(station.prices[f]!)}</span></div>)}</div>
+      <div className="competitor-fuels">{FUEL_IDS.map(f=>{const available=station.prices[f]!==undefined&&(station.stockLitres[f]??0)>0;const difference=priceDifference(state.station.fuels[f].retailKopeks,available?station.prices[f]:undefined);return <div key={f}><strong>{state.station.fuels[f].name}</strong><span>{!available?station.prices[f]===undefined?'—':'Нет топлива':price(station.prices[f]!)}</span><small className={priceDifferenceClass(difference)}>Наша цена: {formatPriceDifference(difference)}</small></div>})}</div>
       <h3>История цен</h3><div className="periods">{periods.map(([id,name])=><button key={id} type="button" className={period===id?'active':''} onClick={()=>setPeriod(id)}>{name}</button>)}</div>
       <PriceChart station={station} period={period} now={state.gameSeconds} names={Object.fromEntries(FUEL_IDS.map(f=>[f,state.station.fuels[f].name])) as Record<FuelId,string>}/>
       <div className="competitor-table"><table><thead><tr><th>Игровой день</th>{FUEL_IDS.filter(f=>station.prices[f]!==undefined).map(f=><th key={f}>{state.station.fuels[f].name}</th>)}</tr></thead><tbody>{priceHistory(station,period,state.gameSeconds).map(point=><tr key={point.seconds}><th>{Math.floor(point.seconds/86400)+1}, {String(Math.floor(point.seconds%86400/3600)).padStart(2,'0')}:00</th>{FUEL_IDS.filter(f=>station.prices[f]!==undefined).map(f=><td key={f}>{point.prices[f]===undefined?'—':price(point.prices[f]!)}</td>)}</tr>)}</tbody></table></div>

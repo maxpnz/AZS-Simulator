@@ -1,5 +1,9 @@
 import { useRef, useState } from 'react';
-import { FUEL_IDS, INITIAL_STATION, MAX_FUELS_PER_PUMP } from '../game/domain/config';
+import { FUEL_IDS, MAX_FUELS_PER_PUMP } from '../game/domain/config';
+import { TankManagement } from './TankManagement';
+import { formatPriceDifference, priceDifference, priceDifferenceClass } from './priceComparison';
+import pumpImage from '../assets/v027/pump-front.webp';
+import tankerImage from '../assets/v030-tanker.png';
 import { marketOffer, nefteoptDiscount, NEFTEOPT, SUPPLIERS } from '../game/domain/market';
 import type { FuelId, GameState, Vehicle } from '../game/domain/types';
 import type { ObjectId } from './scene/createStationScene';
@@ -64,16 +68,14 @@ export function ObjectPanel({id,state,prices,vehicles,onPrice,onBuildPump,onUpgr
   return <section className="full-screen" role="dialog" aria-label={name}>
     <header className="screen-header"><button type="button" onClick={onBack}>← Меню</button><div><h2>{name}</h2><small>АЗС Simulator · v{currentVersion}</small></div><button type="button" onClick={onClose} aria-label="Вернуться к игре">×</button></header>
     <div className="screen-content object-panel">
-    {id==='price-sign'&&<>
-      <p>Цены влияют на фактическую выручку. Погасшая цена означает, что топлива нет в доступном резервуаре.</p>
-      <button type="button" className="panel-action" onClick={onCompetitors}>Цены конкурентов →</button>
-      {FUEL_IDS.map(fuel=><div className="price-row" key={fuel}><span>{station.fuels[fuel].name}</span>
-        <button type="button" aria-label={`Уменьшить цену ${station.fuels[fuel].name}`} disabled={prices[fuel]<=100} onClick={()=>onPrice(fuel,prices[fuel]-10)}>−</button>
-        <strong>{(prices[fuel]/100).toFixed(2)} ₽</strong>
-        <button type="button" aria-label={`Увеличить цену ${station.fuels[fuel].name}`} disabled={prices[fuel]>=99900} onClick={()=>onPrice(fuel,prices[fuel]+10)}>+</button>
-        <button type="button" onClick={()=>onPrice(fuel,Math.round((state.market?.competitorKopeks[fuel]??prices[fuel])/10)*10)}>Рынок</button><small>{station.fuels[fuel].stockMl>0?`Рынок: ${rubles(state.market?.competitorKopeks[fuel]??prices[fuel])}/л`:'Нет топлива'}</small></div>)}
-    </>}
+    {id==='price-sign'&&<div className="price-screen-layout">
+      <div className="price-sign-visual"><div className="sign-heading">АЗС</div>{FUEL_IDS.map(f=><div key={f}><span>{station.fuels[f].name}</span><strong>{(prices[f]/100).toFixed(2)}</strong></div>)}</div>
+      <div className="price-cards"><p>Цены обновляются сразу. При отсутствии доступного топлива значение на сцене гаснет.</p>
+      {FUEL_IDS.map(fuel=>{const market=state.market?.competitorKopeks[fuel];const difference=priceDifference(prices[fuel],market);return <article className="price-card" key={fuel}><div><strong>{station.fuels[fuel].name}</strong><small>{station.fuels[fuel].stockMl>0?'Доступно':'Нет топлива'}</small></div><div className="price-card-values"><strong>{rubles(prices[fuel])}</strong><span>Рынок: {market&&market>0?rubles(market):'—'} <b className={priceDifferenceClass(difference)}>{formatPriceDifference(difference)}</b></span></div><div className="price-card-actions"><button type="button" aria-label={`Уменьшить цену ${station.fuels[fuel].name}`} disabled={prices[fuel]<=100} onClick={()=>onPrice(fuel,prices[fuel]-10)}>−</button><button type="button" aria-label={`Увеличить цену ${station.fuels[fuel].name}`} disabled={prices[fuel]>=99900} onClick={()=>onPrice(fuel,prices[fuel]+10)}>+</button><button type="button" disabled={!market||market<=0} onClick={()=>onPrice(fuel,Math.round(market!/10)*10)}>Рынок</button></div></article>})}
+      <button type="button" className="panel-action" onClick={onCompetitors}>Цены конкурентов →</button></div>
+    </div>}
     {slot>=0&&<>
+      {pump&&<img className="pump-panel-art" src={pumpImage} alt="ТРК" />}
       {pump&&<div className="tech-object-summary"><p>Состояние: <strong>{condition(pump).toFixed(2)}%</strong> · запчасти {rubles(estimateRepair('pump',condition(pump)).partsKopeks)} · базовая работа {Math.ceil(estimateRepair('pump',condition(pump)).durationSeconds/60)} мин</p>
         <p>{state.technical?.tasks.find(t=>t.equipmentId===pump.id)?`${repairStage(state.technical.tasks.find(t=>t.equipmentId===pump.id)!)} · ${state.technical.tasks.find(t=>t.equipmentId===pump.id)!.executorName}`:condition(pump)===0?'Остановлена':condition(pump)===100?'Исправна · обслуживание не требуется':'Работает'}</p>
         <button type="button" className="panel-action" onClick={onTechnical}>Ремонт и назначения →</button>
@@ -84,7 +86,7 @@ export function ObjectPanel({id,state,prices,vehicles,onPrice,onBuildPump,onUpgr
           Каналы: {pump.fuels.map(f=>station.fuels[f].name).join(', ')||'не подключены'}. Производительность ×{(pump.flowMultiplier??1).toFixed(1)}.</p>
         {serving&&<div className="pump-readout"><span>Фаза: {serving.status==='finishing'?'Завершение':serving.servicePhase==='preparing'?'Подготовка':'Заправка'}</span><span>Литры: {litres(serving.deliveredMl,2)}</span><span>Стоимость: {rubles(serving.chargedKopeks)}</span>
           <span>Цена: {rubles(serving.salePriceKopeks)}/л</span></div>}
-        {!serving&&<p>Последняя выдача: {litres(pump.lastDisplayMl??0,2)} · {rubles(pump.lastDisplayKopeks??0)}</p>}
+        {!serving&&<p>{pump.lastDisplayMl&&pump.lastDisplayMl>0?`Последняя выдача: ${litres(pump.lastDisplayMl,2)} · ${rubles(pump.lastDisplayKopeks??0)}`:'Данных о последней выдаче нет'}</p>}
         <button type="button" className="panel-action" disabled={pump.status!=='ready'||(pump.enabled!==false&&pumpBusy)}
           onClick={()=>act(onSetPumpEnabled(pump.id,pump.enabled===false),pump.enabled===false?'ТРК включена.':'ТРК выключена.')}>{pump.enabled===false?'Включить ТРК':'Выключить ТРК'}</button>
         <button type="button" className="panel-action" disabled={pump.status==='building'||pump.status==='upgrading'||pumpBusy} onClick={()=>act(onUpgradePump(pump.id),'Модернизация поставлена в очередь.')}>Модернизировать · 12 000 ₽</button>
@@ -94,24 +96,10 @@ export function ObjectPanel({id,state,prices,vehicles,onPrice,onBuildPump,onUpgr
       </>:<button type="button" className="panel-action" onClick={()=>act(onBuildPump(slot),'Строительство ТРК поставлено в очередь.')}>Построить ТРК · 25 000 ₽</button>}
       {(station.jobs??[]).filter(j=>j.targetId===pump?.id).map(j=><p key={j.id}>{j.status==='active'?'Бригада работает':'Ожидает бригаду'} · {Math.ceil(j.remainingSeconds)} игровых с</p>)}
     </>}
-    {id==='tank'&&<>
-      <p>Каждый резервуар расположен под землёй. На сцене видны технологические люки; заполнение показано в разрезе ниже.</p>
-      {station.tanks.map(t=>{const ratio=t.capacityMl?t.stockMl/t.capacityMl:0;return <div className="tank-card" key={t.id}>
-        <strong>Резервуар №{station.tanks.indexOf(t)+1} · {station.fuels[t.fuel].name}</strong><span>{litres(t.stockMl)} из {litres(t.capacityMl)}</span>
-        <small>Состояние {condition(t).toFixed(2)}% · запчасти {rubles(estimateRepair('tank',condition(t)).partsKopeks)} · базовая работа {Math.ceil(estimateRepair('tank',condition(t)).durationSeconds/60)} мин</small>
-        <small>{state.technical?.tasks.find(job=>job.equipmentId===t.id)?repairStage(state.technical.tasks.find(job=>job.equipmentId===t.id)!):condition(t)===100?'Обслуживание не требуется':condition(t)===0?'Остановлен':'Работает'}</small>
-        <div className="tank-cutaway"><div style={{width:`${Math.max(0,Math.min(100,ratio*100))}%`}}/></div>
-        <small>{t.status==='active'?'Работает':t.status==='building'?'Строится':'Модернизируется'}</small>
-        <button type="button" className="panel-action" disabled={t.status!=='active'} onClick={()=>act(onUpgradeTank(t.id),'Модернизация резервуара поставлена в очередь.')}>Увеличить ёмкость · 20 000 ₽</button>
-        <button type="button" className="panel-action" onClick={onTechnical}>Ремонт и назначения →</button>
-        <button type="button" className="panel-action" disabled={t.status!=='active'||t.stockMl>0||!!state.technical?.tasks.find(job=>job.equipmentId===t.id&&job.paid)} onClick={()=>{const amount=resaleKopeks(t);if(window.confirm(`Продать резервуар за ${rubles(amount)}? Связанные каналы ТРК будут отключены.`))act(onSellTank(t.id),`Резервуар продан за ${rubles(amount)}.`);}}>Продать пустой резервуар · {rubles(resaleKopeks(t))}</button>
-      </div>;})}
-      <h3>Новый резервуар</h3><select value={chosenFuel} onChange={e=>setChosenFuel(e.target.value as FuelId)}>{FUEL_IDS.map(f=><option key={f} value={f}>{INITIAL_STATION.fuels[f].name}</option>)}</select>
-      <button type="button" className="panel-action" onClick={()=>act(onBuildTank(chosenFuel),'Строительство резервуара поставлено в очередь.')}>Построить · 40 000 ₽</button>
-    </>}
+    {id==='tank'&&<TankManagement state={state} onBuild={onBuildTank} onUpgrade={onUpgradeTank} onSell={onSellTank} onTechnical={onTechnical} report={act} />}
     {id==='delivery'&&<>
       <p>Выберите поставщика и до трёх сортов. Для семи обычных поставщиков секция вмещает до 8000 л, рейс — до 24 000 л. НефтеОпт принимает от 5000 до 30 000 л за рейс. Цена закрепляется при заказе.</p>
-      <div className="supplier-grid">{SUPPLIERS.map(s=>{const offer=state.market?marketOffer(state.market,s.id,chosenFuel,state.gameSeconds):undefined;const available=FUEL_IDS.filter(f=>state.market&&marketOffer(state.market,s.id,f,state.gameSeconds)!.availableLitres>0).map(f=>station.fuels[f].name);return <button type="button" key={s.id} className={supplierId===s.id?'selected':''} onClick={()=>setSupplierId(s.id)}><strong>{s.name}</strong><small>{s.profile}</small><span>{offer?.availableLitres.toLocaleString('ru-RU')??0} л · {rubles(offer?.priceKopeks??0)}/л</span><small>Доставка ~{Math.round((offer?.etaGameSeconds??0)/3600)} игровых ч</small><small>В наличии: {available.join(', ')||'ожидается поставка'}</small></button>;})}</div>
+      <div className="supplier-grid">{SUPPLIERS.map(s=>{const offer=state.market?marketOffer(state.market,s.id,chosenFuel,state.gameSeconds):undefined;const available=FUEL_IDS.filter(f=>state.market&&marketOffer(state.market,s.id,f,state.gameSeconds)!.availableLitres>0).map(f=>station.fuels[f].name);return <button type="button" key={s.id} className={supplierId===s.id?'selected':''} onClick={()=>setSupplierId(s.id)}><img className="supplier-tanker" src={tankerImage} alt="" /><strong>{s.name}</strong><small>{s.profile}</small><span>{offer?.availableLitres.toLocaleString('ru-RU')??0} л · {rubles(offer?.priceKopeks??0)}/л</span><small>Доставка ~{Math.round((offer?.etaGameSeconds??0)/3600)} игровых ч</small><small>В наличии: {available.join(', ')||'ожидается поставка'}</small></button>;})}</div>
       <div className="order-steps"><span>Шаг изменения:</span>{[50,100,500,1000].map(step=><button type="button" key={step} className={orderStep===step?'active':''} onClick={()=>setOrderStep(step)}>{step} л</button>)}</div>
       {([[chosenFuel,deliveryLitres,setChosenFuel,setDeliveryLitres],[secondFuel,secondLitres,setSecondFuel,setSecondLitres],[thirdFuel,thirdLitres,setThirdFuel,setThirdLitres]] as const).map(([fuel,amount,setFuel,setAmount],index)=><div className="delivery-section" key={index}>
         <select value={fuel} onChange={e=>setFuel(e.target.value as FuelId & 'none')} aria-label={`Сорт секции ${index+1}`}>

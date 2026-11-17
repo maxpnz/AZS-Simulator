@@ -158,9 +158,11 @@ export async function createStationScene(initialPumps:readonly Pump[]):Promise<S
     image(root,flowerbedTexture,obstacle.x-10,obstacle.y-26,obstacle.width+20,obstacle.height+54);
   }
   image(root,storeTexture,455,8,760,390);
-  const facadeSign=new Container();facadeSign.position.set(600,194);facadeSign.skew.x=-.13;root.addChild(facadeSign);
-  shape(facadeSign,g=>g.poly([0,0,400,0,389,51,-11,51]).fill({color:0x19202a,alpha:.95}).stroke({color:0xf5a753,width:2}));
-  facadeSign.addChild(label('МАРКЕТ. КАФЕ',195,25,29,0xffcf8a));
+  const facadeSign=new Container();facadeSign.position.set(600,194);root.addChild(facadeSign);
+  shape(facadeSign,g=>g.rect(0,0,400,51).fill(0x17242d).stroke({color:0x39ff65,width:2})
+    .rect(2,46,396,4).fill(0xffc83d));
+  const facadeGlow=label('МАРКЕТ · КАФЕ',200,25,29,0xfff0d5);
+  facadeGlow.style.dropShadow={color:0xffd693,blur:7,distance:0,angle:0,alpha:.75};facadeSign.addChild(facadeGlow);
   shape(root,g=>g.roundRect(TANK_PAD.x,TANK_PAD.y,TANK_PAD.width,TANK_PAD.height,8).fill(0x3c4549).stroke({color:0x9ca39b,width:3})
     .roundRect(TANK_PAD.x+9,TANK_PAD.y+9,TANK_PAD.width-18,TANK_PAD.height-18,6).stroke({color:0x63716e,width:1}));
   texturedPad(root,asphaltTexture,TANK_PAD.x+10,TANK_PAD.y+10,TANK_PAD.width-20,TANK_PAD.height-20);
@@ -177,19 +179,20 @@ export async function createStationScene(initialPumps:readonly Pump[]):Promise<S
   }
   // A light canopy roof is drawn behind supports and dispensers so every channel remains visible.
   image(root,canopyTexture,530,180,1300,435);
-  shape(root,g=>g.roundRect(745,409,830,40,8).fill({color:0x18212b,alpha:.94}).stroke({color:0xf55a54,width:2}));
-  const canopyGlow=label('АЗС',1160,428,30,0x85c7ff),canopyName=label('АЗС',1160,428,28,0xe7f5ff);
+  shape(root,g=>g.roundRect(745,409,830,40,8).fill({color:0x17242d,alpha:.96}).stroke({color:0x39ff65,width:2})
+    .rect(752,445,816,3).fill({color:0xffc83d,alpha:.85}));
+  const canopyGlow=label('АЗС',1160,428,30,0x39ff65),canopyName=label('АЗС',1160,428,28,0xfff0d5);
   canopyGlow.alpha=.32;root.addChild(canopyGlow,canopyName);
   function setCanopyName(name:string){const text=normalizeStationName(name);for(const item of [canopyGlow,canopyName]){item.text=text;item.scale.set(1);item.scale.set(Math.min(1,790/Math.max(1,item.width)));}}
   for(const island of PUMP_ISLANDS) {
     shape(root,g=>g.roundRect(island.x-island.width/2,island.y,island.width,island.height,8).fill(0x8a9692)
       .roundRect(island.x-island.width/2+4,island.y+4,island.width-8,island.height-8,6).fill(0x555f60)
-      .rect(island.x-11,452,22,96).fill(0xdee2dc).rect(island.x-11,452,5,96).fill(0x99a9aa));
+      .rect(island.x-11,452,22,96).fill(0x17242d).rect(island.x-11,452,5,96).fill(0x39ff65));
   }
   const sign=new Container();sign.position.set(207,380);root.addChild(sign);
   shape(sign,g=>g.ellipse(7,178,80,14).fill({color:0x071017,alpha:.4})
     .roundRect(-88,-171,176,348,9).fill(0x171d22).stroke({color:0xb5bec0,width:4})
-    .roundRect(-83,-165,166,51,5).fill(0xc31319).stroke({color:0xee8180,width:1})
+    .roundRect(-83,-165,166,51,5).fill(0x0b2028).stroke({color:0x39ff65,width:1})
     .rect(-84,-114,168,4).fill(0xe5e2d3)
     .roundRect(-91,171,182,12,3).fill(0x727978));
   sign.addChild(label('АЗС',0,-141,31,0xfff5e7));
