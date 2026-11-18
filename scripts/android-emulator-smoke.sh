@@ -47,7 +47,8 @@ PY
     if [ "$attempt" -eq 1 ]; then
       adb shell input keyevent KEYCODE_ENTER
     else
-      adb shell input tap 930 285
+      # The dialog is 750 px wide and centered at either target resolution.
+      adb shell input tap "$((width / 2 + 287))" 285
     fi
     sleep 3
   done
