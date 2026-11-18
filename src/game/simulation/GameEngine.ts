@@ -5,6 +5,8 @@ import type { AutomationMode } from '../domain/technical';
 
 const FIXED_STEP_MS=50;
 const GAME_SECONDS_PER_REAL_SECOND=60;
+export interface SlotMetadata { name: string; gameSeconds: number; savedAt?: number }
+
 export class GameEngine {
   private simulation=new StationSimulation();
   private lastSaved=0;
@@ -39,11 +41,16 @@ export class GameEngine {
   trainVenue(venue:Venue):boolean {return this.action(this.simulation.trainVenue(venue));}
   setGoodsPrice(product:Product,price:number):boolean {return this.action(this.simulation.setGoodsPrice(product,price));}
   orderGoods(supplier:Supplier,request:Partial<Record<Sku,number>>):boolean {return this.action(this.simulation.orderGoods(supplier,request));}
-  cancelGoodsOrder(id:string):boolean {return this.action(this.simulation.cancelGoodsOrder(id));}
-  cancelDelivery(id:string):boolean {return this.action(this.simulation.cancelDelivery(id));}
-  saveSlot(slot:number):boolean {if(![1,2,3].includes(slot))return false;try{localStorage.setItem(`azs-simulator-slot-${slot}`,this.exportSave());return true;}catch{return false;}}
+  saveSlot(slot:number):boolean {if(![1,2,3].includes(slot))return false;try{localStorage.setItem(`azs-simulator-slot-${slot}`,JSON.stringify({...this.simulation.exportSave(),savedAt:Date.now()}));return true;}catch{return false;}}
   loadSlot(slot:number):boolean {if(![1,2,3].includes(slot))return false;try{const data=localStorage.getItem(`azs-simulator-slot-${slot}`);if(!data)return false;this.importSave(data);this.save();return true;}catch{return false;}}
-  hasSlot(slot:number):boolean {try{return !!localStorage.getItem(`azs-simulator-slot-${slot}`);}catch{return false;}}
+  getSlot(slot:number):SlotMetadata|null {
+    try {
+      const raw=localStorage.getItem(`azs-simulator-slot-${slot}`);
+      if(!raw)return null;
+      const {state,savedAt}=JSON.parse(raw);
+      return {name:state.station.name??'АЗС',gameSeconds:state.gameSeconds,savedAt:Number.isFinite(savedAt)&&Math.abs(savedAt)<=8.64e15?savedAt:undefined};
+    }catch{return null;}
+  }
   private action(result:boolean):boolean {if(result){this.save();this.publishState();}return result;}
   setRetailPrice(fuel:FuelId,kopeks:number):boolean {return this.action(this.simulation.setRetailPrice(fuel,kopeks));}
   setStationName(value:string):boolean {return this.action(this.simulation.setStationName(value));}
@@ -72,7 +79,7 @@ export class GameEngine {
     const old=localStorage.getItem('azs-simulator-save');
     if(old)try{
       const version=/^\s*\{\s*"version"\s*:\s*"([^"]+)"/.exec(old)?.[1]??(JSON.parse(old) as {version?:string}).version;
-      const backup=version==='0.4.0'?'azs-simulator-save-v04-backup':version==='0.5.0'?'azs-simulator-save-v05-backup':version==='0.5.1'?'azs-simulator-save-v051-backup':version==='0.5.2'?'azs-simulator-save-v052-backup':version==='0.6.0'?'azs-simulator-save-v06-backup':version==='0.7.0'?'azs-simulator-save-v07-backup':version==='0.7.3'?'azs-simulator-save-v073-backup':undefined;
+      const backup=version==='0.4.0'?'azs-simulator-save-v04-backup':version==='0.5.0'?'azs-simulator-save-v05-backup':version==='0.5.1'?'azs-simulator-save-v051-backup':version==='0.5.2'?'azs-simulator-save-v052-backup':version==='0.6.0'?'azs-simulator-save-v06-backup':version==='0.7.0'?'azs-simulator-save-v07-backup':version==='0.7.3'?'azs-simulator-save-v073-backup':version==='0.7.4'?'azs-simulator-save-v074-backup':undefined;
       if(backup&&!localStorage.getItem(backup))localStorage.setItem(backup,old);
     }catch{/* damaged previous save */}
     const next=this.exportSave();

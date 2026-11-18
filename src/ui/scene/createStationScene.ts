@@ -1,11 +1,13 @@
+import { goodsDeliveryActive, goodsPose, goodsUnloadSeconds } from '../../game/domain/goodsDelivery';
+import type { CommerceOrder } from '../../game/domain/commerce';
 import { Assets, Container, Graphics, Sprite, Text, TilingSprite, type Texture } from 'pixi.js';
 import type { ConstructionJob, DeliveryTrip, FuelId, FuelTank, Pump, Vehicle } from '../../game/domain/types';
 import { PUMP_SLOTS, WORLD_OBSTACLES } from '../../game/domain/world';
-import { PARKING_X, pumpQueuePoint, ROAD_SURFACE_POLYGONS, ROAD_SURFACE_RECTS } from '../../game/domain/roadNetwork';
+import { PARKING_AISLE_Y, PARKING_SLOTS, TRUCK_BAY, pumpQueuePoint, ROAD_SURFACE_POLYGONS, ROAD_SURFACE_RECTS } from '../../game/domain/roadNetwork';
 import { deliveryPose, nearestFuelDeliverySeconds } from '../../game/domain/deliveryMotion';
 import { FUEL_IDS } from '../../game/domain/config';
 import { getHour } from '../../game/simulation/time';
-import { connectedPumpChannels, DELIVERY_PAD, FUEL_COLORS, FUEL_HATCH_SIZE, PUMP_ISLANDS, pumpChannelX, pumpNozzlePoint, priceSignRows, TANK_PAD, tankHatchPoint, vehicleFillerPoint } from '../../game/domain/stationGeometry';
+import { connectedPumpChannels, DELIVERY_PAD, FUEL_COLORS, FUEL_HATCH_SIZE, GOODS_PAD, PUMP_ISLANDS, pumpChannelX, pumpNozzlePoint, priceSignRows, TANK_PAD, tankHatchPoint, vehicleFillerPoint } from '../../game/domain/stationGeometry';
 import { createVehicleVisual, type VehicleVisual } from './vehicleSprite';
 import grassUrl from '../../assets/v025/grass.webp';
 import asphaltUrl from '../../assets/v025/asphalt.webp';
@@ -120,7 +122,7 @@ function constructionGraphic(slot:typeof PUMP_SLOTS[number],job:ConstructionJob|
   const percent=label(`${Math.round(progress*100)}%`,0,-85,10,0xffdfa0);root.addChild(percent);
   return root;
 }
-export interface StationScene {root:Container;setTime:(seconds:number)=>void;setName:(name:string)=>void;setPrices:(prices:Record<FuelId,number>)=>void;setVehicles:(vehicles:readonly Vehicle[])=>void;setPumps:(pumps:readonly Pump[],stocks:Record<FuelId,number>,jobs?:readonly ConstructionJob[],tanks?:readonly FuelTank[])=>void;setDeliveries:(deliveries:readonly DeliveryTrip[])=>void;setTechnical:(technical:TechnicalState)=>void;tick:(elapsedMs:number)=>void}
+export interface StationScene {root:Container;setTime:(seconds:number)=>void;setName:(name:string)=>void;setPrices:(prices:Record<FuelId,number>)=>void;setVehicles:(vehicles:readonly Vehicle[])=>void;setPumps:(pumps:readonly Pump[],stocks:Record<FuelId,number>,jobs?:readonly ConstructionJob[],tanks?:readonly FuelTank[])=>void;setDeliveries:(deliveries:readonly DeliveryTrip[])=>void;setGoods:(orders:readonly CommerceOrder[],seconds:number)=>void;setTechnical:(technical:TechnicalState)=>void;tick:(elapsedMs:number)=>void}
 export async function createStationScene(initialPumps:readonly Pump[]):Promise<StationScene> {
   const [grassTexture,asphaltTexture,storeTexture,canopyTexture,pumpTexture,flowerbedTexture,landscapeLampTexture,tankHatchTexture]=
     await Promise.all([grassUrl,asphaltUrl,storeUrl,canopyUrl,pumpUrl,flowerbedUrl,landscapeLampUrl,tankHatchUrl].map(url=>Assets.load<Texture>(url)));
@@ -148,9 +150,23 @@ export async function createStationScene(initialPumps:readonly Pump[]):Promise<S
     .rect(0,896,50,4).fill(0xa9afa5).rect(300,896,1380,4).fill(0xa9afa5)
     .rect(1940,896,60,4).fill(0xa9afa5));
   const parkingLayer=new Container();ground.addChild(parkingLayer);
+  const parkingSurface=new TilingSprite({texture:asphaltTexture,width:416,height:266});
+  parkingSurface.position.set(316,642);parkingSurface.tileScale.set(.46);
+  parkingLayer.addChild(parkingSurface);
   const markingLayer=new Container();ground.addChild(markingLayer);
-  PARKING_X.forEach((x,i)=>{shape(parkingLayer,g=>g.moveTo(x-32,713).lineTo(x-32,781).lineTo(x+32,781).lineTo(x+32,713).stroke({color:0xf1f5ed,width:3,alpha:.95}));parkingLayer.addChild(label(`P${i+1}`,x,724,12,0xf4f5e9));});
-  shape(parkingLayer,g=>g.roundRect(294,720,34,34,5).fill(0x1474a5).stroke({color:0xffffff,width:2}));parkingLayer.addChild(label('P',311,737,24,0xffffff));
+  PARKING_SLOTS.forEach(({x,y,width,length,angle})=>{
+    const head=y+Math.sign(angle)*length/2, open=y-Math.sign(angle)*length/2;
+    shape(parkingLayer,g=>g.moveTo(x-width/2,open).lineTo(x-width/2,head).lineTo(x+width/2,head).lineTo(x+width/2,open).stroke({color:0xf1f5ed,width:2,alpha:.9}));
+  });
+  shape(parkingLayer,g=>g.roundRect(302,752,30,30,5).fill(0x1474a5).stroke({color:0xffffff,width:2}));
+  parkingLayer.addChild(label('P',317,767,21,0xffffff));
+  shape(parkingLayer,g=>g.rect(TRUCK_BAY.x-TRUCK_BAY.length/2,TRUCK_BAY.y-TRUCK_BAY.width/2,TRUCK_BAY.length,TRUCK_BAY.width).stroke({color:0xe9e4d1,width:2}));
+  parkingLayer.addChild(label('P · ФУРЫ',TRUCK_BAY.x,TRUCK_BAY.y+22,17));
+  shape(parkingLayer,g=>{
+    g.rect(30,537,356,4).fill(0x899892);
+    for(let x=32;x<=386;x+=24)g.rect(x,529,3,16).fill(0x62746e);
+  });
+  for(const x of [430,510,590,670])shape(parkingLayer,g=>g.rect(x,PARKING_AISLE_Y-1,27,2).fill({color:0xe9e4d1,alpha:.55}));
   for(const x of [350,1860]) ground.addChild(label(x<1000?'ВЫЕЗД':'ВЪЕЗД',x,x<1000?682:865,18));
   for(const x of [570,820,1070,1320,1570]) shape(ground,g=>g.poly([x,653,x-16,645,x,637]).fill({color:0xe9e8d4,alpha:.48}));
   shape(ground,g=>g.poly([1845,753,1834,773,1856,773]).fill({color:0xe9e8d4,alpha:.65})
@@ -160,11 +176,37 @@ export async function createStationScene(initialPumps:readonly Pump[]):Promise<S
     image(root,flowerbedTexture,obstacle.x-10,obstacle.y-26,obstacle.width+20,obstacle.height+54);
   }
   image(root,storeTexture,455,8,760,390);
-  const facadeSign=new Container();facadeSign.position.set(600,158);root.addChild(facadeSign);
-  shape(facadeSign,g=>g.rect(0,0,400,51).fill(0x17242d).stroke({color:0x39ff65,width:2})
-    .rect(2,46,396,4).fill(0xffc83d));
-  const marketSign=label('МАРКЕТ',96,25,26,0xfff0d5),cafeSign=label('КАФЕ',303,25,26,0xfff0d5);
-  for(const sign of [marketSign,cafeSign])sign.style.dropShadow={color:0xffd693,blur:7,distance:0,angle:0,alpha:.75};facadeSign.addChild(marketSign,cafeSign);
+  const facadeSign=new Container();
+  for(const [text,x] of [['МАРКЕТ',695],['КАФЕ',903]] as const){
+    const depth=label(text,x,187,28,0x62422a);
+    const face=label(text,x,182,28,0xffe5a4);
+    face.style.stroke={color:0xb98031,width:1};
+    face.style.dropShadow={color:0xffbd46,blur:10,distance:0,angle:0,alpha:.85};
+    facadeSign.addChild(depth,face);
+  }
+  texturedPad(root,asphaltTexture,GOODS_PAD.x,GOODS_PAD.y,GOODS_PAD.width,GOODS_PAD.height);
+  shape(root,g=>{
+    g.roundRect(1243,15,444,130,9).stroke({color:0x9aa298,width:3});
+    g.rect(1430,46,234,67).stroke({color:0xf9ca64,width:3});
+    for(let x=1432;x<1493;x+=12)g.moveTo(x,110).lineTo(x+23,85).stroke({color:0xe0af45,width:2});
+    g.rect(1248,22,415,5).fill(0x7d8984);
+    for(let x=1253;x<1670;x+=30)g.rect(x,13,3,31).fill(0x687775);
+    g.roundRect(1260,47,150,67,7).fill(0x212a2a).stroke({color:0xb9a984,width:2});
+  });
+  root.addChild(label('РАЗГРУЗКА ТОВАРОВ',1335,61,13,0xffeed0));
+  for(const [x,y] of [[1275,132],[1672,128]]){
+    shape(root,g=>g.ellipse(x,y,33,12).fill({color:0xfac878,alpha:.18}));
+    image(root,landscapeLampTexture,x-12,y-44,24,47);
+  }
+  const goodsTimer=label('Нет поставок',1335,91,13,0xffd68b);
+  const goodsProgress=new Graphics();
+  const boxTruck=createVehicleVisual({modelId:'medium-truck',color:0xffffff} as Vehicle);
+  boxTruck.root.addChild(new Graphics().rect(-67,-16,55,32).fill(0x212733).rect(-12,-16,41,32).fill(0x94382f)
+    .moveTo(-19,16).lineTo(-4,-16).stroke({color:0xf0b83e,width:3}));
+  const truckBranding=[label('МАРКЕТ',-42,0,9),label('КАФЕ',9,0,9)];
+  boxTruck.root.addChild(...truckBranding);
+  boxTruck.root.visible=false;
+  root.addChild(goodsTimer,goodsProgress,boxTruck.root);
   shape(root,g=>g.roundRect(TANK_PAD.x,TANK_PAD.y,TANK_PAD.width,TANK_PAD.height,8).fill(0x3c4549).stroke({color:0x9ca39b,width:3})
     .roundRect(TANK_PAD.x+9,TANK_PAD.y+9,TANK_PAD.width-18,TANK_PAD.height-18,6).stroke({color:0x63716e,width:1}));
   texturedPad(root,asphaltTexture,TANK_PAD.x+10,TANK_PAD.y+10,TANK_PAD.width-20,TANK_PAD.height-20);
@@ -356,6 +398,22 @@ export async function createStationScene(initialPumps:readonly Pump[]):Promise<S
       stocks=nextStocks;refreshStocks();
       drawPumps();
       drawSign();
+    },
+    setGoods(orders,seconds){
+      const active=orders.find(goodsDeliveryActive);
+      const next=orders.filter(order=>order.status==='enroute'||order.status==='waiting').sort((a,b)=>a.arrival-b.arrival)[0];
+      boxTruck.root.visible=!!active;
+      goodsProgress.clear();
+      if(active){
+        const pose=goodsPose(active);
+        boxTruck.update(pose as Vehicle);
+        for(const brand of truckBranding)brand.rotation=Math.cos(pose.angle)<-.25?Math.PI:0;
+        if(active.status==='unloading'){
+          const progress=(active.phaseSeconds??0)/goodsUnloadSeconds(active);
+          goodsTimer.text=`Разгрузка · ${Math.floor(progress*100)}%`;
+          goodsProgress.roundRect(1272,102,126,5,2).fill(0x596967).roundRect(1272,102,126*progress,5,2).fill(0x9ce894);
+        }else goodsTimer.text=active.status==='approaching'?'Фургон подъезжает':'Фургон уезжает';
+      }else goodsTimer.text=next?next.arrival<=seconds?'Ожидает въезда':`Через ${Math.ceil((next.arrival-seconds)/60)} мин`:'Нет поставок';
     },
     setDeliveries(nextDeliveries){drawDeliveries(nextDeliveries);},
     setTechnical(nextTechnical){technical=nextTechnical;refreshStocks();drawPumps();drawSign();drawTechnical(nextTechnical);},

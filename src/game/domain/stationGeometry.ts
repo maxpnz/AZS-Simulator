@@ -5,6 +5,7 @@ import { CANOPY_SUPPORTS, metres, PUMP_SLOTS } from './world';
 
 export interface WorldPoint { x:number; y:number }
 export interface WorldRect extends WorldPoint { width:number; height:number }
+export const GOODS_PAD:WorldRect={x:1240,y:12,width:450,height:135};
 export const TANK_PAD:WorldRect={x:1275,y:160,width:370,height:165};
 export const DELIVERY_PAD:WorldRect={x:1680,y:160,width:250,height:165};
 export const FUEL_HATCH_SIZE=32;

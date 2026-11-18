@@ -1,3 +1,4 @@
+import { toast } from './Toast';
 import { useRef, useState } from 'react';
 import { FUEL_IDS, MAX_FUELS_PER_PUMP } from '../game/domain/config';
 import { TankManagement } from './TankManagement';
@@ -20,18 +21,18 @@ interface Props {
   onPrice:(fuel:FuelId,kopeks:number)=>void;onBuildPump:(slot:number)=>boolean;onUpgradePump:(id:string)=>boolean;
   onSetPumpEnabled:(id:string,enabled:boolean)=>boolean;
   onSetPumpFuels:(id:string,fuels:FuelId[])=>boolean;onBuildTank:(fuel:FuelId)=>boolean;onUpgradeTank:(id:string)=>boolean;
-  onDelivery:(supplierId:string,sections:readonly {fuel:FuelId;litres:number}[])=>boolean;onCancelDelivery:(id:string)=>boolean;onClose:()=>void;onBack:()=>void;onCompetitors:()=>void;
+  onDelivery:(supplierId:string,sections:readonly {fuel:FuelId;litres:number}[])=>boolean;onClose:()=>void;onBack:()=>void;onCompetitors:()=>void;
   onTechnical:()=>void;onCommerce:()=>void;onSellPump:(id:string)=>boolean;onSellTank:(id:string)=>boolean;
 }
-export function ObjectPanel({id,state,prices,vehicles,onPrice,onBuildPump,onUpgradePump,onSetPumpEnabled,onSetPumpFuels,onBuildTank,onUpgradeTank,onDelivery,onCancelDelivery,onClose,onBack,onCompetitors,onTechnical,onCommerce,onSellPump,onSellTank}:Props) {
+export function ObjectPanel({id,state,prices,vehicles,onPrice,onBuildPump,onUpgradePump,onSetPumpEnabled,onSetPumpFuels,onBuildTank,onUpgradeTank,onDelivery,onClose,onBack,onCompetitors,onTechnical,onCommerce,onSellPump,onSellTank}:Props) {
   const station=state.station;
   const slot=id.startsWith('slot-')?Number(id.slice(5)):id.startsWith('pump-')?Number(id.slice(5))-1:-1;
   const pump=station.pumps.find(p=>p.slot===slot);
-  const [error,setError]=useState('');const [notice,setNotice]=useState('');
-  const [chosenFuel,setChosenFuel]=useState<FuelId>('ai92');const [deliveryLitres,setDeliveryLitres]=useState(500);
+
+  const [chosenFuel,setChosenFuel]=useState<FuelId|'none'>('none');const [deliveryLitres,setDeliveryLitres]=useState(0);
   const [supplierId,setSupplierId]=useState('regional');
-  const [secondFuel,setSecondFuel]=useState<FuelId|'none'>('none');const [secondLitres,setSecondLitres]=useState(500);
-  const [thirdFuel,setThirdFuel]=useState<FuelId|'none'>('none');const [thirdLitres,setThirdLitres]=useState(500);
+  const [secondFuel,setSecondFuel]=useState<FuelId|'none'>('none');const [secondLitres,setSecondLitres]=useState(0);
+  const [thirdFuel,setThirdFuel]=useState<FuelId|'none'>('none');const [thirdLitres,setThirdLitres]=useState(0);
   const [orderStep,setOrderStep]=useState(100);
   const [submitting,setSubmitting]=useState(false);
   const submittingRef=useRef(false);
@@ -44,7 +45,7 @@ export function ObjectPanel({id,state,prices,vehicles,onPrice,onBuildPump,onUpgr
   const serving=pump?vehicles.find(v=>v.pumpId===pump.id&&(v.status==='fueling'||v.status==='finishing')):undefined;
   const pumpBusy=pump?vehicles.some(v=>v.pumpId===pump.id&&['entering','queued','toPump','fueling','finishing','leaving'].includes(v.status)):false;
   const activeFuels=FUEL_IDS.filter(f=>station.tanks.some(t=>t.fuel===f&&t.status==='active'&&condition(t)>0&&!state.technical?.tasks.some(job=>job.equipmentId===t.id&&job.blocked!==false)));
-  const cargoEntries:[[FuelId,number],...[FuelId,number][]]=[[chosenFuel,deliveryLitres],
+  const cargoEntries:[FuelId,number][]=[...(chosenFuel==='none'?[]:[[chosenFuel,deliveryLitres] as [FuelId,number]]),
     ...(secondFuel==='none'?[]:[[secondFuel,secondLitres] as [FuelId,number]]),
     ...(thirdFuel==='none'?[]:[[thirdFuel,thirdLitres] as [FuelId,number]])];
   const offerFor=(fuel:FuelId)=>{
@@ -56,6 +57,7 @@ export function ObjectPanel({id,state,prices,vehicles,onPrice,onBuildPump,onUpgr
   const requestedByFuel=(fuel:FuelId)=>cargoEntries.filter(([id])=>id===fuel).reduce((sum,[,amount])=>sum+amount,0);
   const freeFor=(fuel:FuelId)=>station.tanks.filter(t=>t.fuel===fuel&&t.status==='active'&&condition(t)>0&&!state.technical?.tasks.some(job=>job.equipmentId===t.id&&job.blocked!==false)).reduce((sum,t)=>sum+t.capacityMl-t.stockMl,0)-
     (state.deliveries??[]).reduce((sum,trip)=>sum+(trip.remainingCargo?.[fuel]??trip.cargo[fuel]??0),0);
+  const selectedOffer=cargoEntries[0]?offerFor(cargoEntries[0][0]):undefined;
   const validCargo=totalLitres<=(bulk?NEFTEOPT.maxLitres:24000)&&(!bulk||totalLitres>=NEFTEOPT.minLitres)&&cargoEntries.every(([fuel,amount])=>Number.isInteger(amount)&&amount>0&&amount<=(bulk?NEFTEOPT.maxLitres:8_000)&&
     requestedByFuel(fuel)<=(offerFor(fuel)?.availableLitres??0)&&requestedByFuel(fuel)*1000<=freeFor(fuel))&&
     orderCost<=station.balanceKopeks;
@@ -70,7 +72,7 @@ export function ObjectPanel({id,state,prices,vehicles,onPrice,onBuildPump,onUpgr
   }).find(Boolean)|| (orderCost>station.balanceKopeks?'Недостаточно денег для заказа.':'');
   const name=slot>=0?pump?`Колонка №${slot+1}`:`Монтажное место №${slot+1}`:
     id==='price-sign'?'Стела с ценами':id==='tank'?'Резервуары':id==='delivery'?'Зона разгрузки':id==='shop'?'Магазин':'Строительство';
-  const act=(success:boolean,message:string)=>{if(success){setNotice(message);setError('');}else setError('Действие недоступно: проверьте баланс, занятость, вместимость и наличие бригады.');};
+  const act=(success:boolean,message:string)=>{if(success){toast(message,'success');}else toast('Действие недоступно. Проверьте баланс, занятость и наличие бригады.','error');};
   return <section className="full-screen" role="dialog" aria-label={name}>
     <header className="screen-header"><button type="button" onClick={onBack}>← Меню</button><div><h2>{name}</h2><small>АЗС Simulator · v{currentVersion}</small></div><button type="button" onClick={onClose} aria-label="Вернуться к игре">×</button></header>
     <div className={`screen-content object-panel object-${id}`}>
@@ -106,26 +108,29 @@ export function ObjectPanel({id,state,prices,vehicles,onPrice,onBuildPump,onUpgr
     {id==='tank'&&<TankManagement state={state} onBuild={onBuildTank} onUpgrade={onUpgradeTank} onSell={onSellTank} onTechnical={onTechnical} report={act} />}
     {id==='delivery'&&<>
       <p>Выберите поставщика и до трёх сортов. Для семи обычных поставщиков секция вмещает до 8000 л, рейс — до 24 000 л. НефтеОпт принимает от 5000 до 30 000 л за рейс. Цена закрепляется при заказе.</p>
-      <div className="supplier-grid">{SUPPLIERS.map(s=>{const offer=state.market?marketOffer(state.market,s.id,chosenFuel,state.gameSeconds):undefined;const available=FUEL_IDS.filter(f=>state.market&&marketOffer(state.market,s.id,f,state.gameSeconds)!.availableLitres>0).map(f=>station.fuels[f].name);return <button type="button" key={s.id} className={supplierId===s.id?'selected':''} onClick={()=>setSupplierId(s.id)}><img className="supplier-tanker" src={tankerImage} alt="" /><strong>{s.name}</strong><small>{s.profile}</small><span>{offer?.availableLitres.toLocaleString('ru-RU')??0} л · {rubles(offer?.priceKopeks??0)}/л</span><small>Доставка ~{Math.round((offer?.etaGameSeconds??0)/3600)} игровых ч</small><small>В наличии: {available.join(', ')||'ожидается поставка'}</small></button>;})}</div>
+      <h3>Поставщик</h3>
+      <div className="supplier-grid">{SUPPLIERS.map(s=>{const offer=state.market?marketOffer(state.market,s.id,chosenFuel==='none'?'ai92':chosenFuel,state.gameSeconds):undefined;const available=FUEL_IDS.filter(f=>state.market&&marketOffer(state.market,s.id,f,state.gameSeconds)!.availableLitres>0).map(f=>station.fuels[f].name);return <button type="button" key={s.id} className={supplierId===s.id?'selected':''} onClick={()=>setSupplierId(s.id)}><img className="supplier-tanker" src={tankerImage} alt="" /><strong>{s.name}</strong><small>{s.profile}</small><span>{chosenFuel==='none'?s.id===supplierId?'Выбран':'Выбрать':`${offer?.availableLitres.toLocaleString('ru-RU')??0} л · ${rubles(offer?.priceKopeks??0)}/л`}</span><small>Доставка ~{Math.round((offer?.etaGameSeconds??0)/3600)} игровых ч</small><small>В наличии: {available.join(', ')||'ожидается поставка'}</small></button>;})}</div>
+      <h3>Секции бензовоза</h3>
       <div className="order-steps"><span>Шаг изменения:</span>{[50,100,500,1000].map(step=><button type="button" key={step} className={orderStep===step?'active':''} onClick={()=>setOrderStep(step)}>{step} л</button>)}</div>
-      {([[chosenFuel,deliveryLitres,setChosenFuel,setDeliveryLitres],[secondFuel,secondLitres,setSecondFuel,setSecondLitres],[thirdFuel,thirdLitres,setThirdFuel,setThirdLitres]] as const).map(([fuel,amount,setFuel,setAmount],index)=><div className="delivery-section" key={index}>
-        <select value={fuel} onChange={e=>setFuel(e.target.value as FuelId & 'none')} aria-label={`Сорт секции ${index+1}`}>
-          {index>0&&<option value="none">Без секции</option>}{FUEL_IDS.map(f=><option key={f} value={f}>{station.fuels[f].name}</option>)}
+      <div className="delivery-sections">{([[chosenFuel,deliveryLitres,setChosenFuel,setDeliveryLitres],[secondFuel,secondLitres,setSecondFuel,setSecondLitres],[thirdFuel,thirdLitres,setThirdFuel,setThirdLitres]] as const).map(([fuel,amount,setFuel,setAmount],index)=><div className="delivery-section" key={index}>
+        <label htmlFor={`delivery-fuel-${index}`}>Секция {index+1}</label><select id={`delivery-fuel-${index}`} value={fuel} onChange={e=>{setFuel(e.target.value as FuelId|'none');setAmount(0);}} aria-label={`Сорт секции ${index+1}`}>
+          <option value="none">Без секции</option>{FUEL_IDS.map(f=><option key={f} value={f}>{station.fuels[f].name}</option>)}
         </select>
-        {fuel!=='none'&&<><div className="order-quantity"><button type="button" disabled={amount<=0} onClick={()=>setAmount(Math.max(0,amount-orderStep))} aria-label={`Уменьшить объём секции ${index+1}`}>−</button><strong>{amount.toLocaleString('ru-RU')} л</strong><button type="button" disabled={amount+orderStep>Math.min(bulk?NEFTEOPT.maxLitres:8000,Math.max(0,Math.floor(freeFor(fuel)/1000)-(requestedByFuel(fuel)-amount)),Math.max(0,(offerFor(fuel)?.availableLitres??0)-(requestedByFuel(fuel)-amount)),(bulk?NEFTEOPT.maxLitres:24000)-totalLitres+amount)} onClick={()=>setAmount(amount+orderStep)} aria-label={`Увеличить объём секции ${index+1}`}>+</button></div>
+        {fuel!=='none'&&<><div className="order-quantity"><button type="button" disabled={amount<=0} onClick={()=>setAmount(Math.max(0,amount-orderStep))} aria-label={`Уменьшить объём секции ${index+1}`}>−</button><strong>{amount.toLocaleString('ru-RU')} л</strong><button type="button" disabled={amount+orderStep>Math.min(bulk?NEFTEOPT.maxLitres:8000,(bulk?NEFTEOPT.maxLitres:24000)-totalLitres+amount)} onClick={()=>setAmount(amount+orderStep)} aria-label={`Увеличить объём секции ${index+1}`}>+</button></div>
           <small>Поставщик: {offerFor(fuel)?.availableLitres??0} л · свободная ёмкость: {Math.max(0,Math.floor(freeFor(fuel)/1000))} л · {rubles(offerFor(fuel)?.priceKopeks??0)}/л</small></>}
-      </div>)}
+      </div>)}</div>
       {!station.tanks.some(t=>t.status==='active')&&<p>Перед заказом постройте резервуар нужного сорта.</p>}
-      {orderProblem&&<p className="panel-error" role="status">{orderProblem}</p>}
+
       <p>Стоимость заказа: <strong>{rubles(orderCost)}</strong>{bulk&&<> · скидка <strong>{Math.round(discount*100)}%</strong> от базовой оптовой цены</>} · Доступный баланс: <strong>{rubles(station.balanceKopeks)}</strong></p>
-      <button type="button" className="panel-action" disabled={!validCargo||submitting} onClick={()=>{if(submittingRef.current)return;submittingRef.current=true;setSubmitting(true);if(!window.confirm(`Заказать у ${SUPPLIERS.find(s=>s.id===supplierId)?.name} ${cargoEntries.map(([f,n])=>`${station.fuels[f].name} ${n} л`).join(', ')} за ${rubles(orderCost)}? Прибытие примерно через ${Math.round((offerFor(chosenFuel)?.etaGameSeconds??0)/60)} игровых минут.`)){submittingRef.current=false;setSubmitting(false);return;}const ok=onDelivery(supplierId,cargoEntries.map(([fuel,amount])=>({fuel,litres:amount})));act(ok,'Поставка заказана.');if(!ok){submittingRef.current=false;setSubmitting(false);}}}>Заказать бензовоз · {rubles(orderCost)}</button>
+      {!!totalLitres&&selectedOffer&&<p>Прибытие через {Math.ceil(selectedOffer.etaGameSeconds/60)} игровых мин</p>}
+      <button type="button" className="panel-action" disabled={!totalLitres||submitting} onClick={()=>{if(submittingRef.current)return;if(!validCargo){toast(orderProblem||'Заполните объёмы выбранных секций.','error');return;}submittingRef.current=true;setSubmitting(true);if(!window.confirm(`Заказать у ${SUPPLIERS.find(s=>s.id===supplierId)?.name} ${cargoEntries.map(([f,n])=>`${station.fuels[f].name} ${n} л`).join(', ')} за ${rubles(orderCost)}? Прибытие примерно через ${Math.round((offerFor(cargoEntries[0][0])?.etaGameSeconds??0)/60)} игровых минут.`)){submittingRef.current=false;setSubmitting(false);return;}const ok=onDelivery(supplierId,cargoEntries.map(([fuel,amount])=>({fuel,litres:amount})));if(ok){setChosenFuel('none');setSecondFuel('none');setThirdFuel('none');setDeliveryLitres(0);setSecondLitres(0);setThirdLitres(0);toast('Поставка заказана.','success');}else toast('Заказ не принят. Проверьте объём, цену и остатки.','error');submittingRef.current=false;setSubmitting(false);}}>Заказать бензовоз · {rubles(orderCost)}</button>
+      <h3>Активные поставки</h3>
       <p>{nearestFuelDeliverySeconds(state.deliveries??[],state.gameSeconds)===null?'ПОСТАВОК НЕТ':`Бензовоз через ${Math.ceil(nearestFuelDeliverySeconds(state.deliveries??[],state.gameSeconds)!/60)} игровых мин`}{(state.deliveries??[]).some(d=>d.status==='unloading')?' · идёт разгрузка':''}</p>
-      {state.deliveries?.map(d=><p key={d.id}>Заказ №{d.id.split('-').at(-1)} · {SUPPLIERS.find(s=>s.id===d.supplierId)?.name??'Поставка'} · {Object.entries(d.cargo).map(([f,ml])=>`${station.fuels[f as FuelId].name} ${litres(ml??0,0)}`).join(', ')} · {{enroute:'в пути',waiting:'ожидает площадку',approaching:'подъезжает',connecting:'подключает рукав',unloading:'разгрузка',disconnecting:'отключает рукав',leaving:'выезжает'}[d.status??'enroute']} · прибытие: день {Math.floor(d.arrivalGameSeconds/86400)+1}, {String(Math.floor(d.arrivalGameSeconds%86400/3600)).padStart(2,'0')}:{String(Math.floor(d.arrivalGameSeconds%3600/60)).padStart(2,'0')} · осталось {litres(d.remainingMl??0,0)}{['enroute','waiting'].includes(d.status??'enroute')&&<button type="button" className="cancel-order" onClick={()=>{if(window.confirm(`Отменить поставку №${d.id.split('-').at(-1)} и вернуть ${rubles(d.paidKopeks??0)}?`))act(onCancelDelivery(d.id),'Поставка отменена, деньги возвращены.');}}>Отменить заказ</button>}</p>)}
-    </>}
+      {state.deliveries?.map(d=><article className="delivery-card" key={d.id}><strong>Заказ №{d.id.split('-').at(-1)}</strong><span>{SUPPLIERS.find(s=>s.id===d.supplierId)?.name??'Поставка'}</span><span>{Object.entries(d.cargo).map(([f,ml])=>`${station.fuels[f as FuelId].name} ${litres(ml??0,0)}`).join(', ')}</span><span>{{enroute:'в пути',waiting:'ожидает площадку',approaching:'подъезжает',connecting:'подключает рукав',unloading:'разгрузка',disconnecting:'отключает рукав',leaving:'выезжает'}[d.status??'enroute']} · прибытие: день {Math.floor(d.arrivalGameSeconds/86400)+1}, {String(Math.floor(d.arrivalGameSeconds%86400/3600)).padStart(2,'0')}:{String(Math.floor(d.arrivalGameSeconds%3600/60)).padStart(2,'0')} · осталось {litres(d.remainingMl??0,0)}</span></article>)}    </>}
     {id==='expansion'&&<><p>Две строительные бригады. Новые ТРК приобретаются через пустые монтажные места под навесом; резервуары — через карточку люков.</p>
       {(station.jobs??[]).map(j=><p key={j.id}>{j.targetId}: {j.status==='active'?'в работе':'в очереди'} · {Math.ceil(j.remainingSeconds)} игровых с</p>)}</>}
-    {id==='shop'&&<><p>Магазин и кафе работают независимо. Парковка: 4 места.</p><p>Магазин: {state.commerce?.venues.shop.level?'открыт':'не открыт'} · кафе: {state.commerce?.venues.cafe.level?'открыто':'не открыто'}.</p><button className="panel-action" onClick={onCommerce}>Магазин, кафе и закупки →</button></>}
-    {notice&&<p role="status">{notice}</p>}{error&&<p className="panel-error" role="alert">{error}</p>}
+    {id==='shop'&&<><p>Магазин и кафе работают независимо. Парковка: 10 легковых мест и отдельная стоянка для фур.</p><p>Магазин: {state.commerce?.venues.shop.level?'открыт':'не открыт'} · кафе: {state.commerce?.venues.cafe.level?'открыто':'не открыто'}.</p><button className="panel-action" onClick={onCommerce}>Магазин, кафе и закупки →</button></>}
+
     </div>
   </section>;
 }

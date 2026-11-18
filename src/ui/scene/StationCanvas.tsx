@@ -59,8 +59,10 @@ export function StationCanvas({ stationName,resetCameraVersion,pumps, stocks, jo
       app.ticker.add((ticker)=>scene.tick(ticker.deltaMS));
       scene.setPumps(pumps, stocks, jobs, tanks);
       scene.setDeliveries(deliveries);
-      scene.setVehicles(engine.getState().vehicles);
-      unsubscribeVehicles = engine.subscribeState((state) => {updateVehiclesRef.current(state.vehicles);updateDeliveriesRef.current(state.deliveries??[]);}, 50);
+      const state=engine.getState();
+      scene.setVehicles(state.vehicles);
+      scene.setGoods(state.commerce?.orders??[],state.gameSeconds);
+      unsubscribeVehicles = engine.subscribeState((state) => {updateVehiclesRef.current(state.vehicles);updateDeliveriesRef.current(state.deliveries??[]);scene.setGoods(state.commerce?.orders??[],state.gameSeconds);}, 50);
       scene.setPrices(prices);
       scene.setName(stationName);
       scene.setTime(gameSeconds);

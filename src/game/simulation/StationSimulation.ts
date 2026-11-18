@@ -1,3 +1,6 @@
+import { GOODS_DRIVE_SECONDS, goodsDeliveryActive, goodsPose, goodsUnloadSeconds } from '../domain/goodsDelivery';
+import { PARKING_SLOTS, PARKING_X, TRUCK_BAY } from '../domain/roadNetwork';
+import { version } from '../../../package.json';
 import { canPlacePump, cloneInitialStation, cloneLegacyStation, FUEL_IDS, isValidPumpFuels, TRAFFIC_CONFIG } from '../domain/config';
 import { pumpQueuePoint, ROAD_NODES } from '../domain/roadNetwork';
 import { PUMP_SLOTS } from '../domain/world';
@@ -28,6 +31,8 @@ const PUMP_ROUTES: Record<string, string[]> = Object.fromEntries(PUMP_SLOTS.map(
   `pump-${slot.slot+1}`,[`pump_${slot.slot+1}_approach`,`pump_${slot.slot+1}_turn`,`pump_${slot.slot+1}_align`,`pump_${slot.slot+1}`],
 ]));
 const EXIT_ROUTE = ['exit_lane','exit','exit_merge','west_lane_1_west'];
+const TRUCK_PARKING_SLOT = PARKING_SLOTS.length;
+const EXIT_APRONS:Record<string,string>={exit_lane:'exit_apron',truck_exit_lane:'truck_exit_apron'};
 const TRUCK_EXIT_ROUTE = ['truck_exit_lane','truck_exit','truck_exit_merge','west_lane_1_west'];
 
 function availableMl(station: StationState, vehicles: readonly Vehicle[], fuel: FuelId): number {
@@ -37,15 +42,21 @@ function availableMl(station: StationState, vehicles: readonly Vehicle[], fuel: 
   const usable=station.tanks.filter(t=>t.fuel===fuel&&t.status==='active'&&condition(t)>0).reduce((sum,t)=>sum+t.stockMl,0);
   return Math.max(0,usable-held);
 }
-function moveToward(vehicle: Vehicle, target: {x:number;y:number}, distance: number, others: readonly Vehicle[] = []): number {
+function moveToward(vehicle: Vehicle, target: {x:number;y:number}, distance: number, others: readonly Vehicle[] = [], reverse = false, allowStraight = false): number {
   const dx=target.x-vehicle.x,dy=target.y-vehicle.y,length=Math.hypot(dx,dy);
   if(length<.0001)return distance;
-  const desired=Math.atan2(dy,dx);
+  const desired=Math.atan2(dy,dx)+(reverse?Math.PI:0);
   const delta=Math.atan2(Math.sin(desired-vehicle.angle),Math.cos(desired-vehicle.angle));
   const maxStep=Math.min(distance,length);
+  let turn=Math.max(-.14,Math.min(.14,delta));
   const candidate=(step:number)=>({x:vehicle.x+dx/length*step,y:vehicle.y+dy/length*step,
-    angle:vehicle.angle+Math.max(-.14,Math.min(.14,delta))*(step/maxStep)});
+    angle:vehicle.angle+turn*(step/maxStep)});
   let step=maxStep,point=candidate(step);
+  if(allowStraight&&sweptBlocked(vehicle,point.x,point.y,point.angle,others)&&
+    !sweptBlocked(vehicle,point.x,point.y,vehicle.angle,others)){
+    turn=0;
+    point=candidate(step);
+  }
   if(sweptBlocked(vehicle,point.x,point.y,point.angle,others)) {
     let low=0,high=step;
     for(let i=0;i<8;i++) {const mid=(low+high)/2,trial=candidate(mid);
@@ -127,7 +138,7 @@ export class StationSimulation {
       if(event.costKopeks!==undefined||event.fuel!==undefined||event.volumeMl!==undefined||event.objectId!==undefined||event.id!==undefined||event.productId!==undefined)row.push(event.costKopeks??null,event.fuel?FUEL_IDS.indexOf(event.fuel):null,event.volumeMl??null,event.objectId??null,event.id??null,event.productId??null);
       return row;
     })};
-    return {version:'0.7.4',state,rngState:this.rng.getState(),nextVehicleId:this.nextVehicleId,
+    return {version,state,rngState:this.rng.getState(),nextVehicleId:this.nextVehicleId,
       nextSpawnSeconds:this.nextSpawnSeconds,nextJobId:this.nextJobId,nextDeliveryId:this.nextDeliveryId};
   }
   static importSave(raw:unknown):StationSimulation {
@@ -135,7 +146,7 @@ export class StationSimulation {
     const save=raw as {version?:string;state?:GameState;rngState?:number;nextVehicleId?:number;nextSpawnSeconds?:number;nextJobId?:number;nextDeliveryId?:number};
     const state=(save.state??raw) as GameState;
     if(!state.station||!Number.isFinite(state.station.balanceKopeks)||!Number.isFinite(state.gameSeconds)||!Array.isArray(state.vehicles)||!Array.isArray(state.queueIds)||!state.station.fuels||!Array.isArray(state.station.tanks)||!Array.isArray(state.station.pumps))throw new Error('Invalid save state');
-    const station=['0.2.8','0.3.0','0.3.1','0.3.2','0.4.0','0.5.0','0.5.1','0.5.2','0.6.0','0.7.0','0.7.3','0.7.4'].includes(save.version??'')?cloneInitialStation():cloneLegacyStation();
+    const station=['0.2.8','0.3.0','0.3.1','0.3.2','0.4.0','0.5.0','0.5.1','0.5.2','0.6.0','0.7.0','0.7.3','0.7.4',version].includes(save.version??'')?cloneInitialStation():cloneLegacyStation();
     station.name=normalizeStationName(state.station.name);
     if(Number.isFinite(state.station.balanceKopeks))station.balanceKopeks=state.station.balanceKopeks;
     for(const id of FUEL_IDS)if(state.station.fuels?.[id])station.fuels[id]={...station.fuels[id],...state.station.fuels[id]};
@@ -164,7 +175,7 @@ export class StationSimulation {
       if(v.status==='fueling'){
         copy.servicePhase=v.deliveredMl>0||v.servicePhase==='dispensing'?'dispensing':'preparing';
         copy.phaseRemainingSeconds=copy.servicePhase==='preparing'?Math.min(20,Math.max(0,v.phaseRemainingSeconds??20)):0;
-      }else if(!['0.5.1','0.5.2','0.6.0','0.7.0','0.7.3','0.7.4'].includes(save.version??'')){delete copy.servicePhase;delete copy.phaseRemainingSeconds;}
+      }else if(!['0.5.1','0.5.2','0.6.0','0.7.0','0.7.3','0.7.4',version].includes(save.version??'')){delete copy.servicePhase;delete copy.phaseRemainingSeconds;}
       return copy;
     }));
     if(state.stats?.departed===undefined)sim.stats.departed=Math.max(0,sim.stats.visited-sim.vehicles.filter(v=>v.status!=='road').length);
@@ -173,13 +184,21 @@ export class StationSimulation {
     for(const [oldSlot,id] of (state.commerce?.parking??[]).entries()){
       if(id===null||sim.commerce.parking.includes(id))continue;
       const vehicle=sim.vehicles.find(v=>v.id===id);if(!vehicle)continue;
-      const slot=['0.7.3','0.7.4'].includes(save.version??'')&&oldSlot<sim.commerce.parking.length&&sim.commerce.parking[oldSlot]===null?oldSlot:sim.commerce.parking.indexOf(null);
+      const slot=['0.7.3','0.7.4',version].includes(save.version??'')&&oldSlot<sim.commerce.parking.length&&sim.commerce.parking[oldSlot]===null?oldSlot:sim.commerce.parking.indexOf(null);
       if(slot<0){vehicle.parkSlot=undefined;delete sim.commerce.customers[id];for(const venue of ['shop','cafe'] as Venue[]){const v=sim.commerce.venues[venue];v.queue=v.queue.filter(customer=>customer!==id);if(v.serving===id)v.serving=undefined;}sim.setRoute(vehicle,[...EXIT_ROUTE],'leaving');continue;}
       sim.commerce.parking[slot]=id;vehicle.parkSlot=slot;
-      if(vehicle.status==='toParking'&&!['0.7.3','0.7.4'].includes(save.version??''))sim.setRoute(vehicle,['parking_entry',`parking_access_${slot}`,`parking_${slot}`],'toParking');
-      else if(vehicle.status==='parked'&&!['0.7.3','0.7.4'].includes(save.version??'')){const node=ROAD_NODES.find(n=>n.id===`parking_${slot}`)!;vehicle.x=node.x;vehicle.y=node.y;}
+      if(vehicle.status==='toParking'&&save.version!==version)sim.setRoute(vehicle,['parking_entry',`parking_access_${slot}`,`parking_${slot}`],'toParking');
+      else if(vehicle.status==='parked'&&save.version!==version){const node=ROAD_NODES.find(n=>n.id===`parking_${slot}`)!;vehicle.x=node.x;vehicle.y=node.y;vehicle.angle=PARKING_SLOTS[slot].angle;}
+      else if(vehicle.status==='leaving'&&save.version!==version){
+        vehicle.parkSlot=undefined;sim.commerce.parking[slot]=null;
+      }
     }
-    for(const [id] of Object.entries(sim.commerce.customers))if(!sim.commerce.parking.includes(Number(id)))delete sim.commerce.customers[Number(id)];
+    if(!sim.vehicles.some(vehicle=>vehicle.id===sim.commerce.truckParking&&vehicle.parkSlot===TRUCK_PARKING_SLOT)){
+      sim.commerce.truckParking=undefined;
+    }
+    for(const [id] of Object.entries(sim.commerce.customers)){
+      if(!sim.commerce.parking.includes(Number(id))&&sim.commerce.truckParking!==Number(id))delete sim.commerce.customers[Number(id)];
+    }
     sim.queueIds.push(...(state.queueIds??[]).filter(id=>sim.vehicles.some(v=>v.id===id)));
     sim.recentSales.push(...(state.recentSales??[]).map(sale=>({...sale})));
     if(state.financeEvents!==undefined){
@@ -230,7 +249,7 @@ export class StationSimulation {
         if(active.reduce((sum,x)=>sum+Math.max(0,x.reservedMl-x.deliveredMl),0)<=stock)break;
       }
     }
-    if(!['0.2.7','0.2.8','0.3.0','0.3.1','0.3.2','0.4.0','0.5.0','0.5.1','0.5.2','0.6.0','0.7.0','0.7.3','0.7.4'].includes(save.version??''))for(const v of sim.vehicles){
+    if(!['0.2.7','0.2.8','0.3.0','0.3.1','0.3.2','0.4.0','0.5.0','0.5.1','0.5.2','0.6.0','0.7.0','0.7.3','0.7.4',version].includes(save.version??''))for(const v of sim.vehicles){
       const pump=v.pumpId&&sim.station.pumps.find(p=>p.id===v.pumpId);
       if(v.status==='fueling'||v.status==='finishing'){
         if(pump){const point=PUMP_SLOTS[pump.slot];v.x=point.stopX;v.y=point.stopY;v.angle=Math.PI;}
@@ -255,7 +274,7 @@ export class StationSimulation {
         v.routeIndex=0;
       }
     }
-    if(!['0.5.1','0.5.2','0.6.0','0.7.0','0.7.3','0.7.4'].includes(save.version??'')){
+    if(!['0.5.1','0.5.2','0.6.0','0.7.0','0.7.3','0.7.4',version].includes(save.version??'')){
       // The old shared queue had no dispenser assignment. Move each waiting
       // customer to a marked bay and repair vehicles trapped at the entrance.
       const redirected=new Set<number>();
@@ -667,19 +686,6 @@ export class StationSimulation {
       arrivalGameSeconds:this.gameSeconds+marketOffer(this.market,supplierId,entries[0][0],this.gameSeconds)!.etaGameSeconds,status:'enroute',remainingMl:totalMl,totalMl});
     return true;
   }
-  cancelDelivery(id:string):boolean {
-    const index=this.deliveries.findIndex(trip=>trip.id===id&&['enroute','waiting'].includes(trip.status??'enroute'));
-    if(index<0)return false;
-    const trip=this.deliveries[index];
-    const refund=trip.paidKopeks??0;
-    if(!Number.isInteger(refund)||refund<0)return false;
-    this.deliveries.splice(index,1);
-    this.station.balanceKopeks+=refund;
-    this.expenses.purchasesKopeks=Math.max(0,this.expenses.purchasesKopeks-refund);
-    if(refund)this.financeEvents.push({id:`refund-${id}`,gameSeconds:this.gameSeconds,kind:'purchaseRefund',amountKopeks:refund,objectId:trip.supplierId});
-    if(trip.supplierId&&supplierById(trip.supplierId))for(const [fuel,ml] of Object.entries(trip.cargo) as [FuelId,number][])this.market.warehouses[trip.supplierId][fuel].litres=Math.min(this.market.warehouses[trip.supplierId][fuel].capacityLitres,this.market.warehouses[trip.supplierId][fuel].litres+Math.round(ml/1000));
-    return true;
-  }
   setPumpFuels(pumpId:string,fuels:readonly FuelId[]):boolean {
     const pump=this.station.pumps.find(candidate=>candidate.id===pumpId);
     if(!pump||pump.status==='building'||pump.status==='upgrading'||this.closed(pumpId)||!isValidPumpFuels(fuels)||
@@ -743,6 +749,8 @@ export class StationSimulation {
   private trafficBlockers():Vehicle[] {
     const trip=this.deliveries.find(d=>d.status&&d.status!=='enroute'&&d.status!=='waiting');
     const blockers=trip?[...this.vehicles,this.deliveryVehicle(trip)]:[...this.vehicles];
+    const goods=this.commerce.orders.find(goodsDeliveryActive);
+    if(goods)blockers.push(this.goodsVehicle(goods));
     for(const task of this.technical.tasks.filter(t=>t.contractor&&t.phase!=='travel'||t.contractor&&t.phaseRemaining<=600)){
       const pose=contractorPose(task.parkingSlot??0,task.phase==='travel'?1-task.phaseRemaining/600:1,'arrival');
       if(pose.y>=830)blockers.push(this.contractorVehicle(task.id,pose.x,pose.y));
@@ -759,6 +767,7 @@ export class StationSimulation {
     const active=this.deliveries.find(t=>t.status!=='enroute'&&t.status!=='waiting')??this.deliveries.find(t=>t.status==='waiting');
     if(!active)return;
     if(active.status==='waiting'){
+      if(this.commerce.orders.some(goodsDeliveryActive))return;
       const entering=this.deliveryVehicle({...active,status:'approaching',phaseSeconds:0});
       if(footprintBlocked(entering,entering.x,entering.y,entering.angle,this.vehicles))return;
       active.status='approaching';active.phaseSeconds=0;return;
@@ -808,21 +817,64 @@ export class StationSimulation {
   trainVenue(venue:Venue):boolean {const v=this.commerce.venues[venue],next=v.staffLevel+1;if(!v.level||next>5)return false;const cost=TRAIN_COST[next-1];if(this.station.balanceKopeks<cost)return false;this.station.balanceKopeks-=cost;v.staffLevel=next;this.record('goodsCapital',cost,undefined,undefined,venue);return true;}
   setGoodsPrice(product:Product,price:number):boolean {if(!PRODUCTS[product]||PRODUCTS[product].retail===0||!Number.isInteger(price)||price<100||price>100000)return false;this.commerce.prices[product]=price;return true;}
   orderGoods(supplier:Supplier,request:Partial<Record<Sku,number>>):boolean {if(!GOODS_SUPPLIERS[supplier])return false;const lines=Object.entries(request) as [Sku,number][];if(!lines.length||lines.some(([s,n])=>!SKU[s]||!Number.isInteger(n)||n<=0))return false;const reserved={shop:0,cafe:0},orderLines:CommerceState['orders'][number]['lines']={};let total=0;for(const [sku,quantity] of lines){reserved[SKU[sku].venue]+=quantity*SKU[sku].size;const cost=quantity*buyPrice(sku,this.gameSeconds,supplier);orderLines[sku]={quantity,costKopeks:cost};total+=cost;}for(const venue of ['shop','cafe'] as Venue[])if(reserved[venue]&&(!this.commerce.venues[venue].level||usedSpace(this.commerce,venue)+reserved[venue]>VENUES[venue].capacity[this.commerce.venues[venue].level]+.0001))return false;if(total>this.station.balanceKopeks)return false;this.station.balanceKopeks-=total;const id=`goods-${this.commerce.nextOrder++}`;this.commerce.orders.push({id,placed:this.gameSeconds,arrival:this.gameSeconds+GOODS_SUPPLIERS[supplier].eta,supplier,lines:orderLines,totalKopeks:total,status:'enroute'});this.financeEvents.push({id,gameSeconds:this.gameSeconds,kind:'goodsPurchase',amountKopeks:total});return true;}
-  cancelGoodsOrder(id:string):boolean {
-    const order=this.commerce.orders.find(item=>item.id===id&&item.status==='enroute');
-    if(!order)return false;
-    order.status='cancelled';
-    this.station.balanceKopeks+=order.totalKopeks;
-    this.financeEvents.push({id:`refund-${id}`,gameSeconds:this.gameSeconds,kind:'goodsRefund',amountKopeks:order.totalKopeks});
-    return true;
+  private goodsVehicle(order:CommerceState['orders'][number]):Vehicle {
+    return {id:-2,modelId:'medium-truck',category:'truck',...goodsPose(order)} as Vehicle;
   }
-  private advanceCommerce(seconds:number,from:number):void {const c=this.commerce;for(const order of c.orders)if(order.status==='enroute'&&order.arrival<=this.gameSeconds){for(const [sku,line] of Object.entries(order.lines) as [Sku,{quantity:number;costKopeks:number}][])addStock(c.stock[sku],line.quantity,line.costKopeks);order.status='delivered';}
+  private advanceGoods(seconds:number,from:number):void {
+    const orders=this.commerce.orders;
+    for(const order of orders){
+      if(order.status==='enroute'&&order.arrival<=this.gameSeconds)order.status='waiting';
+    }
+    let cursor=from;
+    while(cursor<this.gameSeconds){
+      let order=orders.find(goodsDeliveryActive);
+      if(!order){
+        order=orders.filter(item=>item.status==='enroute'||item.status==='waiting').sort((a,b)=>a.arrival-b.arrival)[0];
+        if(!order||order.arrival>this.gameSeconds)return;
+        order.status='waiting';
+        if(this.deliveries.some(trip=>trip.status!=='enroute'&&trip.status!=='waiting'))return;
+        const entering=this.goodsVehicle({...order,status:'approaching',phaseSeconds:0});
+        if(footprintBlocked(entering,entering.x,entering.y,entering.angle,this.vehicles))return;
+        cursor=Math.max(cursor,order.arrival);
+        order.status='approaching';
+      }
+      const duration=order.status==='unloading'?goodsUnloadSeconds(order):GOODS_DRIVE_SECONDS;
+      const elapsed=order.phaseSeconds??0;
+      const used=Math.min(this.gameSeconds-cursor,Math.max(0,duration-elapsed),seconds,30);
+      const nextPhase=elapsed+used;
+      if(order.status!=='unloading'){
+        const current=this.goodsVehicle(order);
+        const next=this.goodsVehicle({...order,phaseSeconds:nextPhase});
+        if(sweptBlocked(current,next.x,next.y,next.angle,this.vehicles))return;
+      }
+      order.phaseSeconds=nextPhase;
+      cursor+=used;
+      if(nextPhase<duration)continue;
+      order.phaseSeconds=0;
+      if(order.status==='approaching')order.status='unloading';
+      else if(order.status==='unloading'){
+        if(!order.credited){
+          for(const [sku,line] of Object.entries(order.lines) as [Sku,{quantity:number;costKopeks:number}][]){
+            addStock(this.commerce.stock[sku],line.quantity,line.costKopeks);
+          }
+          order.credited=true;
+        }
+        order.status='leaving';
+      }else order.status='delivered';
+    }
+  }
+  private advanceCommerce(seconds:number,from:number):void {
+    const c=this.commerce;
+    this.advanceGoods(seconds,from);
     const firstDay=Math.floor(from/86400),lastDay=Math.floor(this.gameSeconds/86400);for(const venue of ['shop','cafe'] as Venue[]){const v=c.venues[venue];if(!v.level)continue;for(let day=firstDay+1;day<=lastDay;day++){if(v.salaryDay<day){const amount=Math.round(VENUES[venue].salary*[1,1.18,1.37,1.59,1.84][v.staffLevel-1]);this.station.balanceKopeks-=amount;this.financeEvents.push({id:`${venue}-salary-${day}`,gameSeconds:day*86400,kind:'goodsSalary',amountKopeks:amount,objectId:venue});v.salaryDay=day;}if(v.maintenanceDay<day){const amount=VENUES[venue].maintenance[v.level];this.station.balanceKopeks-=amount;this.financeEvents.push({id:`${venue}-maintenance-${day}`,gameSeconds:day*86400,kind:'goodsMaintenance',amountKopeks:amount,objectId:venue});v.maintenanceDay=day;}}
       if(v.serving!==undefined){v.serviceRemaining=Math.max(0,v.serviceRemaining-seconds);if(v.serviceRemaining===0){this.sellToCustomer(v.serving,venue);v.serving=undefined;}}for(const id of [...v.queue]){const customer=c.customers[id];if(!customer){v.queue.splice(v.queue.indexOf(id),1);continue;}customer.patience-=seconds;if(customer.patience<=0){v.queue.splice(v.queue.indexOf(id),1);v.lost++;this.nextVenue(id);}}
       if(v.serving===undefined&&v.queue.length){const id=v.queue.shift()!;v.serving=id;v.serviceRemaining=VENUES[venue].service*STAFF_SPEED[v.staffLevel-1];const customer=c.customers[id];if(customer)customer.waiting=false;}
     }}
   private sellToCustomer(id:number,venue:Venue):void {const c=this.commerce,customer=c.customers[id];if(!customer)return;const options=(Object.keys(PRODUCTS) as Product[]).filter(p=>PRODUCTS[p].venue===venue&&PRODUCTS[p].retail>0);const hour=Math.floor(this.gameSeconds%86400/3600);const weights=options.map(p=>{let w=1;if(hour>=5&&hour<11&&['espresso','americano','cappuccino','latte','cake','pie'].includes(p))w=2;if(hour>=11&&hour<18&&['water','hotdog','snacks'].includes(p))w=2;if(hour>=18&&['chocolate','cake','latte'].includes(p))w=1.7;return w;});const totalWeight=weights.reduce((a,b)=>a+b,0);let roll=this.rng.next()*totalWeight;const selected=customer.product&&PRODUCTS[customer.product].venue===venue?customer.product:options[weights.findIndex(w=>(roll-=w)<0)]??options[0];const priceFactor=PRODUCTS[selected].retail/c.prices[selected];if(this.rng.next()>Math.min(.95,Math.max(.12,priceFactor*.7))){c.venues[venue].lost++;this.nextVenue(id);return;}const recipe=RECIPES[selected as keyof typeof RECIPES]??{[selected]:1};let cost=0;for(const [sku,qty] of Object.entries(recipe) as [Sku,number][])if(c.stock[sku].quantity<qty){c.venues[venue].lost++;this.nextVenue(id);return;}for(const [sku,qty] of Object.entries(recipe) as [Sku,number][])cost+=consume(c.stock[sku],qty);const revenue=c.prices[selected];this.station.balanceKopeks+=revenue;c.venues[venue].revenueKopeks+=revenue;c.venues[venue].costKopeks+=cost;this.financeEvents.push({id:`goods-sale-${id}-${venue}-${this.gameSeconds}`,gameSeconds:this.gameSeconds,kind:'goodsSale',amountKopeks:revenue,costKopeks:cost,objectId:venue,productId:selected});this.nextVenue(id);}
-  private nextVenue(id:number):void {const customer=this.commerce.customers[id];if(!customer)return;const next=customer.plan.shift();if(next){customer.current=next;customer.waiting=true;const config=VENUES[next],v=this.commerce.venues[next];customer.patience=config.patience[0]+this.rng.next()*(config.patience[1]-config.patience[0]);v.queue.push(id);}else {delete this.commerce.customers[id];const vehicle=this.vehicles.find(v=>v.id===id);if(vehicle){vehicle.pumpId=undefined;this.setRoute(vehicle,[...EXIT_ROUTE],'leaving');}else {const slot=this.commerce.parking.indexOf(id);if(slot>=0)this.commerce.parking[slot]=null;}}}
+  private nextVenue(id:number):void {const customer=this.commerce.customers[id];if(!customer)return;const next=customer.plan.shift();if(next){customer.current=next;customer.waiting=true;const config=VENUES[next],v=this.commerce.venues[next];customer.patience=config.patience[0]+this.rng.next()*(config.patience[1]-config.patience[0]);v.queue.push(id);}else {delete this.commerce.customers[id];const vehicle=this.vehicles.find(v=>v.id===id);if(vehicle){vehicle.pumpId=undefined;const route=vehicle.parkSlot===TRUCK_PARKING_SLOT
+      ?['truck_parking_depart','truck_parking_curve','truck_parking_clear',...TRUCK_EXIT_ROUTE.slice(2)]
+      :[`parking_access_${vehicle.parkSlot}`,'parking_exit',...EXIT_ROUTE.slice(1)];
+      this.setRoute(vehicle,route,'leaving');}else {const slot=this.commerce.parking.indexOf(id);if(slot>=0)this.commerce.parking[slot]=null;if(this.commerce.truckParking===id)this.commerce.truckParking=undefined;}}}
   step(seconds:number):void {
     if(!Number.isFinite(seconds)||seconds<=0) return;
     const technicalFrom=this.gameSeconds;
@@ -853,7 +905,7 @@ export class StationSimulation {
     for(const vehicle of ordered) this.advance(vehicle,seconds);
     this.advanceTechnical(seconds,technicalFrom);
     this.dispatchQueue();
-    for(let i=this.vehicles.length-1;i>=0;i--) if(this.finishedIds.has(this.vehicles[i].id)){const v=this.vehicles[i];if(v.parkSlot!==undefined)this.commerce.parking[v.parkSlot]=null;this.vehicles.splice(i,1);}
+    for(let i=this.vehicles.length-1;i>=0;i--) if(this.finishedIds.has(this.vehicles[i].id)){const v=this.vehicles[i];this.releaseParking(v);this.vehicles.splice(i,1);}
     for(const vehicle of this.vehicles){
       if(['queued','fueling','finishing','parked'].includes(vehicle.status)){this.stallInfo.delete(vehicle.id);continue;}
       const previous=this.stallInfo.get(vehicle.id);
@@ -865,7 +917,7 @@ export class StationSimulation {
       if((this.stallInfo.get(vehicle.id)?.seconds??0)<TRAFFIC_CONFIG.stalledVehicleSeconds)continue;
       const index=this.queueIds.indexOf(vehicle.id);
       if(index>=0)this.queueIds.splice(index,1);
-      if(vehicle.parkSlot!==undefined){this.commerce.parking[vehicle.parkSlot]=null;delete this.commerce.customers[vehicle.id];for(const venue of ['shop','cafe'] as Venue[]){const v=this.commerce.venues[venue];v.queue=v.queue.filter(id=>id!==vehicle.id);if(v.serving===vehicle.id)v.serving=undefined;}}
+      if(vehicle.parkSlot!==undefined){this.releaseParking(vehicle);delete this.commerce.customers[vehicle.id];for(const venue of ['shop','cafe'] as Venue[]){const v=this.commerce.venues[venue];v.queue=v.queue.filter(id=>id!==vehicle.id);if(v.serving===vehicle.id)v.serving=undefined;}}
       if(vehicle.status==='road')this.stats.passed++;
       else if(vehicle.status==='entering'||vehicle.status==='toPump')this.stats.unserved++;
       this.finishedIds.add(vehicle.id);
@@ -903,12 +955,25 @@ export class StationSimulation {
     vehicle.route=[...route];vehicle.routeIndex=0;vehicle.status=status;
     if(status==='toPump'||status==='leaving')vehicle.speed=0;
   }
+  private releaseParking(vehicle:Vehicle):void {
+    if(vehicle.parkSlot===TRUCK_PARKING_SLOT)this.commerce.truckParking=undefined;
+    else if(vehicle.parkSlot!==undefined)this.commerce.parking[vehicle.parkSlot]=null;
+    vehicle.parkSlot=undefined;
+  }
   private moveRoute(vehicle:Vehicle,distance:number):void {
+    const frontRowOccupied=this.commerce.parking.some((occupant,index)=>index<PARKING_X.length&&occupant!==null);
     let remaining=distance,guard=0;
     while(remaining>0&&vehicle.routeIndex<vehicle.route.length&&guard++<12) {
       const id=vehicle.route[vehicle.routeIndex];
-      const node=NODES.get(id);
-      if(!node) throw new Error('Unknown road node '+id);
+      const target=NODES.get(id);
+      if(!target) throw new Error('Unknown road node '+id);
+      // Approach the west exit above the parking bays so the parked cars
+      // cannot stop through traffic. Also applies to routes restored mid-drive.
+      const apron=frontRowOccupied?NODES.get(EXIT_APRONS[id]):undefined;
+      const viaApron=!!apron&&vehicle.x>apron.x-3&&vehicle.y>apron.y+3;
+      const adjustedLane=apron?NODES.get(id.replace('exit_lane','exit_parking_lane')):undefined;
+      const pumpExit=/^pump_\d+_(depart|clear|merge|truck_turn)$/.test(id)&&target.x<790;
+      const node=viaApron?apron:adjustedLane??(frontRowOccupied&&pumpExit?{...target,y:Math.min(target.y,626)}:target);
       if((node.x===0||node.x===2000)&&Math.hypot(vehicle.x-node.x,vehicle.y-node.y)<1){vehicle.routeIndex++;continue;}
       const blockers=this.trafficBlockers();
       // At the west exit a follower on the straight lane can pin the rear of
@@ -919,12 +984,13 @@ export class StationSimulation {
           ?blockers.filter(other=>!(other.status==='leaving'&&other.route[other.routeIndex]==='exit_lane'&&
             other.x>vehicle.x&&other.x<vehicle.x+120&&other.y<=665))
           :blockers;
-      remaining=moveToward(vehicle,node,remaining,movingBlockers);
+      remaining=moveToward(vehicle,node,remaining,movingBlockers,vehicle.status==='leaving'&&(id.startsWith('parking_access_')),id.includes('parking'));
       const stopTolerance=vehicle.category==='truck'&&/^pump_\d+$/.test(id)?38:3;
       if(Math.hypot(vehicle.x-node.x,vehicle.y-node.y)<stopTolerance) {
+        if(viaApron)continue;
         if(vehicle.status==='leaving'&&id==='exit_lane'&&this.vehicles.some(other=>other.status==='road'&&other.laneId==='west_lane_1'&&other.x<500))return;
         vehicle.routeIndex++;
-        if(vehicle.status==='leaving'&&id==='exit_lane'&&vehicle.parkSlot!==undefined){this.commerce.parking[vehicle.parkSlot]=null;vehicle.parkSlot=undefined;}
+        if(vehicle.status==='leaving'&&(id==='parking_exit'||id==='truck_parking_clear'))this.releaseParking(vehicle);
         // Keep the dispenser assigned until the vehicle has fully left the route.
         if(vehicle.status==='road'&&id==='entrance_decision') this.decideVisit(vehicle);
       } else break;
@@ -942,7 +1008,15 @@ export class StationSimulation {
       vehicle.servicePhase='preparing';vehicle.phaseRemainingSeconds=TRAFFIC_CONFIG.serviceSetupSeconds;
       const pump=this.station.pumps.find(p=>p.id===vehicle.pumpId);
       vehicle.serviceRemainingSeconds=vehicle.reservedMl/TRAFFIC_CONFIG.fuelFlowMlPerSecond/(pump?.flowMultiplier??1)*(1+0.5*(100-condition(pump??{condition:100} as Pump))/100);
-    } else if(vehicle.status==='toParking'){vehicle.status='parked';vehicle.pumpId=undefined;vehicle.speed=0;this.startCustomer(vehicle.id);} else if(vehicle.status==='leaving'){this.stats.departed++;this.finishedIds.add(vehicle.id);}
+    } else if(vehicle.status==='toParking'){
+      const bay=vehicle.parkSlot===TRUCK_PARKING_SLOT?TRUCK_BAY:PARKING_SLOTS[vehicle.parkSlot!];
+      if(sweptBlocked(vehicle,bay.x,bay.y,bay.angle,this.trafficBlockers()))return;
+      vehicle.x=bay.x;vehicle.y=bay.y;vehicle.angle=bay.angle;
+      vehicle.status='parked';vehicle.pumpId=undefined;vehicle.speed=0;
+      this.startCustomer(vehicle.id);
+    }else if(vehicle.status==='leaving'){
+      this.stats.departed++;this.finishedIds.add(vehicle.id);
+    }
   }
   private decideVisit(vehicle:Vehicle):void {
     if(vehicle.laneId!=='west_lane_1')return;
@@ -972,6 +1046,10 @@ export class StationSimulation {
     const direct=free.sort((a,b)=>a.slot-b.slot)[0];
     if(direct){
       if(!this.reservePump(vehicle,direct)){this.stats.unserved++;return;}
+      if(vehicle.modelId==='semi-trailer'&&direct.slot===0){
+        vehicle.wantsShop=!!this.commerce.venues.shop.level&&this.rng.next()<.28;
+        vehicle.wantsCafe=!!this.commerce.venues.cafe.level&&this.rng.next()<.22;
+      }
       this.stats.visited++;
       this.setRoute(vehicle,['entrance_curve','entrance','queue_split',...(PUMP_ROUTES[direct.id]??[])],'toPump');
       return;
@@ -1119,8 +1197,21 @@ export class StationSimulation {
     vehicle.reservedMl=0;vehicle.salePriceKopeks=0;vehicle.deliveredMl=0;vehicle.chargedKopeks=0;vehicle.costKopeks=0;
     vehicle.servicePhase=undefined;vehicle.phaseRemainingSeconds=0;
     const servedNode=vehicle.route.find(id=>/^pump_\d+$/.test(id))??'pump_1';
-    const wants=vehicle.wantsShop||vehicle.wantsCafe;const free=this.commerce.parking.indexOf(null);
-    if(wants&&free>=0){this.commerce.parking[free]=vehicle.id;vehicle.parkSlot=free;const route=[servedNode+'_depart',servedNode+'_clear',servedNode+'_merge','parking_entry',`parking_access_${free}`,`parking_${free}`];this.setRoute(vehicle,route,'toParking');return;}
+    const wants=vehicle.wantsShop||vehicle.wantsCafe;
+    const free=vehicle.category==='truck'?(this.commerce.truckParking===undefined?TRUCK_PARKING_SLOT:-1):this.commerce.parking.indexOf(null);
+    if(wants&&free>=0){
+      vehicle.parkSlot=free;
+      if(free===TRUCK_PARKING_SLOT){
+        this.commerce.truckParking=vehicle.id;
+        this.setRoute(vehicle,['truck_parking_access','truck_parking'],'toParking');
+      }else{
+        this.commerce.parking[free]=vehicle.id;
+        const route=[servedNode+'_depart',servedNode+'_clear',servedNode+'_merge'];
+        if(NODES.get(servedNode+'_merge')!.x<795)route.push('exit_apron');
+        this.setRoute(vehicle,[...route,'parking_entry',`parking_access_${free}`,`parking_${free}`],'toParking');
+      }
+      return;
+    }
     if(wants&&free<0){vehicle.refusalReason='Нет места на парковке';this.commerce.venues.shop.lost+=Number(!!vehicle.wantsShop);this.commerce.venues.cafe.lost+=Number(!!vehicle.wantsCafe);}
     const route=vehicle.category==='truck'?[servedNode+'_truck_straight',servedNode+'_truck_turn',...TRUCK_EXIT_ROUTE]:[servedNode+'_depart',servedNode+'_clear',servedNode+'_merge',...EXIT_ROUTE];
     this.setRoute(vehicle,route,'leaving');

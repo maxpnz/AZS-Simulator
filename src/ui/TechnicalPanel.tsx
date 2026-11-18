@@ -1,3 +1,4 @@
+import { toast } from './Toast';
 import { useMemo, useState } from 'react';
 import type { GameState } from '../game/domain/types';
 import { condition, CONTRACTORS, estimateRepair, LEVELS, TECH_NAMES } from '../game/domain/technical';
@@ -12,10 +13,10 @@ interface Props {state:GameState;engine:GameEngine;focusedId?:string|null;refres
 export function TechnicalPanel({state,engine,focusedId,refresh,onClose,onBack}:Props){
   const tech=state.technical!;
   const [name,setName]=useState('');const [selected,setSelected]=useState('');const [equipmentFilter,setEquipmentFilter]=useState('');
-  const [executorFilter,setExecutorFilter]=useState('');const [period,setPeriod]=useState(Infinity);const [error,setError]=useState('');
+  const [executorFilter,setExecutorFilter]=useState('');const [period,setPeriod]=useState(Infinity);
   const equipment=[...state.station.pumps.map(item=>({item,kind:'pump' as const})),...state.station.tanks.map(item=>({item,kind:'tank' as const}))]
     .filter(({item})=>item.status!=='building').sort((a,b)=>condition(a.item)-condition(b.item));
-  const act=(ok:boolean)=>{if(!ok)setError('Действие недоступно: проверьте состояние объекта, занятость сотрудника и баланс.');else setError('');refresh();};
+  const act=(ok:boolean)=>{toast(ok?'Операция техслужбы выполнена.':'Проверьте состояние объекта, занятость сотрудника и баланс.',ok?'success':'error');refresh();};
   const clock=(seconds:number)=>{const c=getClock(seconds);return `День ${c.day}, ${String(c.hour).padStart(2,'0')}:${String(c.minute).padStart(2,'0')}`;};
   const history=tech.history.filter(h=>(!equipmentFilter||h.equipmentId===equipmentFilter)&&(!executorFilter||h.technicianId===executorFilter||h.executorName===executorFilter)&&(period===Infinity||h.gameSeconds>=state.gameSeconds-period));
   const namesKey=tech.technicians.map(t=>t.name).join('|');
@@ -45,7 +46,7 @@ export function TechnicalPanel({state,engine,focusedId,refresh,onClose,onBack}:P
 </div></div>
       <h3>Журнал ремонтов</h3><div className="tech-filters"><select aria-label="Фильтр оборудования" value={equipmentFilter} onChange={e=>setEquipmentFilter(e.target.value)}><option value="">Все объекты</option>{equipment.map(({item})=><option key={item.id}>{item.id}</option>)}</select><select aria-label="Фильтр исполнителя" value={executorFilter} onChange={e=>setExecutorFilter(e.target.value)}><option value="">Все исполнители</option>{[...new Set(tech.history.map(h=>h.technicianId??h.executorName))].map(id=><option key={id} value={id}>{tech.history.find(h=>(h.technicianId??h.executorName)===id)?.executorName}</option>)}</select><select aria-label="Период журнала" value={period} onChange={e=>setPeriod(Number(e.target.value))}><option value={86400}>День</option><option value={604800}>Неделя</option><option value={2592000}>Месяц</option><option value={Infinity}>Всё время</option></select></div>
       {history.length?history.map(h=><div className="finance-line" key={h.id}><span>{clock(h.gameSeconds)} · {h.equipmentId} · {h.conditionBefore.toFixed(1)}% → 100% · {h.executorName}{h.technicianId?` (${h.technicianId})`:''} · {h.source==='manual'?'ручной':'автоматический'} · {duration(h.durationSeconds)} · запчасти {money(h.partsKopeks)}{h.callKopeks?` · вызов ${money(h.callKopeks)}`:''}</span><b>{money(h.partsKopeks+h.callKopeks)}</b></div>):<p>Завершённых ремонтов нет.</p>}
-      {error&&<p role="alert" className="panel-error">{error}</p>}
+
     </div>
   </section>;
 }

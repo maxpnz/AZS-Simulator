@@ -1,3 +1,4 @@
+import { Toast, toast } from './Toast';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { FUEL_IDS } from '../game/domain/config';
 import type { FuelId } from '../game/domain/types';
@@ -26,28 +27,56 @@ export function App() {
   const [gameState,setGameState]=useState(engine.getState());
   const [fuelOpen,setFuelOpen]=useState(false);
   const [screen,setScreen]=useState<Screen>(null);
-  const [notice,setNotice]=useState(engine.getLoadError()?'Не удалось загрузить сохранение. Исходные данные сохранены; проверьте хранилище браузера.':'');
+
   const [sceneKey,setSceneKey]=useState(0);
   const [cameraVersion,setCameraVersion]=useState(0);
   const [selectedVehicle,setSelectedVehicle]=useState<number|null>(null);
   const [selectedTechnician,setSelectedTechnician]=useState<string|null>(null);
-  const lastTechnicalNotice=useRef(0);
+  const lastTechnicalNotice=useRef(gameState.technical?.noticeId);
+  const constructionJobs=useRef(gameState.station.jobs??[]);
   const manualPause=useUiStore((s)=>s.paused),backgroundPause=useUiStore((s)=>s.backgroundPause),interfacePause=useUiStore((s)=>s.interfacePause),speed=useUiStore((s)=>s.speed);
   const togglePause=useUiStore((s)=>s.togglePause),cycleSpeed=useUiStore((s)=>s.cycleSpeed),resetControls=useUiStore((s)=>s.resetControls);
-  useEffect(()=>{const unsubscribe=engine.subscribeState(setGameState);engine.start();return()=>{unsubscribe();engine.stop();};},[]);
+  useEffect(()=>{if(engine.getLoadError())toast('Не удалось загрузить сохранение. Проверьте хранилище браузера.','error');const unsubscribe=engine.subscribeState(setGameState);engine.start();return()=>{unsubscribe();engine.stop();};},[]);
   useEffect(()=>interactionGate.attach(document),[]);
   useEffect(()=>installWakeLock(),[]);
   useEffect(()=>{
     const technical=gameState.technical;
     if(!technical?.notice||!technical.noticeId||technical.noticeId===lastTechnicalNotice.current)return;
-    lastTechnicalNotice.current=technical.noticeId;setNotice(technical.notice);
-    const timer=window.setTimeout(()=>setNotice(current=>current===technical.notice?'':current),4500);
-    return()=>window.clearTimeout(timer);
+    lastTechnicalNotice.current=technical.noticeId;
+    toast(technical.notice,technical.notice.startsWith('Недостаточно')?'error':technical.notice.includes('заверш')?'success':'info');
   },[gameState.technical?.noticeId]);
+  useEffect(()=>{
+    const current=gameState.station.jobs??[];
+    for(const job of constructionJobs.current){
+      if(!current.some(next=>next.id===job.id))toast(`${job.targetId} · работы завершены.`,'success');
+    }
+    constructionJobs.current=current;
+  },[gameState.station.jobs]);
+  const loadSlot=(slot:number)=>{
+    const ok=engine.loadSlot(slot);
+    if(ok){
+      const loaded=engine.getState();
+      lastTechnicalNotice.current=loaded.technical?.noticeId;
+      constructionJobs.current=loaded.station.jobs??[];
+      setGameState(loaded);
+      setSceneKey(k=>k+1);
+    }
+    return ok;
+  };
+  const resetGame=()=>{
+    engine.reset();
+    resetControls();
+    const state=engine.getState();
+    lastTechnicalNotice.current=state.technical?.noticeId;
+    constructionJobs.current=state.station.jobs??[];
+    setGameState(state);
+    setSceneKey(k=>k+1);
+    toast('Новая игра начата.','success');
+  };
   useLayoutEffect(()=>{interactionGate.transition();},[screen]);
   useEffect(()=>{useUiStore.getState().setInterfacePause(screen!==null);engine.setControls(manualPause||backgroundPause||useUiStore.getState().interfacePause,speed);},[manualPause,backgroundPause,interfacePause,screen,speed]);
   useEffect(()=>{
-    const onVisibility=()=>{const hidden=document.visibilityState==='hidden';const wasHidden=useUiStore.getState().backgroundPause;useUiStore.getState().setBackgroundPause(hidden);engine.setControls(useUiStore.getState().paused||hidden||useUiStore.getState().interfacePause,useUiStore.getState().speed);engine.resetClock();if(hidden)engine.save();else if(wasHidden){setNotice('Симуляция возобновлена после автопаузы');window.setTimeout(()=>setNotice(current=>current==='Симуляция возобновлена после автопаузы'?'':current),3500);}};
+    const onVisibility=()=>{const hidden=document.visibilityState==='hidden';const wasHidden=useUiStore.getState().backgroundPause;useUiStore.getState().setBackgroundPause(hidden);engine.setControls(useUiStore.getState().paused||hidden||useUiStore.getState().interfacePause,useUiStore.getState().speed);engine.resetClock();if(hidden)engine.save();else if(wasHidden){toast('Симуляция возобновлена после автопаузы');}};
     const onHide=()=>{useUiStore.getState().setBackgroundPause(true);engine.setControls(true,useUiStore.getState().speed);engine.save();};
     const onShow=()=>onVisibility();
     document.addEventListener('visibilitychange',onVisibility);window.addEventListener('pagehide',onHide);window.addEventListener('pageshow',onShow);
@@ -64,12 +93,11 @@ export function App() {
       onPause={togglePause} onSpeed={cycleSpeed} onFuel={()=>setFuelOpen(v=>!v)} onFinance={()=>{setFuelOpen(false);setScreen('finances');}} onMenu={()=>{setFuelOpen(false);setScreen(current=>current==='menu'?null:'menu');}} />
     <main className="game-stage" aria-label="Территория АЗС">
       <StationCanvas key={sceneKey} resetCameraVersion={cameraVersion} stationName={gameState.station.name??'АЗС'} pumps={gameState.station.pumps} jobs={gameState.station.jobs??[]} tanks={gameState.station.tanks} deliveries={gameState.deliveries??[]} technical={gameState.technical!} stocks={Object.fromEntries(FUEL_IDS.map(id=>[id,gameState.station.fuels[id].stockMl])) as Record<FuelId,number>} gameSeconds={gameState.gameSeconds} prices={prices} engine={engine}
-        onObject={(id)=>{setNotice('');setScreen(id);}} onVehicle={setSelectedVehicle} onTechnician={id=>{setSelectedTechnician(id);setScreen('technical');}} />
-      {notice&&<div className="section-notice" role="status">{notice}<button type="button" onClick={()=>setNotice('')} aria-label="Закрыть">×</button></div>}
+        onObject={setScreen} onVehicle={setSelectedVehicle} onTechnician={id=>{setSelectedTechnician(id);setScreen('technical');}} />
     </main>
-    {screen==='start'&&<section className="full-screen" role="dialog" aria-label="Стартовый экран"><div className="start-content"><img src="/icon-app-192.png" alt="AZS Simulator" width="128" height="128" /><h1>AZS Simulator</h1><button className="panel-action" onClick={()=>setScreen(null)}>Продолжить игру</button><button className="panel-action" onClick={()=>{if(window.confirm('Начать новую игру? Текущий прогресс будет сброшен.')){engine.reset();resetControls();setGameState(engine.getState());setSceneKey(k=>k+1);setScreen(null);}}}>Новая игра</button></div></section>}
-    {screen==='menu'&&<GameMenu onClose={()=>setScreen(null)} onSection={openSection} onSaveSlot={slot=>engine.saveSlot(slot)} onLoadSlot={slot=>{const ok=engine.loadSlot(slot);if(ok){setGameState(engine.getState());setSceneKey(k=>k+1);}return ok;}} hasSlot={slot=>engine.hasSlot(slot)} onExit={()=>{engine.save();setScreen('start');}} onReset={()=>{engine.reset();engine.setControls(true,1);resetControls();setGameState(engine.getState());setSceneKey(k=>k+1);setNotice('Новая игра начата.');}} />}
-    {screen==='settings'&&<GameMenu settings stationName={gameState.station.name??'АЗС'} onCameraReset={()=>setCameraVersion(n=>n+1)} onStationName={name=>{engine.setStationName(name);setGameState(engine.getState());}} onBack={()=>setScreen('menu')} onClose={()=>setScreen(null)} onSection={openSection} onSaveSlot={slot=>engine.saveSlot(slot)} onLoadSlot={slot=>{const ok=engine.loadSlot(slot);if(ok){setGameState(engine.getState());setSceneKey(k=>k+1);}return ok;}} hasSlot={slot=>engine.hasSlot(slot)} onExit={()=>{engine.save();setScreen('start');}} onReset={()=>{engine.reset();engine.setControls(true,1);resetControls();setGameState(engine.getState());setSceneKey(k=>k+1);setNotice('Новая игра начата.');}} />}
+    {screen==='start'&&<section className="full-screen" role="dialog" aria-label="Стартовый экран"><div className="start-content"><img src="/icon-app-192.png" alt="AZS Simulator" width="128" height="128" /><h1>AZS Simulator</h1><button className="panel-action" onClick={()=>setScreen(null)}>Продолжить игру</button><button className="panel-action" onClick={()=>{if(window.confirm('Начать новую игру? Текущий прогресс будет сброшен.')){resetGame();setScreen(null);}}}>Новая игра</button></div></section>}
+    {screen==='menu'&&<GameMenu onClose={()=>setScreen(null)} onSection={openSection} onSaveSlot={slot=>engine.saveSlot(slot)} onLoadSlot={loadSlot} getSlot={slot=>engine.getSlot(slot)} onExit={()=>{engine.save();setScreen('start');}} onReset={resetGame} />}
+    {screen==='settings'&&<GameMenu settings stationName={gameState.station.name??'АЗС'} onCameraReset={()=>setCameraVersion(n=>n+1)} onStationName={name=>{engine.setStationName(name);setGameState(engine.getState());toast('Название АЗС сохранено.','success');}} onBack={()=>setScreen('menu')} onClose={()=>setScreen(null)} onSection={openSection} onSaveSlot={slot=>engine.saveSlot(slot)} onLoadSlot={loadSlot} getSlot={slot=>engine.getSlot(slot)} onExit={()=>{engine.save();setScreen('start');}} onReset={resetGame} />}
     {screen==='overview'&&<OverviewPanel state={gameState} onClose={()=>setScreen(null)} onBack={()=>setScreen('menu')} />}
     {screen==='finances'&&<FinancePanel state={gameState} onClose={()=>setScreen(null)} onBack={()=>setScreen('menu')} />}
     {(screen==='shop'||screen==='cafe')&&<CommercePanel key={screen} venue={screen} state={gameState} engine={engine} refresh={()=>setGameState(engine.getState())} onClose={()=>setScreen(null)} onBack={()=>setScreen('menu')} onVenue={setScreen} />}
@@ -83,7 +111,6 @@ export function App() {
       onBuildTank={(fuel)=>{const ok=engine.buildTank(fuel);setGameState(engine.getState());return ok;}}
       onUpgradeTank={(id)=>{const ok=engine.upgradeTank(id);setGameState(engine.getState());return ok;}}
       onDelivery={(supplier,cargo)=>{const ok=engine.orderTrip(supplier,cargo);setGameState(engine.getState());return ok;}}
-      onCancelDelivery={id=>{const ok=engine.cancelDelivery(id);setGameState(engine.getState());return ok;}}
       onSetPumpEnabled={(id,enabled)=>{const ok=engine.setPumpEnabled(id,enabled);setGameState(engine.getState());return ok;}}
       onCompetitors={()=>setScreen('competitors')}
       onTechnical={()=>setScreen('technical')} onCommerce={()=>setScreen('shop')}
@@ -91,6 +118,6 @@ export function App() {
       onSellTank={id=>{const ok=engine.sellTank(id);setGameState(engine.getState());return ok;}}
       onBack={()=>setScreen('menu')} onClose={()=>setScreen(null)} />}
     {selectedVehicle!==null&&gameState.vehicles.some(v=>v.id===selectedVehicle)&&<VehiclePanel vehicle={gameState.vehicles.find(v=>v.id===selectedVehicle)!} fuelName={Object.fromEntries(FUEL_IDS.map(id=>[id,gameState.station.fuels[id].name])) as Record<FuelId,string>} prices={prices} customer={gameState.commerce?.customers[selectedVehicle]} onClose={()=>setSelectedVehicle(null)} />}
-    <UpdateNotice />
+    <Toast /><UpdateNotice />
   </div>;
 }

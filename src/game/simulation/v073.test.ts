@@ -1,3 +1,4 @@
+import { GOODS_DRIVE_SECONDS, goodsUnloadSeconds } from '../domain/goodsDelivery';
 import {describe,expect,it} from 'vitest';
 import {StationSimulation} from './StationSimulation';
 import {nearestFuelDeliverySeconds} from '../domain/deliveryMotion';
@@ -9,7 +10,7 @@ describe('v0.7.3 regression checks',()=>{
   it('keeps the shop and cafe facade hit areas disjoint and the exit bays on asphalt',()=>{
     expect(hitTest(600,250)).toBe('shop');
     expect(hitTest(1000,250)).toBe('cafe');
-    expect(PARKING_X).toHaveLength(4);
+    expect(PARKING_X).toHaveLength(5);
     for(const x of PARKING_X)expect(roadContainsPoint(x,740)).toBe(true);
     expect(ROAD_NODES.find(n=>n.id==='entrance')!.x).toBeLessThan(1833);
   });
@@ -34,10 +35,10 @@ describe('v0.7.3 regression checks',()=>{
     sim.station.balanceKopeks=cash;
     const restored=StationSimulation.importSave(sim.exportSave());
     expect(restored.station.balanceKopeks).toBe(sim.station.balanceKopeks);
-    restored.step(7200);
+    restored.step(7200 + 2 * GOODS_DRIVE_SECONDS + goodsUnloadSeconds(restored.commerce.orders[0]));
     expect(restored.commerce.orders[0].status).toBe('delivered');
     expect(restored.commerce.stock.water.quantity).toBe(100);
-    restored.step(7200);
+    restored.step(9600);
     expect(restored.commerce.stock.water.quantity).toBeLessThanOrEqual(100);
     expect(restored.financeEvents.filter(e=>e.kind==='goodsPurchase')).toHaveLength(1);
     for(let i=0;i<1440;i++)restored.step(60);
@@ -54,7 +55,7 @@ describe('v0.7.3 regression checks',()=>{
     old.state.vehicles.push(vehicle as never);
     old.state.commerce!.parking=Array(10).fill(null);old.state.commerce!.parking[4]=987;
     const restored=StationSimulation.importSave(old);
-    expect(restored.commerce.parking).toHaveLength(4);
+    expect(restored.commerce.parking).toHaveLength(10);
     expect(restored.commerce.parking[0]).toBe(987);
     expect(restored.vehicles.find(v=>v.id===987)?.x).toBe(PARKING_X[0]);
     expect(restored.station.balanceKopeks).toBe(sim.station.balanceKopeks);

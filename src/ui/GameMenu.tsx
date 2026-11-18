@@ -1,3 +1,6 @@
+import type { SlotMetadata } from '../game/simulation/GameEngine';
+import { getClock } from '../game/simulation/time';
+import { toast } from './Toast';
 import { useState } from 'react';
 import { Icon } from './Icon';
 import { version as currentVersion } from '../../package.json';
@@ -6,8 +9,9 @@ import menuStationArt from '../assets/menu-station-v072.webp';
 import commerceArt from '../assets/commerce-interior-v072.webp';
 import workshopArt from '../assets/workshop-v072.webp';
 import priceSignArt from '../assets/v025/price-sign.webp';
-interface Props { onClose:()=>void; onSection:(name:string)=>void; onReset:()=>void; settings?:boolean; onBack?:()=>void; stationName?:string; onStationName?:(value:string)=>void;onCameraReset?:()=>void;onSaveSlot?:(slot:number)=>boolean;onLoadSlot?:(slot:number)=>boolean;hasSlot?:(slot:number)=>boolean;onExit?:()=>void }
-export function GameMenu({onClose,onSection,onReset,settings=false,onBack,stationName='АЗС',onStationName,onCameraReset,onSaveSlot,onLoadSlot,hasSlot,onExit}:Props){
+interface Props { onClose:()=>void; onSection:(name:string)=>void; onReset:()=>void; settings?:boolean; onBack?:()=>void; stationName?:string; onStationName?:(value:string)=>void;onCameraReset?:()=>void;onSaveSlot?:(slot:number)=>boolean;onLoadSlot?:(slot:number)=>boolean;getSlot?:(slot:number)=>SlotMetadata|null;onExit?:()=>void }
+export function GameMenu({onClose,onSection,onReset,settings=false,onBack,stationName='АЗС',onStationName,onCameraReset,onSaveSlot,onLoadSlot,getSlot,onExit}:Props){
+  const [,refreshSlots]=useState(0);
   const [confirmReset,setConfirmReset]=useState(false);
   const [draftName,setDraftName]=useState(stationName);
   return <section className="full-screen" role="dialog" aria-label={settings?'Настройки':'Главное меню'}>
@@ -20,7 +24,28 @@ export function GameMenu({onClose,onSection,onReset,settings=false,onBack,statio
         </form></div>
       <div className="settings-card"><h3>Управление камерой</h3><p>Сдвигайте сцену одним пальцем или мышью. Масштабируйте двумя пальцами или колесом мыши.</p><button type="button" className="panel-action" onClick={onCameraReset}>Сброс камеры</button></div>
       <div className="settings-card"><h3>Версия</h3><p>v{currentVersion}</p></div>
-      <div className="settings-card"><h3>Прогресс</h3><div className="slot-grid">{[1,2,3].map(slot=><div key={slot}><strong>Слот {slot}</strong><button type="button" onClick={()=>onSaveSlot?.(slot)}>Сохранить</button><button type="button" disabled={!hasSlot?.(slot)} onClick={()=>{if(window.confirm(`Загрузить слот ${slot}? Текущая игра будет заменена.`))onLoadSlot?.(slot);}}>Загрузить</button></div>)}</div><button type="button" className="menu-reset" onClick={()=>setConfirmReset(true)}>Сбросить прогресс</button></div>
+      <div className="settings-card"><h3>Прогресс</h3><div className="slot-grid">{[1,2,3].map(slot=>{
+        const metadata=getSlot?.(slot);
+        const clock=metadata?getClock(metadata.gameSeconds):null;
+        return <article className="save-slot" key={slot}>
+          <strong>Слот {slot}</strong>
+          {metadata&&clock?<><b>{metadata.name}</b><small>День {clock.day} · {String(clock.hour).padStart(2,'0')}:{String(clock.minute).padStart(2,'0')}</small><small>{metadata.savedAt===undefined?'Время неизвестно':new Date(metadata.savedAt).toLocaleString('ru-RU')}</small></>:<small>Пустой слот</small>}
+          <div className="save-slot-actions">
+            <button className="panel-action" type="button" onClick={()=>{
+              if(metadata&&!window.confirm(`Перезаписать слот ${slot}?`))return;
+              const ok=onSaveSlot?.(slot);
+              if(ok)refreshSlots(n=>n+1);
+              toast(ok?`Игра сохранена в слот ${slot}.`:'Не удалось записать сохранение.',ok?'success':'error');
+            }}>Сохранить</button>
+            <button className="panel-action" type="button" disabled={!metadata} onClick={()=>{
+              if(!window.confirm(`Загрузить слот ${slot}? Текущая игра будет заменена.`))return;
+              const ok=onLoadSlot?.(slot);
+              if(ok)setDraftName(getSlot?.(slot)?.name??'АЗС');
+              toast(ok?`Слот ${slot} загружен.`:'Не удалось загрузить сохранение.',ok?'success':'error');
+            }}>Загрузить</button>
+          </div>
+        </article>;
+      })}</div><button type="button" className="menu-reset" onClick={()=>setConfirmReset(true)}>Сбросить прогресс</button></div>
       {confirmReset&&<div className="reset-dialog" role="alertdialog" aria-label="Подтверждение сброса"><h3>Начать новую игру?</h3><p>Деньги, объекты, топливо, статистика и сохранение будут заменены начальным состоянием.</p><div><button type="button" onClick={()=>setConfirmReset(false)}>Отмена</button><button type="button" className="menu-reset" onClick={()=>{onReset();setConfirmReset(false);onClose();}}>Сбросить</button></div></div>}
     </div></div>:<><div className="menu-hero" style={{backgroundImage:`linear-gradient(90deg,#06131dee 0%,#06131dbb 34%,#06131d05 75%),url(${menuStationArt})`}}><div><span>УПРАВЛЕНИЕ АЗС</span><h3>АЗС <em>Simulator</em></h3><p>Выберите раздел станции</p></div></div><div className="menu-grid">{([['Обзор','Продажи, трафик и остатки','chart'],['Цены','Розничные цены на стеле','tag'],['Конкуренты','Цены и наличие топлива на рынке','traffic'],['Техническая служба','Ремонт, техники и журнал','tasks'],['Магазин','Товары, закупки и склад','home'],['Кафе','Напитки, выпечка и закупки','home'],['Настройки','Управление и версия','settings']] as const).map(([name,description,icon],index)=><button type="button" key={name} onClick={()=>onSection(name)} className={`menu-tile menu-tile-${index}`}><img className="menu-tile-photo" src={[menuStationArt,priceSignArt,menuStationArt,workshopArt,commerceArt,'/app-icon.png'][index]} alt="" /><span className="menu-tile-art"><Icon name={icon}/></span><span className="menu-tile-copy"><strong>{name}</strong><small>{description}</small></span><span className="menu-tile-arrow" aria-hidden="true">↗</span></button>)}</div></>}{!settings&&<button type="button" className="panel-action menu-exit-button" onClick={()=>{if(window.confirm('Сохранить игру и выйти на стартовый экран?'))onExit?.();}}>Выход из игры</button>}</div>
   </section>;
