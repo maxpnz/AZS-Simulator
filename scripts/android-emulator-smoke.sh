@@ -28,24 +28,48 @@ for dimensions in 1280x720 800x400; do
   adb shell am force-stop "$package" || true
   adb shell am start -n "$package/.MainActivity"
   sleep 12
-  # Android shows a one-time immersive-mode tutorial over the first launch.
-  if [ "$dimensions" = 1280x720 ]; then
-    adb shell input tap 930 285
-    sleep 4
-  fi
-  adb exec-out screencap -p > "artifacts/android-smoke/scene-${dimensions}.png"
-  adb shell pidof "$package"
-  test -s "artifacts/android-smoke/scene-${dimensions}.png"
+  # Android can show its one-time immersive-mode tutorial after the activity
+  # has started. Wait for a real scene before testing any in-game touch target.
+  for attempt in 1 2 3 4; do
+    adb exec-out screencap -p > "artifacts/android-smoke/scene-${dimensions}.png"
   scene_bytes=$(stat -c%s "artifacts/android-smoke/scene-${dimensions}.png")
+    if [ "$scene_bytes" -gt 100000 ]; then break; fi
+    echo "System overlay still visible at ${dimensions}; dismiss attempt ${attempt}" >&2
+    if [ "$attempt" -eq 1 ]; then
+      adb shell input keyevent KEYCODE_ENTER
+    else
+      adb shell input tap 930 285
+    fi
+    sleep 3
+  done
+  adb shell pidof "$package"
+  test "$scene_bytes" -gt 100000
   for attempt in 1 2; do
     adb shell input tap "$((width - 48))" 44
     sleep 4
     adb exec-out screencap -p > "artifacts/android-smoke/menu-${dimensions}.png"
-    menu_bytes=$(stat -c%s "artifacts/android-smoke/menu-${dimensions}.png")
-    if [ "$menu_bytes" -lt "$((scene_bytes * 85 / 100))" ]; then break; fi
+    if .venv-smoke/bin/python - "artifacts/android-smoke/scene-${dimensions}.png" "artifacts/android-smoke/menu-${dimensions}.png" <<'PY'
+from PIL import Image, ImageChops, ImageStat
+import sys
+
+scene = Image.open(sys.argv[1]).convert('RGB')
+menu = Image.open(sys.argv[2]).convert('RGB')
+mean_change = sum(ImageStat.Stat(ImageChops.difference(scene, menu)).mean) / 3
+print(f'Menu screen mean pixel change: {mean_change:.2f}')
+sys.exit(0 if mean_change > 15 else 1)
+PY
+    then break; fi
     echo "Menu not visible at ${dimensions} after tap ${attempt}; retrying" >&2
   done
-  test "$menu_bytes" -lt "$((scene_bytes * 85 / 100))"
+  .venv-smoke/bin/python - "artifacts/android-smoke/scene-${dimensions}.png" "artifacts/android-smoke/menu-${dimensions}.png" <<'PY'
+from PIL import Image, ImageChops, ImageStat
+import sys
+
+scene = Image.open(sys.argv[1]).convert('RGB')
+menu = Image.open(sys.argv[2]).convert('RGB')
+mean_change = sum(ImageStat.Stat(ImageChops.difference(scene, menu)).mean) / 3
+assert mean_change > 15, f'menu not visible: mean pixel change {mean_change:.2f}'
+PY
   adb shell input keyevent KEYCODE_BACK || true
   sleep 1
 done
