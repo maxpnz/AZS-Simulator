@@ -61,8 +61,11 @@ image = Image.open(sys.argv[1]).convert('RGB')
 rgb = image.getpixel((image.width // 2, image.height // 3))
 assert not (min(rgb) > 200 and max(rgb) - min(rgb) < 30), 'system tutorial covers the game'
 PY
-  for attempt in 1 2; do
-    adb shell input tap "$((width - 48))" 44
+  # Edge gestures can swallow taps near the top/right border in immersive mode.
+  # Probe several points inside the same visible menu button.
+  for point in "$((width - 60)) 65" "$((width - 70)) 50" "$((width - 48)) 44"; do
+    read -r tap_x tap_y <<< "$point"
+    adb shell input tap "$tap_x" "$tap_y"
     sleep 4
     adb exec-out screencap -p > "artifacts/android-smoke/menu-${dimensions}.png"
     if .venv-smoke/bin/python - "artifacts/android-smoke/scene-${dimensions}.png" "artifacts/android-smoke/menu-${dimensions}.png" <<'PY'
@@ -76,7 +79,7 @@ print(f'Menu screen mean pixel change: {mean_change:.2f}')
 sys.exit(0 if mean_change > 15 else 1)
 PY
     then break; fi
-    echo "Menu not visible at ${dimensions} after tap ${attempt}; retrying" >&2
+    echo "Menu not visible at ${dimensions} after tap ${tap_x},${tap_y}; retrying" >&2
   done
   .venv-smoke/bin/python - "artifacts/android-smoke/scene-${dimensions}.png" "artifacts/android-smoke/menu-${dimensions}.png" <<'PY'
 from PIL import Image, ImageChops, ImageStat
