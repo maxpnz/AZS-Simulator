@@ -4,6 +4,7 @@ import { TankManagement } from './TankManagement';
 import { formatPriceDifference, priceDifference, priceDifferenceClass } from './priceComparison';
 import pumpImage from '../assets/v027/pump-front-v072.webp';
 import tankerImage from '../assets/v030-tanker-v072.webp';
+import { nearestFuelDeliverySeconds } from '../game/domain/deliveryMotion';
 import { marketOffer, nefteoptDiscount, NEFTEOPT, SUPPLIERS } from '../game/domain/market';
 import type { FuelId, GameState, Vehicle } from '../game/domain/types';
 import type { ObjectId } from './scene/createStationScene';
@@ -35,6 +36,11 @@ export function ObjectPanel({id,state,prices,vehicles,onPrice,onBuildPump,onUpgr
   const [submitting,setSubmitting]=useState(false);
   const submittingRef=useRef(false);
   const [channels,setChannels]=useState<FuelId[]>(()=>[...(pump?.fuels??[])]);
+  const pumpSales=pump?(state.financeEvents??[]).filter(event=>event.kind==='sale'&&event.objectId===pump.id):[];
+  const pumpVolume=pumpSales.reduce((sum,event)=>sum+(event.volumeMl??0),0);
+  const pumpRevenue=pumpSales.reduce((sum,event)=>sum+event.amountKopeks,0);
+  const today=Math.floor(state.gameSeconds/86400);
+  const todayPumpSales=pumpSales.filter(event=>Math.floor(event.gameSeconds/86400)===today);
   const serving=pump?vehicles.find(v=>v.pumpId===pump.id&&(v.status==='fueling'||v.status==='finishing')):undefined;
   const pumpBusy=pump?vehicles.some(v=>v.pumpId===pump.id&&['entering','queued','toPump','fueling','finishing','leaving'].includes(v.status)):false;
   const activeFuels=FUEL_IDS.filter(f=>station.tanks.some(t=>t.fuel===f&&t.status==='active'&&condition(t)>0&&!state.technical?.tasks.some(job=>job.equipmentId===t.id&&job.blocked!==false)));
@@ -67,7 +73,7 @@ export function ObjectPanel({id,state,prices,vehicles,onPrice,onBuildPump,onUpgr
   const act=(success:boolean,message:string)=>{if(success){setNotice(message);setError('');}else setError('Действие недоступно: проверьте баланс, занятость, вместимость и наличие бригады.');};
   return <section className="full-screen" role="dialog" aria-label={name}>
     <header className="screen-header"><button type="button" onClick={onBack}>← Меню</button><div><h2>{name}</h2><small>АЗС Simulator · v{currentVersion}</small></div><button type="button" onClick={onClose} aria-label="Вернуться к игре">×</button></header>
-    <div className="screen-content object-panel">
+    <div className={`screen-content object-panel object-${id}`}>
     {id==='price-sign'&&<div className="price-screen-layout">
       <div className="price-sign-visual"><div className="sign-heading">АЗС</div>{FUEL_IDS.map(f=><div key={f}><span>{station.fuels[f].name}</span><strong>{(prices[f]/100).toFixed(2)}</strong></div>)}</div>
       <div className="price-cards"><p>Цены обновляются сразу. При отсутствии доступного топлива значение на сцене гаснет.</p>
@@ -82,8 +88,9 @@ export function ObjectPanel({id,state,prices,vehicles,onPrice,onBuildPump,onUpgr
         <button type="button" className="panel-action" disabled={pumpBusy||pump.status!=='ready'||!!state.technical?.tasks.find(t=>t.equipmentId===pump.id&&t.paid)} onClick={()=>{const amount=resaleKopeks(pump);if(window.confirm(`Продать ТРК за ${rubles(amount)}? Ожидающие автомобили могут уехать без заправки.`))act(onSellPump(pump.id),`ТРК продана за ${rubles(amount)}.`);}}>Продать ТРК · {rubles(resaleKopeks(pump))}</button></div>}
       <p>Опора {Math.floor(slot/2)+1}, {slot%2?'правая':'левая'} сторона · место {slot+1} из 10.</p>
       {pump?<>
+        <p>Сегодня: {litres(todayPumpSales.reduce((sum,event)=>sum+(event.volumeMl??0),0),1)} · {rubles(todayPumpSales.reduce((sum,event)=>sum+event.amountKopeks,0))}. Всего по журналу: {litres(pumpVolume,1)} · {rubles(pumpRevenue)}.</p>
         <p>Состояние: {pump.status==='building'?'строится':pump.status==='upgrading'?'модернизируется':'готова'}.
-          Каналы: {pump.fuels.map(f=>station.fuels[f].name).join(', ')||'не подключены'}. Производительность ×{(pump.flowMultiplier??1).toFixed(1)}.</p>
+          Каналы: {pump.fuels.map(f=>`${station.fuels[f].name} — ${station.tanks.filter(t=>t.fuel===f).map(t=>t.id).join(', ')||'нет резервуара'}`).join('; ')||'не подключены'}. Производительность ×{(pump.flowMultiplier??1).toFixed(1)}.</p>
         {serving&&<div className="pump-readout"><span>Фаза: {serving.status==='finishing'?'Завершение':serving.servicePhase==='preparing'?'Подготовка':'Заправка'}</span><span>Литры: {litres(serving.deliveredMl,2)}</span><span>Стоимость: {rubles(serving.chargedKopeks)}</span>
           <span>Цена: {rubles(serving.salePriceKopeks)}/л</span></div>}
         {!serving&&<p>{pump.lastDisplayMl&&pump.lastDisplayMl>0?`Последняя выдача: ${litres(pump.lastDisplayMl,2)} · ${rubles(pump.lastDisplayKopeks??0)}`:'Данных о последней выдаче нет'}</p>}
@@ -112,7 +119,7 @@ export function ObjectPanel({id,state,prices,vehicles,onPrice,onBuildPump,onUpgr
       {orderProblem&&<p className="panel-error" role="status">{orderProblem}</p>}
       <p>Стоимость заказа: <strong>{rubles(orderCost)}</strong>{bulk&&<> · скидка <strong>{Math.round(discount*100)}%</strong> от базовой оптовой цены</>} · Доступный баланс: <strong>{rubles(station.balanceKopeks)}</strong></p>
       <button type="button" className="panel-action" disabled={!validCargo||submitting} onClick={()=>{if(submittingRef.current)return;submittingRef.current=true;setSubmitting(true);if(!window.confirm(`Заказать у ${SUPPLIERS.find(s=>s.id===supplierId)?.name} ${cargoEntries.map(([f,n])=>`${station.fuels[f].name} ${n} л`).join(', ')} за ${rubles(orderCost)}? Прибытие примерно через ${Math.round((offerFor(chosenFuel)?.etaGameSeconds??0)/60)} игровых минут.`)){submittingRef.current=false;setSubmitting(false);return;}const ok=onDelivery(supplierId,cargoEntries.map(([fuel,amount])=>({fuel,litres:amount})));act(ok,'Поставка заказана.');if(!ok){submittingRef.current=false;setSubmitting(false);}}}>Заказать бензовоз · {rubles(orderCost)}</button>
-      <p>{(state.deliveries??[]).some(d=>d.status==='unloading')?'Бензовоз на разгрузке':(state.deliveries??[]).some(d=>d.status==='enroute')?`До ближайшего прибытия: ${Math.max(0,Math.ceil((Math.min(...(state.deliveries??[]).filter(d=>d.status==='enroute').map(d=>d.arrivalGameSeconds))-state.gameSeconds)/60))} игровых мин`:'Поставок нет'}</p>
+      <p>{nearestFuelDeliverySeconds(state.deliveries??[],state.gameSeconds)===null?'ПОСТАВОК НЕТ':`Бензовоз через ${Math.ceil(nearestFuelDeliverySeconds(state.deliveries??[],state.gameSeconds)!/60)} игровых мин`}{(state.deliveries??[]).some(d=>d.status==='unloading')?' · идёт разгрузка':''}</p>
       {state.deliveries?.map(d=><p key={d.id}>Заказ №{d.id.split('-').at(-1)} · {SUPPLIERS.find(s=>s.id===d.supplierId)?.name??'Поставка'} · {Object.entries(d.cargo).map(([f,ml])=>`${station.fuels[f as FuelId].name} ${litres(ml??0,0)}`).join(', ')} · {{enroute:'в пути',waiting:'ожидает площадку',approaching:'подъезжает',connecting:'подключает рукав',unloading:'разгрузка',disconnecting:'отключает рукав',leaving:'выезжает'}[d.status??'enroute']} · прибытие: день {Math.floor(d.arrivalGameSeconds/86400)+1}, {String(Math.floor(d.arrivalGameSeconds%86400/3600)).padStart(2,'0')}:{String(Math.floor(d.arrivalGameSeconds%3600/60)).padStart(2,'0')} · осталось {litres(d.remainingMl??0,0)}</p>)}
     </>}
     {id==='expansion'&&<><p>Две строительные бригады. Новые ТРК приобретаются через пустые монтажные места под навесом; резервуары — через карточку люков.</p>

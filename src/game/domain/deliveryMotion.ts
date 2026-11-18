@@ -11,3 +11,9 @@ export function deliveryPose(trip:DeliveryTrip):{x:number;y:number;angle:number}
   const angle=progress<.72?-Math.PI/2:progress<.78?-Math.PI/2-(progress-.72)/.06*Math.PI/2:-Math.PI;
   return {x,y,angle};
 }
+
+/** Remaining game seconds until the first outstanding tanker reaches the station. */
+export function nearestFuelDeliverySeconds(deliveries:readonly DeliveryTrip[],gameSeconds:number):number|null {
+  const arrivals=deliveries.filter(d=>d.status==='enroute').map(d=>d.arrivalGameSeconds);
+  return arrivals.length?Math.max(0,Math.min(...arrivals)-gameSeconds):null;
+}

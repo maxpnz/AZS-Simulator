@@ -259,3 +259,30 @@ button:focus-visible{outline:2px solid #8cb8ff;outline-offset:2px}
 .tank-empty p{max-width:500px;margin:0 0 15px;color:#c6d8d4}
 .tank-empty .panel-action{width:auto;padding:0 18px}
 @media(max-height:500px){.tank-empty{min-height:160px;margin:10px auto;padding:15px}.tank-empty img{width:110px;height:110px}.tank-empty h3{font-size:20px}}
+
+.game-brand{min-width:165px}.game-brand>span{font-size:17px;font-weight:900;white-space:nowrap}.brand-logo{width:40px;height:40px;object-fit:contain}.brand-version{margin-left:0}.venue-products small{color:#bed3d1;font-size:11px}@media(max-width:1050px){.game-brand{min-width:58px}.game-brand>span{display:none}.brand-logo{width:36px;height:36px}}
+
+/* v0.7.3: station control screens use the wide landscape workspace. */
+.full-screen{background:radial-gradient(circle at 50% 0%,#0d3435 0%,#061820 52%,#04121a 100%)}
+.screen-header{border-bottom:1px solid #57b6af;background:linear-gradient(180deg,#073139,#061920);box-shadow:0 5px 26px #00dcb31f}
+.overview-sections{display:flex;flex-direction:column;max-width:1550px;gap:12px}
+.overview-section{padding:12px 16px;box-shadow:inset 0 1px #b6ffe01b,0 0 15px #00ff6630}
+.overview-section h3{font-size:22px}
+.overview-section .overview-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:0}
+.overview-section .overview-grid>div{min-height:94px;padding:12px 20px;border:1px solid #60bdae;border-radius:13px;background:linear-gradient(115deg,#10353d,#052329)}
+.overview-section .overview-grid strong{font-size:36px}
+.overview-section .overview-grid span{font-size:17px;color:#eef4ec}
+.overview-note{max-width:1550px!important}
+.competitors-panel{max-width:1600px}.competitor-table table{font-size:17px}.competitor-table th,.competitor-table td{padding:13px 12px}.competitor-table small{font-size:13px}
+.commerce-content .venue-hero{max-width:1600px;min-height:170px;background-position:center;background-size:cover;box-shadow:0 0 20px #00ff6630}
+.commerce-content .venue-hero.cafe{background-position:right center}.commerce-content .venue-hero.shop{background-position:left center}
+.commerce-content .venue-hero h3{font-size:40px}.commerce-content .venue-products{max-width:1600px;gap:14px}
+.commerce-content .venue-products>div{min-height:125px;align-content:center;padding:18px;border-color:#55bba0;background:linear-gradient(140deg,#0d3834,#07232b);box-shadow:0 0 15px #00ff6620}
+.commerce-content .venue-products strong{font-size:22px}.commerce-content .venue-products span{font-size:19px;font-weight:800}
+.object-delivery .supplier-grid{max-width:1600px;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.object-delivery .supplier-grid button{min-height:170px;padding:12px 17px;font-size:17px}
+.object-delivery .supplier-grid strong{font-size:20px}.object-delivery .supplier-grid span{font-weight:800;color:#ffe563}
+.object-delivery .delivery-section{display:inline-grid;vertical-align:top;width:calc((100% - 44px)/3);max-width:none!important;min-height:180px;margin:8px 5px;padding:14px}
+.object-delivery .order-steps{max-width:1600px!important}.object-delivery>p{max-width:1600px!important}
+@media(max-width:900px){.overview-section .overview-grid strong{font-size:24px}.overview-section .overview-grid span{font-size:12px}.overview-section .overview-grid>div{min-height:70px;padding:8px}.object-delivery .supplier-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.object-delivery .delivery-section{width:calc((100% - 26px)/2)}}
+@media(max-width:600px){.overview-section .overview-grid{grid-template-columns:1fr}.overview-section .overview-grid>div{min-height:48px}.commerce-content .venue-products{grid-template-columns:repeat(2,minmax(0,1fr))}.object-delivery .supplier-grid{grid-template-columns:1fr}.object-delivery .delivery-section{width:100%;margin:8px 0}}

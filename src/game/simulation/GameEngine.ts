@@ -70,7 +70,7 @@ export class GameEngine {
     const old=localStorage.getItem('azs-simulator-save');
     if(old)try{
       const version=/^\s*\{\s*"version"\s*:\s*"([^"]+)"/.exec(old)?.[1]??(JSON.parse(old) as {version?:string}).version;
-      const backup=version==='0.4.0'?'azs-simulator-save-v04-backup':version==='0.5.0'?'azs-simulator-save-v05-backup':version==='0.5.1'?'azs-simulator-save-v051-backup':version==='0.5.2'?'azs-simulator-save-v052-backup':version==='0.6.0'?'azs-simulator-save-v06-backup':undefined;
+      const backup=version==='0.4.0'?'azs-simulator-save-v04-backup':version==='0.5.0'?'azs-simulator-save-v05-backup':version==='0.5.1'?'azs-simulator-save-v051-backup':version==='0.5.2'?'azs-simulator-save-v052-backup':version==='0.6.0'?'azs-simulator-save-v06-backup':version==='0.7.0'?'azs-simulator-save-v07-backup':undefined;
       if(backup&&!localStorage.getItem(backup))localStorage.setItem(backup,old);
     }catch{/* damaged previous save */}
     const next=this.exportSave();

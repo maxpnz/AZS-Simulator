@@ -40,7 +40,7 @@ jobs:
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'platforms;android-36' 'build-tools;36.0.0'
       - run: npm ci
       - run: npm run typecheck
-      - run: npm test
+      - run: npm test -- --maxWorkers=4
       - name: Sync game into Android project
         run: npm run android:sync
         env:

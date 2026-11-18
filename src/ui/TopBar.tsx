@@ -21,10 +21,9 @@ interface Props {
   onFuel: () => void;
   onMenu: () => void;
   onFinance: () => void;
-  onSettings: () => void;
 }
 
-export function TopBar({ clock, time, station, queueCount, paused, speed, fuelOpen, onPause, onSpeed, onFuel, onMenu, onFinance, onSettings }: Props) {
+export function TopBar({ clock, time, station, queueCount, paused, speed, fuelOpen, onPause, onSpeed, onFuel, onMenu, onFinance }: Props) {
   const totalFuel = station.tanks.reduce((total, tank) => total + tank.stockMl / 1000, 0);
   const fuelWrap = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -37,7 +36,7 @@ export function TopBar({ clock, time, station, queueCount, paused, speed, fuelOp
   return (
     <header className="game-topbar">
       <div className="game-brand" aria-label={`АЗС Simulator версия ${currentVersion}`}>
-        <img className="brand-logo" src="/hud-logo.svg" alt="" width="112" height="40" />
+        <img className="brand-logo" src="/icon-app-192.png" alt="" width="40" height="40" /><span>AZS Simulator</span>
         <small className="brand-version">v{currentVersion}</small>
       </div>
       <div className="top-chip day-chip"><Icon name="calendar" /><span>День {clock.day} · {['Пн','Вт','Ср','Чт','Пт','Сб','Вс'][(clock.day-1)%7]}</span></div>
@@ -55,7 +54,7 @@ export function TopBar({ clock, time, station, queueCount, paused, speed, fuelOp
         </button>
         {fuelOpen && <div id="fuel-popover" className="fuel-popover" role="region" aria-label="Остатки топлива">
           <div className="popover-title"><Icon name="fuel" /> Топливо в резервуарах <button type="button" onClick={onFuel} aria-label="Закрыть остатки топлива"><Icon name="close" /></button></div>
-          {FUEL_IDS.map((fuel) => {
+          {FUEL_IDS.filter(fuel=>station.tanks.some(t=>t.fuel===fuel)).map((fuel) => {
             const tanks=station.tanks.filter(t=>t.fuel===fuel);
             const amount=tanks.reduce((sum,t)=>sum+t.stockMl,0),capacity=tanks.reduce((sum,t)=>sum+t.capacityMl,0);
             const percent=capacity>0?Math.round(amount/capacity*100):0;
@@ -69,7 +68,6 @@ export function TopBar({ clock, time, station, queueCount, paused, speed, fuelOp
       </div>
       <button type="button" className="top-chip money-chip" onClick={onFinance} aria-label="Открыть финансы АЗС"><Icon name="wallet" /><strong>{rubles.format(station.balanceKopeks / 100)}</strong></button>
       <div className="top-chip pumps-chip" title="Занято монтажных мест"><Icon name="pumps" /><strong>{station.pumps.length}/10</strong></div>
-      <button type="button" className="menu-trigger settings-trigger" onClick={onSettings} aria-label="Настройки"><Icon name="settings" /></button>
       <button type="button" className="menu-trigger" onClick={onMenu} aria-label="Открыть меню"><Icon name="menu" /></button>
     </header>
   );

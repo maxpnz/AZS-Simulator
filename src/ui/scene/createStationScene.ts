@@ -2,14 +2,14 @@ import { Assets, Container, Graphics, Sprite, Text, TilingSprite, type Texture }
 import type { ConstructionJob, DeliveryTrip, FuelId, FuelTank, Pump, Vehicle } from '../../game/domain/types';
 import { PUMP_SLOTS, WORLD_OBSTACLES } from '../../game/domain/world';
 import { PARKING_X, pumpQueuePoint, ROAD_SURFACE_POLYGONS, ROAD_SURFACE_RECTS } from '../../game/domain/roadNetwork';
-import { deliveryPose } from '../../game/domain/deliveryMotion';
+import { deliveryPose, nearestFuelDeliverySeconds } from '../../game/domain/deliveryMotion';
 import { FUEL_IDS } from '../../game/domain/config';
 import { getHour } from '../../game/simulation/time';
 import { connectedPumpChannels, DELIVERY_PAD, FUEL_COLORS, FUEL_HATCH_SIZE, PUMP_ISLANDS, pumpChannelX, pumpNozzlePoint, priceSignRows, TANK_PAD, tankHatchPoint, vehicleFillerPoint } from '../../game/domain/stationGeometry';
 import { createVehicleVisual, type VehicleVisual } from './vehicleSprite';
 import grassUrl from '../../assets/v025/grass.webp';
 import asphaltUrl from '../../assets/v025/asphalt.webp';
-import storeUrl from '../../assets/v025/store-v072.webp';
+import storeUrl from '../../assets/v025/store-v073.png';
 import canopyUrl from '../../assets/v025/canopy-v072.webp';
 import pumpUrl from '../../assets/v027/pump-front-v072.webp';
 import flowerbedUrl from '../../assets/v025/flowerbed.webp';
@@ -22,11 +22,11 @@ import type { TechnicalState } from '../../game/domain/technical';
 import { setVehicleTextures } from './vehicleSprite';
 
 export const SCENE_WIDTH=2000, SCENE_HEIGHT=1200;
-export type ObjectId='price-sign'|'tank'|'shop'|'delivery'|'expansion'|`pump-${number}`|`slot-${number}`;
+export type ObjectId='price-sign'|'tank'|'shop'|'cafe'|'delivery'|'expansion'|`pump-${number}`|`slot-${number}`;
 export interface Hotspot { id:ObjectId; polygon:readonly [number,number][] }
 const box=(id:ObjectId,x:number,y:number,w:number,h:number):Hotspot=>({id,polygon:[[x,y],[x+w,y],[x+w,y+h],[x,y+h]]});
 export const HOTSPOTS:readonly Hotspot[]=[
-  box('price-sign',115,205,185,355),box('tank',TANK_PAD.x,TANK_PAD.y,TANK_PAD.width,TANK_PAD.height),box('shop',475,95,670,280),
+  box('price-sign',115,205,185,355),box('tank',TANK_PAD.x,TANK_PAD.y,TANK_PAD.width,TANK_PAD.height),box('shop',475,95,335,280),box('cafe',810,95,335,280),
   box('delivery',DELIVERY_PAD.x,DELIVERY_PAD.y,DELIVERY_PAD.width,DELIVERY_PAD.height),box('expansion',1050,380,230,70),
   ...PUMP_SLOTS.map((slot)=>box(`slot-${slot.slot}`,slot.x-34,slot.y-68,68,94)),
 ];
@@ -53,16 +53,16 @@ const SEGMENTS:Record<string,readonly number[]>={
 function drawLed(g:Graphics,value:string,y:number):void {
   g.clear();
   const digits=value.replace('.','');
-  const left=72-digits.length*16;
+  const left=digits.length===4?3:72-digits.length*16;
   for(let i=0;i<digits.length;i++){
-    const x=left+i*16,active=SEGMENTS[digits[i]]??[];
+    const x=left+i*16+(value.includes('.')&&i>=2?8:0),active=SEGMENTS[digits[i]]??[];
     const parts:readonly [number,number,number,number][]=[
       [2,0,10,2.5],[12,2,2.5,9],[12,13,2.5,9],[2,22,10,2.5],
       [0,13,2.5,9],[0,2,2.5,9],[2,11,10,2.5],
     ];
     parts.forEach(([px,py,w,h],segment)=>g.roundRect(x+px,y-12+py,w,h,1).fill(active.includes(segment)?0x39ff65:0x17382b));
   }
-  if(value.includes('.'))g.circle(left+(digits.length-2)*16-3,y+10,2).fill(0x39ff65);
+  if(value.includes('.'))g.circle(left+35,y+9,3.4).fill(0x39ff65);
 }
 function shape(root:Container,draw:(g:Graphics)=>void) {const g=new Graphics();draw(g);root.addChild(g);return g;}
 function asphalt(root:Container,x:number,y:number,w:number,h:number) {shape(root,g=>g.rect(x,y,w,h).fill(0x38444a).rect(x,y,w,4).fill({color:0x718087,alpha:.34}));}
@@ -147,8 +147,10 @@ export async function createStationScene(initialPumps:readonly Pump[]):Promise<S
   shape(ground,g=>g.rect(275,565,1540,9).fill(0xb8bbb1)
     .rect(0,896,50,4).fill(0xa9afa5).rect(300,896,1380,4).fill(0xa9afa5)
     .rect(1940,896,60,4).fill(0xa9afa5));
+  const parkingLayer=new Container();ground.addChild(parkingLayer);
   const markingLayer=new Container();ground.addChild(markingLayer);
-  PARKING_X.forEach((x,i)=>{shape(markingLayer,g=>g.moveTo(x-35,414).lineTo(x-35,515).lineTo(x+35,515).lineTo(x+35,414).stroke({color:0xdce5d7,width:2,alpha:.7}));markingLayer.addChild(label(`P${i+1}`,x,431,11,0xf4f5e9));});
+  PARKING_X.forEach((x,i)=>{shape(parkingLayer,g=>g.moveTo(x-32,713).lineTo(x-32,781).lineTo(x+32,781).lineTo(x+32,713).stroke({color:0xf1f5ed,width:3,alpha:.95}));parkingLayer.addChild(label(`P${i+1}`,x,724,12,0xf4f5e9));});
+  shape(parkingLayer,g=>g.roundRect(294,720,34,34,5).fill(0x1474a5).stroke({color:0xffffff,width:2}));parkingLayer.addChild(label('P',311,737,24,0xffffff));
   for(const x of [350,1860]) ground.addChild(label(x<1000?'ВЫЕЗД':'ВЪЕЗД',x,x<1000?682:865,18));
   for(const x of [570,820,1070,1320,1570]) shape(ground,g=>g.poly([x,653,x-16,645,x,637]).fill({color:0xe9e8d4,alpha:.48}));
   shape(ground,g=>g.poly([1845,753,1834,773,1856,773]).fill({color:0xe9e8d4,alpha:.65})
@@ -161,8 +163,8 @@ export async function createStationScene(initialPumps:readonly Pump[]):Promise<S
   const facadeSign=new Container();facadeSign.position.set(600,158);root.addChild(facadeSign);
   shape(facadeSign,g=>g.rect(0,0,400,51).fill(0x17242d).stroke({color:0x39ff65,width:2})
     .rect(2,46,396,4).fill(0xffc83d));
-  const facadeGlow=label('МАРКЕТ · КАФЕ',200,25,29,0xfff0d5);
-  facadeGlow.style.dropShadow={color:0xffd693,blur:7,distance:0,angle:0,alpha:.75};facadeSign.addChild(facadeGlow);
+  const marketSign=label('МАРКЕТ',96,25,26,0xfff0d5),cafeSign=label('КАФЕ',303,25,26,0xfff0d5);
+  for(const sign of [marketSign,cafeSign])sign.style.dropShadow={color:0xffd693,blur:7,distance:0,angle:0,alpha:.75};facadeSign.addChild(marketSign,cafeSign);
   shape(root,g=>g.roundRect(TANK_PAD.x,TANK_PAD.y,TANK_PAD.width,TANK_PAD.height,8).fill(0x3c4549).stroke({color:0x9ca39b,width:3})
     .roundRect(TANK_PAD.x+9,TANK_PAD.y+9,TANK_PAD.width-18,TANK_PAD.height-18,6).stroke({color:0x63716e,width:1}));
   texturedPad(root,asphaltTexture,TANK_PAD.x+10,TANK_PAD.y+10,TANK_PAD.width-20,TANK_PAD.height-20);
@@ -280,8 +282,8 @@ export async function createStationScene(initialPumps:readonly Pump[]):Promise<S
     deliveryLayer.removeChildren().forEach(child=>child.destroy({children:true}));
     const trip=deliveries.find(d=>d.status&&d.status!=='enroute'&&d.status!=='waiting');
     if(!trip){
-      const pending=deliveries.find(d=>d.status==='enroute');
-      if(pending){const minutes=Math.max(0,Math.ceil((pending.arrivalGameSeconds-currentGameSeconds)/60));
+      const seconds=nearestFuelDeliverySeconds(deliveries,currentGameSeconds);
+      if(seconds!==null){const minutes=Math.ceil(seconds/60);
         deliveryLayer.addChild(label('БЕНЗОВОЗ ЧЕРЕЗ',1805,201,12,0xe2eadf));
         deliveryLayer.addChild(label(`${Math.floor(minutes/60)} ч ${String(minutes%60).padStart(2,'0')} мин`,1805,228,19,0xffd68b));
       }else if(deliveries.some(d=>d.status==='waiting'))deliveryLayer.addChild(label('ОЖИДАЕТ ВЪЕЗДА',1805,214,13,0xffd68b));

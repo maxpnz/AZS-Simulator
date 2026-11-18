@@ -1,5 +1,6 @@
 import { PUMP_SLOTS } from './world';
-export const PARKING_X=[540,640,750,860,970,1080,1250,1360,1530,1640] as const;
+/** Four bays fit in the west exit apron without occupying a pump aisle. */
+export const PARKING_X=[350,420,490,560] as const;
 export function pumpQueuePoint(slot:number):{x:number;y:number}{
   const pump=PUMP_SLOTS[slot];
   return {x:slot===9?1740:pump.stopX+85,y:slot%2===0?755:825};
@@ -33,9 +34,10 @@ export const ROAD_NODES:readonly RoadNode[]=[
   {id:'east_lane_1_east',x:2000,y:1120,next:[]},
   {id:'east_lane_2_west',x:0,y:1170,next:['east_lane_2_east']},
   {id:'east_lane_2_east',x:2000,y:1170,next:[]},
-  {id:'entrance_curve',x:1837,y:915,next:['entrance']},
-  {id:'entrance',x:1833,y:890,next:['queue_split']},
-  {id:'queue_split',x:1850,y:685,next:['exit_lane',...PUMP_SLOTS.map(s=>`pump_${s.slot+1}_approach`)]},
+  {id:'entrance_curve',x:1815,y:915,next:['entrance']},
+  {id:'entrance',x:1815,y:890,next:['queue_split']},
+  {id:'queue_split',x:1850,y:685,next:['exit_lane','parking_entry',...PUMP_SLOTS.map(s=>`pump_${s.slot+1}_approach`)]},
+  {id:'parking_entry',x:1700,y:820,next:['parking_access_0']},
   ...PUMP_SLOTS.flatMap((slot)=>[
     {id:`pump_${slot.slot+1}_queue_entry`,x:pumpQueuePoint(slot.slot).x,y:890,next:[`pump_${slot.slot+1}_queue`]},
     {id:`pump_${slot.slot+1}_queue`,...pumpQueuePoint(slot.slot),next:[`pump_${slot.slot+1}_approach`]},
@@ -50,7 +52,7 @@ export const ROAD_NODES:readonly RoadNode[]=[
     {id:`pump_${slot.slot+1}_clear`,x:slot.stopX-66,y:650,next:[`pump_${slot.slot+1}_merge`]},
     {id:`pump_${slot.slot+1}_merge`,x:slot.stopX-90,y:650,next:['exit_lane']},
   ]),
-  ...PARKING_X.flatMap((x,i)=>[{id:`parking_access_${i}`,x,y:660,next:[`parking_${i}`]},{id:`parking_${i}`,x,y:460,next:['exit_lane']}]),
+  ...PARKING_X.flatMap((x,i)=>[{id:`parking_access_${i}`,x,y:820,next:[`parking_${i}`]},{id:`parking_${i}`,x,y:740,next:['exit_lane']}]),
   {id:'queue_bypass_turn',x:1820,y:685,next:['queue_bypass']},
   {id:'queue_bypass',x:1650,y:700,next:['exit_lane']},
   {id:'bypass_west',x:0,y:890,next:[]},

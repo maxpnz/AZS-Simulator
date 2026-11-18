@@ -93,6 +93,7 @@ export interface FinanceEvent {
   fuel?: FuelId;
   volumeMl?: number;
   objectId?: string;
+  productId?: string;
   id?: string;
 }
 

@@ -26,6 +26,7 @@ export function App() {
   const [gameState,setGameState]=useState(engine.getState());
   const [fuelOpen,setFuelOpen]=useState(false);
   const [screen,setScreen]=useState<Screen>(null);
+  const [commerceInitial,setCommerceInitial]=useState<'shop'|'cafe'>('shop');
   const [notice,setNotice]=useState(engine.getLoadError()?'Не удалось загрузить сохранение. Исходные данные сохранены; проверьте хранилище браузера.':'');
   const [sceneKey,setSceneKey]=useState(0);
   const [cameraVersion,setCameraVersion]=useState(0);
@@ -61,10 +62,10 @@ export function App() {
   const objectId=screen!==null&&!['menu','overview','finances','competitors','technical','settings','commerce','start'].includes(screen)?screen as ObjectId:null;
   return <div className="app-shell">
     <TopBar clock={clock} time={time} station={gameState.station} queueCount={gameState.queueIds.length} paused={manualPause} speed={speed} fuelOpen={fuelOpen}
-      onPause={togglePause} onSpeed={cycleSpeed} onFuel={()=>setFuelOpen(v=>!v)} onFinance={()=>{setFuelOpen(false);setScreen('finances');}} onSettings={()=>{setFuelOpen(false);setScreen('settings');}} onMenu={()=>{setFuelOpen(false);setScreen(current=>current==='menu'?null:'menu');}} />
+      onPause={togglePause} onSpeed={cycleSpeed} onFuel={()=>setFuelOpen(v=>!v)} onFinance={()=>{setFuelOpen(false);setScreen('finances');}} onMenu={()=>{setFuelOpen(false);setScreen(current=>current==='menu'?null:'menu');}} />
     <main className="game-stage" aria-label="Территория АЗС">
       <StationCanvas key={sceneKey} resetCameraVersion={cameraVersion} stationName={gameState.station.name??'АЗС'} pumps={gameState.station.pumps} jobs={gameState.station.jobs??[]} tanks={gameState.station.tanks} deliveries={gameState.deliveries??[]} technical={gameState.technical!} stocks={Object.fromEntries(FUEL_IDS.map(id=>[id,gameState.station.fuels[id].stockMl])) as Record<FuelId,number>} gameSeconds={gameState.gameSeconds} prices={prices} engine={engine}
-        onObject={(id)=>{setNotice('');setScreen(id);}} onVehicle={setSelectedVehicle} onTechnician={id=>{setSelectedTechnician(id);setScreen('technical');}} />
+        onObject={(id)=>{setNotice('');if(id==='shop'||id==='cafe'){setCommerceInitial(id);setScreen('commerce');}else setScreen(id);}} onVehicle={setSelectedVehicle} onTechnician={id=>{setSelectedTechnician(id);setScreen('technical');}} />
       {notice&&<div className="section-notice" role="status">{notice}<button type="button" onClick={()=>setNotice('')} aria-label="Закрыть">×</button></div>}
     </main>
     {screen==='start'&&<section className="full-screen" role="dialog" aria-label="Стартовый экран"><div className="start-content"><img src="/icon-app-192.png" alt="AZS Simulator" width="128" height="128" /><h1>AZS Simulator</h1><button className="panel-action" onClick={()=>setScreen(null)}>Продолжить игру</button><button className="panel-action" onClick={()=>{if(window.confirm('Начать новую игру? Текущий прогресс будет сброшен.')){engine.reset();resetControls();setGameState(engine.getState());setSceneKey(k=>k+1);setScreen(null);}}}>Новая игра</button></div></section>}
@@ -72,7 +73,7 @@ export function App() {
     {screen==='settings'&&<GameMenu settings stationName={gameState.station.name??'АЗС'} onCameraReset={()=>setCameraVersion(n=>n+1)} onStationName={name=>{engine.setStationName(name);setGameState(engine.getState());}} onBack={()=>setScreen('menu')} onClose={()=>setScreen(null)} onSection={openSection} onSaveSlot={slot=>engine.saveSlot(slot)} onLoadSlot={slot=>{const ok=engine.loadSlot(slot);if(ok){setGameState(engine.getState());setSceneKey(k=>k+1);}return ok;}} hasSlot={slot=>engine.hasSlot(slot)} onExit={()=>{engine.save();setScreen('start');}} onReset={()=>{engine.reset();engine.setControls(true,1);resetControls();setGameState(engine.getState());setSceneKey(k=>k+1);setNotice('Новая игра начата.');}} />}
     {screen==='overview'&&<OverviewPanel state={gameState} onClose={()=>setScreen(null)} onBack={()=>setScreen('menu')} />}
     {screen==='finances'&&<FinancePanel state={gameState} onClose={()=>setScreen(null)} onBack={()=>setScreen('menu')} />}
-    {screen==='commerce'&&<CommercePanel state={gameState} engine={engine} refresh={()=>setGameState(engine.getState())} onClose={()=>setScreen(null)} onBack={()=>setScreen('menu')} />}
+    {screen==='commerce'&&<CommercePanel key={commerceInitial} initial={commerceInitial} state={gameState} engine={engine} refresh={()=>setGameState(engine.getState())} onClose={()=>setScreen(null)} onBack={()=>setScreen('menu')} />}
     {screen==='technical'&&<TechnicalPanel state={gameState} engine={engine} focusedId={selectedTechnician} refresh={()=>setGameState(engine.getState())} onClose={()=>{setSelectedTechnician(null);setScreen(null);}} onBack={()=>{setSelectedTechnician(null);setScreen('menu');}} />}
     {screen==='competitors'&&<CompetitorsPanel state={gameState} onClose={()=>setScreen(null)} onBack={()=>setScreen('menu')} />}
     {objectId&&<ObjectPanel key={objectId} id={objectId} state={gameState} prices={prices} vehicles={gameState.vehicles}

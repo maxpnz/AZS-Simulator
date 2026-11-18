@@ -26,7 +26,7 @@ describe('v0.5.2 visual state and assets',()=>{
     try{
       const engine=new GameEngine();engine.save();
       expect(storage.get('azs-simulator-save-v051-backup')).toBe(original);
-      expect(JSON.parse(storage.get('azs-simulator-save')!).version).toBe('0.7.0');
+      expect(JSON.parse(storage.get('azs-simulator-save')!).version).toBe('0.7.3');
     }finally{vi.unstubAllGlobals();}
   });
   it('limits a station name by grapheme and persists Cyrillic text',()=>{
