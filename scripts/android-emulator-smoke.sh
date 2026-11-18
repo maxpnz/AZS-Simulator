@@ -28,6 +28,11 @@ for dimensions in 1280x720 800x400; do
   adb shell am force-stop "$package" || true
   adb shell am start -n "$package/.MainActivity"
   sleep 12
+  # Android shows a one-time immersive-mode tutorial over the first launch.
+  if [ "$dimensions" = 1280x720 ]; then
+    adb shell input tap 930 285
+    sleep 4
+  fi
   adb exec-out screencap -p > "artifacts/android-smoke/scene-${dimensions}.png"
   adb shell pidof "$package"
   test -s "artifacts/android-smoke/scene-${dimensions}.png"
