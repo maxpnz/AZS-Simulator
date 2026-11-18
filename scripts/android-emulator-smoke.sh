@@ -5,6 +5,17 @@ apk="android/app/build/outputs/apk/release/app-release.apk"
 package="ru.azs.simulator"
 mkdir -p artifacts/android-smoke
 test -s "$apk"
+on_exit() {
+  local status="$?"
+  if [ "$status" -ne 0 ]; then
+    adb logcat -d -v brief > artifacts/android-smoke/failure-logcat.txt || true
+    adb shell dumpsys activity activities > artifacts/android-smoke/failure-activity.txt || true
+    adb exec-out screencap -p > artifacts/android-smoke/failure-screen.png || true
+    echo "Android smoke failed with status $status" >&2
+    grep -E 'FATAL EXCEPTION|Fatal signal|ANR in|Process .* has died|ActivityTaskManager.*(Start proc|Displayed)' artifacts/android-smoke/failure-logcat.txt | tail -30 >&2 || true
+  fi
+}
+trap on_exit EXIT
 adb wait-for-device
 adb install -r "$apk"
 adb shell settings put system accelerometer_rotation 0
@@ -17,8 +28,8 @@ for dimensions in 1280x720 800x400; do
   adb shell am force-stop "$package" || true
   adb shell am start -n "$package/.MainActivity"
   sleep 12
-  adb shell dumpsys activity activities | grep -q "$package/.MainActivity"
   adb exec-out screencap -p > "artifacts/android-smoke/scene-${dimensions}.png"
+  adb shell pidof "$package"
   test -s "artifacts/android-smoke/scene-${dimensions}.png"
   adb shell input tap "$((width - 30))" 32
   sleep 3
