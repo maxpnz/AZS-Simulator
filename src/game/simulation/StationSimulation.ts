@@ -23,7 +23,7 @@ const EMPTY_STATS: TrafficStats = { passed: 0, visited: 0, departed:0, purchases
 const EMPTY_EXPENSES: ExpenseTotals = {lightingKopeks:0,pumpElectricityKopeks:0,tankMaintenanceKopeks:0,pumpingKopeks:0,
   lightingRemainder:0,pumpRemainder:0,tankRemainder:0,pumpingRemainder:0,purchasesKopeks:0,capitalKopeks:0,
   stockValueKopeks:Object.fromEntries(FUEL_IDS.map(id=>[id,0])) as Record<FuelId,number>};
-const FINANCE_KINDS:FinanceKind[]=['sale','lighting','pumpElectricity','tankMaintenance','pumping','purchase','construction','upgrade','technicianSalary','equipmentRepair','technicianStaff','resale','goodsPurchase','goodsSale','goodsSalary','goodsMaintenance','goodsCapital'];
+const FINANCE_KINDS:FinanceKind[]=['sale','lighting','pumpElectricity','tankMaintenance','pumping','purchase','construction','upgrade','technicianSalary','equipmentRepair','technicianStaff','resale','goodsPurchase','goodsSale','goodsSalary','goodsMaintenance','goodsCapital','purchaseRefund','goodsRefund'];
 const PUMP_ROUTES: Record<string, string[]> = Object.fromEntries(PUMP_SLOTS.map(slot=>[
   `pump-${slot.slot+1}`,[`pump_${slot.slot+1}_approach`,`pump_${slot.slot+1}_turn`,`pump_${slot.slot+1}_align`,`pump_${slot.slot+1}`],
 ]));
@@ -127,7 +127,7 @@ export class StationSimulation {
       if(event.costKopeks!==undefined||event.fuel!==undefined||event.volumeMl!==undefined||event.objectId!==undefined||event.id!==undefined||event.productId!==undefined)row.push(event.costKopeks??null,event.fuel?FUEL_IDS.indexOf(event.fuel):null,event.volumeMl??null,event.objectId??null,event.id??null,event.productId??null);
       return row;
     })};
-    return {version:'0.7.3',state,rngState:this.rng.getState(),nextVehicleId:this.nextVehicleId,
+    return {version:'0.7.4',state,rngState:this.rng.getState(),nextVehicleId:this.nextVehicleId,
       nextSpawnSeconds:this.nextSpawnSeconds,nextJobId:this.nextJobId,nextDeliveryId:this.nextDeliveryId};
   }
   static importSave(raw:unknown):StationSimulation {
@@ -135,7 +135,7 @@ export class StationSimulation {
     const save=raw as {version?:string;state?:GameState;rngState?:number;nextVehicleId?:number;nextSpawnSeconds?:number;nextJobId?:number;nextDeliveryId?:number};
     const state=(save.state??raw) as GameState;
     if(!state.station||!Number.isFinite(state.station.balanceKopeks)||!Number.isFinite(state.gameSeconds)||!Array.isArray(state.vehicles)||!Array.isArray(state.queueIds)||!state.station.fuels||!Array.isArray(state.station.tanks)||!Array.isArray(state.station.pumps))throw new Error('Invalid save state');
-    const station=['0.2.8','0.3.0','0.3.1','0.3.2','0.4.0','0.5.0','0.5.1','0.5.2','0.6.0','0.7.0','0.7.3'].includes(save.version??'')?cloneInitialStation():cloneLegacyStation();
+    const station=['0.2.8','0.3.0','0.3.1','0.3.2','0.4.0','0.5.0','0.5.1','0.5.2','0.6.0','0.7.0','0.7.3','0.7.4'].includes(save.version??'')?cloneInitialStation():cloneLegacyStation();
     station.name=normalizeStationName(state.station.name);
     if(Number.isFinite(state.station.balanceKopeks))station.balanceKopeks=state.station.balanceKopeks;
     for(const id of FUEL_IDS)if(state.station.fuels?.[id])station.fuels[id]={...station.fuels[id],...state.station.fuels[id]};
@@ -164,7 +164,7 @@ export class StationSimulation {
       if(v.status==='fueling'){
         copy.servicePhase=v.deliveredMl>0||v.servicePhase==='dispensing'?'dispensing':'preparing';
         copy.phaseRemainingSeconds=copy.servicePhase==='preparing'?Math.min(20,Math.max(0,v.phaseRemainingSeconds??20)):0;
-      }else if(!['0.5.1','0.5.2','0.6.0','0.7.0','0.7.3'].includes(save.version??'')){delete copy.servicePhase;delete copy.phaseRemainingSeconds;}
+      }else if(!['0.5.1','0.5.2','0.6.0','0.7.0','0.7.3','0.7.4'].includes(save.version??'')){delete copy.servicePhase;delete copy.phaseRemainingSeconds;}
       return copy;
     }));
     if(state.stats?.departed===undefined)sim.stats.departed=Math.max(0,sim.stats.visited-sim.vehicles.filter(v=>v.status!=='road').length);
@@ -173,11 +173,11 @@ export class StationSimulation {
     for(const [oldSlot,id] of (state.commerce?.parking??[]).entries()){
       if(id===null||sim.commerce.parking.includes(id))continue;
       const vehicle=sim.vehicles.find(v=>v.id===id);if(!vehicle)continue;
-      const slot=save.version==='0.7.3'&&oldSlot<sim.commerce.parking.length?oldSlot:sim.commerce.parking.indexOf(null);
+      const slot=['0.7.3','0.7.4'].includes(save.version??'')&&oldSlot<sim.commerce.parking.length&&sim.commerce.parking[oldSlot]===null?oldSlot:sim.commerce.parking.indexOf(null);
       if(slot<0){vehicle.parkSlot=undefined;delete sim.commerce.customers[id];for(const venue of ['shop','cafe'] as Venue[]){const v=sim.commerce.venues[venue];v.queue=v.queue.filter(customer=>customer!==id);if(v.serving===id)v.serving=undefined;}sim.setRoute(vehicle,[...EXIT_ROUTE],'leaving');continue;}
       sim.commerce.parking[slot]=id;vehicle.parkSlot=slot;
-      if(vehicle.status==='toParking'&&save.version!=='0.7.3')sim.setRoute(vehicle,['parking_entry',`parking_access_${slot}`,`parking_${slot}`],'toParking');
-      else if(vehicle.status==='parked'&&save.version!=='0.7.3'){const node=ROAD_NODES.find(n=>n.id===`parking_${slot}`)!;vehicle.x=node.x;vehicle.y=node.y;}
+      if(vehicle.status==='toParking'&&!['0.7.3','0.7.4'].includes(save.version??''))sim.setRoute(vehicle,['parking_entry',`parking_access_${slot}`,`parking_${slot}`],'toParking');
+      else if(vehicle.status==='parked'&&!['0.7.3','0.7.4'].includes(save.version??'')){const node=ROAD_NODES.find(n=>n.id===`parking_${slot}`)!;vehicle.x=node.x;vehicle.y=node.y;}
     }
     for(const [id] of Object.entries(sim.commerce.customers))if(!sim.commerce.parking.includes(Number(id)))delete sim.commerce.customers[Number(id)];
     sim.queueIds.push(...(state.queueIds??[]).filter(id=>sim.vehicles.some(v=>v.id===id)));
@@ -230,7 +230,7 @@ export class StationSimulation {
         if(active.reduce((sum,x)=>sum+Math.max(0,x.reservedMl-x.deliveredMl),0)<=stock)break;
       }
     }
-    if(!['0.2.7','0.2.8','0.3.0','0.3.1','0.3.2','0.4.0','0.5.0','0.5.1','0.5.2','0.6.0','0.7.0','0.7.3'].includes(save.version??''))for(const v of sim.vehicles){
+    if(!['0.2.7','0.2.8','0.3.0','0.3.1','0.3.2','0.4.0','0.5.0','0.5.1','0.5.2','0.6.0','0.7.0','0.7.3','0.7.4'].includes(save.version??''))for(const v of sim.vehicles){
       const pump=v.pumpId&&sim.station.pumps.find(p=>p.id===v.pumpId);
       if(v.status==='fueling'||v.status==='finishing'){
         if(pump){const point=PUMP_SLOTS[pump.slot];v.x=point.stopX;v.y=point.stopY;v.angle=Math.PI;}
@@ -255,7 +255,7 @@ export class StationSimulation {
         v.routeIndex=0;
       }
     }
-    if(!['0.5.1','0.5.2','0.6.0','0.7.0','0.7.3'].includes(save.version??'')){
+    if(!['0.5.1','0.5.2','0.6.0','0.7.0','0.7.3','0.7.4'].includes(save.version??'')){
       // The old shared queue had no dispenser assignment. Move each waiting
       // customer to a marked bay and repair vehicles trapped at the entrance.
       const redirected=new Set<number>();
@@ -667,6 +667,19 @@ export class StationSimulation {
       arrivalGameSeconds:this.gameSeconds+marketOffer(this.market,supplierId,entries[0][0],this.gameSeconds)!.etaGameSeconds,status:'enroute',remainingMl:totalMl,totalMl});
     return true;
   }
+  cancelDelivery(id:string):boolean {
+    const index=this.deliveries.findIndex(trip=>trip.id===id&&['enroute','waiting'].includes(trip.status??'enroute'));
+    if(index<0)return false;
+    const trip=this.deliveries[index];
+    const refund=trip.paidKopeks??0;
+    if(!Number.isInteger(refund)||refund<0)return false;
+    this.deliveries.splice(index,1);
+    this.station.balanceKopeks+=refund;
+    this.expenses.purchasesKopeks=Math.max(0,this.expenses.purchasesKopeks-refund);
+    if(refund)this.financeEvents.push({id:`refund-${id}`,gameSeconds:this.gameSeconds,kind:'purchaseRefund',amountKopeks:refund,objectId:trip.supplierId});
+    if(trip.supplierId&&supplierById(trip.supplierId))for(const [fuel,ml] of Object.entries(trip.cargo) as [FuelId,number][])this.market.warehouses[trip.supplierId][fuel].litres=Math.min(this.market.warehouses[trip.supplierId][fuel].capacityLitres,this.market.warehouses[trip.supplierId][fuel].litres+Math.round(ml/1000));
+    return true;
+  }
   setPumpFuels(pumpId:string,fuels:readonly FuelId[]):boolean {
     const pump=this.station.pumps.find(candidate=>candidate.id===pumpId);
     if(!pump||pump.status==='building'||pump.status==='upgrading'||this.closed(pumpId)||!isValidPumpFuels(fuels)||
@@ -795,6 +808,14 @@ export class StationSimulation {
   trainVenue(venue:Venue):boolean {const v=this.commerce.venues[venue],next=v.staffLevel+1;if(!v.level||next>5)return false;const cost=TRAIN_COST[next-1];if(this.station.balanceKopeks<cost)return false;this.station.balanceKopeks-=cost;v.staffLevel=next;this.record('goodsCapital',cost,undefined,undefined,venue);return true;}
   setGoodsPrice(product:Product,price:number):boolean {if(!PRODUCTS[product]||PRODUCTS[product].retail===0||!Number.isInteger(price)||price<100||price>100000)return false;this.commerce.prices[product]=price;return true;}
   orderGoods(supplier:Supplier,request:Partial<Record<Sku,number>>):boolean {if(!GOODS_SUPPLIERS[supplier])return false;const lines=Object.entries(request) as [Sku,number][];if(!lines.length||lines.some(([s,n])=>!SKU[s]||!Number.isInteger(n)||n<=0))return false;const reserved={shop:0,cafe:0},orderLines:CommerceState['orders'][number]['lines']={};let total=0;for(const [sku,quantity] of lines){reserved[SKU[sku].venue]+=quantity*SKU[sku].size;const cost=quantity*buyPrice(sku,this.gameSeconds,supplier);orderLines[sku]={quantity,costKopeks:cost};total+=cost;}for(const venue of ['shop','cafe'] as Venue[])if(reserved[venue]&&(!this.commerce.venues[venue].level||usedSpace(this.commerce,venue)+reserved[venue]>VENUES[venue].capacity[this.commerce.venues[venue].level]+.0001))return false;if(total>this.station.balanceKopeks)return false;this.station.balanceKopeks-=total;const id=`goods-${this.commerce.nextOrder++}`;this.commerce.orders.push({id,placed:this.gameSeconds,arrival:this.gameSeconds+GOODS_SUPPLIERS[supplier].eta,supplier,lines:orderLines,totalKopeks:total,status:'enroute'});this.financeEvents.push({id,gameSeconds:this.gameSeconds,kind:'goodsPurchase',amountKopeks:total});return true;}
+  cancelGoodsOrder(id:string):boolean {
+    const order=this.commerce.orders.find(item=>item.id===id&&item.status==='enroute');
+    if(!order)return false;
+    order.status='cancelled';
+    this.station.balanceKopeks+=order.totalKopeks;
+    this.financeEvents.push({id:`refund-${id}`,gameSeconds:this.gameSeconds,kind:'goodsRefund',amountKopeks:order.totalKopeks});
+    return true;
+  }
   private advanceCommerce(seconds:number,from:number):void {const c=this.commerce;for(const order of c.orders)if(order.status==='enroute'&&order.arrival<=this.gameSeconds){for(const [sku,line] of Object.entries(order.lines) as [Sku,{quantity:number;costKopeks:number}][])addStock(c.stock[sku],line.quantity,line.costKopeks);order.status='delivered';}
     const firstDay=Math.floor(from/86400),lastDay=Math.floor(this.gameSeconds/86400);for(const venue of ['shop','cafe'] as Venue[]){const v=c.venues[venue];if(!v.level)continue;for(let day=firstDay+1;day<=lastDay;day++){if(v.salaryDay<day){const amount=Math.round(VENUES[venue].salary*[1,1.18,1.37,1.59,1.84][v.staffLevel-1]);this.station.balanceKopeks-=amount;this.financeEvents.push({id:`${venue}-salary-${day}`,gameSeconds:day*86400,kind:'goodsSalary',amountKopeks:amount,objectId:venue});v.salaryDay=day;}if(v.maintenanceDay<day){const amount=VENUES[venue].maintenance[v.level];this.station.balanceKopeks-=amount;this.financeEvents.push({id:`${venue}-maintenance-${day}`,gameSeconds:day*86400,kind:'goodsMaintenance',amountKopeks:amount,objectId:venue});v.maintenanceDay=day;}}
       if(v.serving!==undefined){v.serviceRemaining=Math.max(0,v.serviceRemaining-seconds);if(v.serviceRemaining===0){this.sellToCustomer(v.serving,venue);v.serving=undefined;}}for(const id of [...v.queue]){const customer=c.customers[id];if(!customer){v.queue.splice(v.queue.indexOf(id),1);continue;}customer.patience-=seconds;if(customer.patience<=0){v.queue.splice(v.queue.indexOf(id),1);v.lost++;this.nextVenue(id);}}

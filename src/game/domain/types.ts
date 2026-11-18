@@ -84,7 +84,7 @@ export interface ExpenseTotals {
   stockValueKopeks: Record<FuelId, number>;
 }
 
-export type FinanceKind = 'sale' | 'lighting' | 'pumpElectricity' | 'tankMaintenance' | 'pumping' | 'purchase' | 'construction' | 'upgrade' | 'technicianSalary' | 'equipmentRepair' | 'technicianStaff' | 'resale' | 'goodsPurchase' | 'goodsSale' | 'goodsSalary' | 'goodsMaintenance' | 'goodsCapital';
+export type FinanceKind = 'sale' | 'lighting' | 'pumpElectricity' | 'tankMaintenance' | 'pumping' | 'purchase' | 'construction' | 'upgrade' | 'technicianSalary' | 'equipmentRepair' | 'technicianStaff' | 'resale' | 'goodsPurchase' | 'goodsSale' | 'goodsSalary' | 'goodsMaintenance' | 'goodsCapital' | 'purchaseRefund' | 'goodsRefund';
 export interface FinanceEvent {
   gameSeconds: number;
   kind: FinanceKind;

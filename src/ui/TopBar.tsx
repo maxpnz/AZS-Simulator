@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { FUEL_IDS } from '../game/domain/config';
-import type { ClockSnapshot, StationState, TimeSpeed } from '../game/domain/types';
+import { serviceRating } from '../game/domain/serviceRating';
+import type { ClockSnapshot, StationState, TimeSpeed, TrafficStats } from '../game/domain/types';
 import { FUEL_COLORS } from '../game/domain/stationGeometry';
 import { Icon } from './Icon';
 import { version as currentVersion } from '../../package.json';
@@ -12,6 +13,7 @@ interface Props {
   clock: ClockSnapshot;
   time: string;
   station: StationState;
+  stats: TrafficStats;
   queueCount: number;
   paused: boolean;
   speed: TimeSpeed;
@@ -23,7 +25,8 @@ interface Props {
   onFinance: () => void;
 }
 
-export function TopBar({ clock, time, station, queueCount, paused, speed, fuelOpen, onPause, onSpeed, onFuel, onMenu, onFinance }: Props) {
+export function TopBar({ clock, time, station, stats, queueCount, paused, speed, fuelOpen, onPause, onSpeed, onFuel, onMenu, onFinance }: Props) {
+  const rating=serviceRating(stats);
   const totalFuel = station.tanks.reduce((total, tank) => total + tank.stockMl / 1000, 0);
   const fuelWrap = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -47,7 +50,7 @@ export function TopBar({ clock, time, station, queueCount, paused, speed, fuelOp
       </div>
       <div className="top-grow" />
       <div className="top-chip traffic-chip" title={`Очередь: ${queueCount}`}><Icon name="traffic" /><span>Очередь</span><strong>{queueCount}</strong></div>
-      <div className="top-chip rating-chip" title="Рейтинг появится в будущем" aria-label="Рейтинг АЗС пока недоступен"><span aria-hidden="true">☆</span><strong>— / 5</strong></div>
+      <div className="top-chip rating-chip" title="Оценка обслуживания: доля успешных заправок среди завершённых обращений" aria-label={rating===null?"Оценка сервиса появится после первой попытки заправки":`Оценка сервиса ${rating.toFixed(1)} из 5`}><span aria-hidden="true">☆</span><strong>{rating===null?"—":rating.toFixed(1)} / 5</strong></div>
       <div className="fuel-wrap" ref={fuelWrap}>
         <button type="button" className={`top-chip fuel-chip ${fuelOpen ? 'selected' : ''}`} onClick={onFuel} aria-expanded={fuelOpen} aria-controls="fuel-popover">
           <Icon name="fuel" /><span>Топливо</span><strong>{litres.format(totalFuel)} л</strong><Icon name="chevron" className="chevron" />
