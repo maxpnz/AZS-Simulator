@@ -30,10 +30,19 @@ for dimensions in 1280x720 800x400; do
   sleep 12
   # Android can show its one-time immersive-mode tutorial after the activity
   # has started. Wait for a real scene before testing any in-game touch target.
-  for attempt in 1 2 3 4; do
+  for attempt in 1 2 3 4 5; do
     adb exec-out screencap -p > "artifacts/android-smoke/scene-${dimensions}.png"
-  scene_bytes=$(stat -c%s "artifacts/android-smoke/scene-${dimensions}.png")
-    if [ "$scene_bytes" -gt 100000 ]; then break; fi
+    scene_bytes=$(stat -c%s "artifacts/android-smoke/scene-${dimensions}.png")
+    if [ "$scene_bytes" -gt 100000 ] && .venv-smoke/bin/python - "artifacts/android-smoke/scene-${dimensions}.png" <<'PY'
+from PIL import Image
+import sys
+
+image = Image.open(sys.argv[1]).convert('RGB')
+red, green, blue = image.getpixel((image.width // 2, image.height // 3))
+# The system immersive-mode tutorial has a pale, uniform center panel.
+sys.exit(1 if min(red, green, blue) > 200 and max(red, green, blue) - min(red, green, blue) < 30 else 0)
+PY
+    then break; fi
     echo "System overlay still visible at ${dimensions}; dismiss attempt ${attempt}" >&2
     if [ "$attempt" -eq 1 ]; then
       adb shell input keyevent KEYCODE_ENTER
@@ -44,6 +53,14 @@ for dimensions in 1280x720 800x400; do
   done
   adb shell pidof "$package"
   test "$scene_bytes" -gt 100000
+  .venv-smoke/bin/python - "artifacts/android-smoke/scene-${dimensions}.png" <<'PY'
+from PIL import Image
+import sys
+
+image = Image.open(sys.argv[1]).convert('RGB')
+rgb = image.getpixel((image.width // 2, image.height // 3))
+assert not (min(rgb) > 200 and max(rgb) - min(rgb) < 30), 'system tutorial covers the game'
+PY
   for attempt in 1 2; do
     adb shell input tap "$((width - 48))" 44
     sleep 4
