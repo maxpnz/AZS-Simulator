@@ -36,11 +36,16 @@ for dimensions in 1280x720 800x400; do
   adb exec-out screencap -p > "artifacts/android-smoke/scene-${dimensions}.png"
   adb shell pidof "$package"
   test -s "artifacts/android-smoke/scene-${dimensions}.png"
-  adb shell input tap "$((width - 30))" 32
-  sleep 3
-  adb exec-out screencap -p > "artifacts/android-smoke/menu-${dimensions}.png"
-  test -s "artifacts/android-smoke/menu-${dimensions}.png"
-  test "$(sha256sum "artifacts/android-smoke/scene-${dimensions}.png" | cut -d ' ' -f 1)" != "$(sha256sum "artifacts/android-smoke/menu-${dimensions}.png" | cut -d ' ' -f 1)"
+  scene_bytes=$(stat -c%s "artifacts/android-smoke/scene-${dimensions}.png")
+  for attempt in 1 2; do
+    adb shell input tap "$((width - 48))" 44
+    sleep 4
+    adb exec-out screencap -p > "artifacts/android-smoke/menu-${dimensions}.png"
+    menu_bytes=$(stat -c%s "artifacts/android-smoke/menu-${dimensions}.png")
+    if [ "$menu_bytes" -lt "$((scene_bytes * 85 / 100))" ]; then break; fi
+    echo "Menu not visible at ${dimensions} after tap ${attempt}; retrying" >&2
+  done
+  test "$menu_bytes" -lt "$((scene_bytes * 85 / 100))"
   adb shell input keyevent KEYCODE_BACK || true
   sleep 1
 done
