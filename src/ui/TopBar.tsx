@@ -1,3 +1,4 @@
+import { fuelFillColor } from './fuelFill';
 import { useEffect, useRef } from 'react';
 import { FUEL_IDS } from '../game/domain/config';
 import { serviceRating } from '../game/domain/serviceRating';
@@ -63,7 +64,7 @@ export function TopBar({ clock, time, station, stats, queueCount, paused, speed,
             const percent=capacity>0?Math.round(amount/capacity*100):0;
             return <div className="fuel-row" key={fuel}>
               <strong><i style={{backgroundColor:`#${FUEL_COLORS[fuel].toString(16).padStart(6,'0')}`}} />{station.fuels[fuel].name}</strong>
-              <span className="fuel-track"><span style={{ width: `${Math.max(0,Math.min(100,percent))}%`,backgroundColor:`#${FUEL_COLORS[fuel].toString(16).padStart(6,'0')}` }} /></span>
+              <span className="fuel-track"><span style={{ width: `${Math.max(0,Math.min(100,percent))}%`,backgroundColor:fuelFillColor(percent) }} /></span>
               <span>{percent}%</span><b>{litres.format(amount/1000)} / {litres.format(capacity/1000)} л</b>
             </div>;
           })}

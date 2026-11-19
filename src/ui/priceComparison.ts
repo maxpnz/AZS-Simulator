@@ -5,8 +5,8 @@ export function priceDifference(ours: number | undefined, reference: number | un
 }
 
 export function formatPriceDifference(value: number | null): string {
-  if (value === null) return '—';
-  if (Math.abs(value) < 0.05) return '0,0%';
+  if (value === null) return 'Нет данных';
+  if (Math.abs(value) < 0.05) return '0%';
   return `${value > 0 ? '+' : '−'}${Math.abs(value).toLocaleString('ru-RU', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
 }
 

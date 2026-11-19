@@ -1,7 +1,6 @@
 import type { Venue, Sku, Product, Supplier } from '../domain/commerce';
 import type { FuelId, GameState, TimeSpeed } from '../domain/types';
 import { StationSimulation } from './StationSimulation';
-import type { AutomationMode } from '../domain/technical';
 
 const FIXED_STEP_MS=50;
 const GAME_SECONDS_PER_REAL_SECOND=60;
@@ -63,12 +62,6 @@ export class GameEngine {
   orderDelivery(fuel:FuelId,litres:number):boolean {return this.action(this.simulation.orderDelivery(fuel,litres));}
   getOffers(fuel:FuelId) {return this.simulation.getOffers(fuel);}
   orderTrip(supplierId:string,sections:readonly {fuel:FuelId;litres:number}[]):boolean {return this.action(this.simulation.orderTrip(supplierId,sections));}
-  setAutomation(mode:AutomationMode):boolean {return this.action(this.simulation.setAutomation(mode));}
-  hireTechnician(name?:string):boolean {return this.action(this.simulation.hireTechnician(name));}
-  renameTechnician(id:string,name:string):boolean {return this.action(this.simulation.renameTechnician(id,name));}
-  fireTechnician(id:string):boolean {return this.action(this.simulation.fireTechnician(id));}
-  trainTechnician(id:string):boolean {return this.action(this.simulation.trainTechnician(id));}
-  assignRepair(equipmentId:string,technicianId:string):boolean {return this.action(this.simulation.assignRepair(equipmentId,technicianId));}
   callContractor(equipmentId:string,type:'budget'|'standard'|'urgent'):boolean {return this.action(this.simulation.callContractor(equipmentId,type));}
   cancelRepair(equipmentId:string):boolean {return this.action(this.simulation.cancelManualRepair(equipmentId));}
   sellPump(id:string):boolean {return this.action(this.simulation.sellPump(id));}

@@ -47,8 +47,15 @@ export function App() {
   },[gameState.technical?.noticeId]);
   useEffect(()=>{
     const current=gameState.station.jobs??[];
-    for(const job of constructionJobs.current){
-      if(!current.some(next=>next.id===job.id))toast(`${job.targetId} · работы завершены.`,'success');
+    const completed=constructionJobs.current.filter(job=>!current.some(next=>next.id===job.id));
+    if(completed.length){
+      const title=(job:typeof completed[number])=>{
+        const pump=gameState.station.pumps.find(p=>p.id===job.targetId);
+        const tankIndex=gameState.station.tanks.findIndex(t=>t.id===job.targetId);
+        const object=job.kind.startsWith('pump')||job.kind==='rewire'?`ТРК №${(pump?.slot??Number(job.targetId.split('-').at(-1))-1)+1}`:`резервуар №${tankIndex+1}`;
+        return `${object}: ${job.kind==='pump'||job.kind==='tank'?'строительство':job.kind==='rewire'?'подключение':'модернизация'} завершено`;
+      };
+      toast(completed.map(title).join(' · ')+'.','success');
     }
     constructionJobs.current=current;
   },[gameState.station.jobs]);

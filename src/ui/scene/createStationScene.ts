@@ -177,7 +177,7 @@ export async function createStationScene(initialPumps:readonly Pump[]):Promise<S
   }
   image(root,storeTexture,455,8,760,390);
   const facadeSign=new Container();
-  for(const [text,x] of [['МАРКЕТ',695],['КАФЕ',903]] as const){
+  for(const [text,x] of [['МАРКЕТ',670],['КАФЕ',940]] as const){
     const depth=label(text,x,187,28,0x62422a);
     const face=label(text,x,182,28,0xffe5a4);
     face.style.stroke={color:0xb98031,width:1};

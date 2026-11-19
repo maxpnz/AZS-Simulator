@@ -56,8 +56,8 @@ describe('v0.7.3 regression checks',()=>{
     old.state.commerce!.parking=Array(10).fill(null);old.state.commerce!.parking[4]=987;
     const restored=StationSimulation.importSave(old);
     expect(restored.commerce.parking).toHaveLength(10);
-    expect(restored.commerce.parking[0]).toBe(987);
-    expect(restored.vehicles.find(v=>v.id===987)?.x).toBe(PARKING_X[0]);
+    expect(restored.commerce.parking[4]).toBe(987);
+    expect(restored.vehicles.find(v=>v.id===987)?.x).toBe(PARKING_X[4]);
     expect(restored.station.balanceKopeks).toBe(sim.station.balanceKopeks);
     expect(restored.commerce.stock).toEqual(sim.commerce.stock);
   });

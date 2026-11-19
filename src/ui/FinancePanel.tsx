@@ -5,8 +5,8 @@ import { getClock } from '../game/simulation/time';
 
 const money=(kopeks:number)=>(kopeks/100).toLocaleString('ru-RU',{maximumFractionDigits:2})+' ₽';
 const litres=(ml:number)=>(ml/1000).toLocaleString('ru-RU',{maximumFractionDigits:1})+' л';
-const expenseKinds:FinanceKind[]=['lighting','pumpElectricity','tankMaintenance','pumping','technicianSalary','equipmentRepair','technicianStaff','goodsSalary','goodsMaintenance'];
-const labels:Record<FinanceKind,string>={sale:'Продажа топлива',lighting:'Освещение',pumpElectricity:'Электроэнергия ТРК',tankMaintenance:'Обслуживание резервуаров',pumping:'Прокачка топлива',purchase:'Закупка топлива',construction:'Строительство',upgrade:'Модернизация',technicianSalary:'Зарплата техников',equipmentRepair:'Ремонт оборудования',technicianStaff:'Найм и обучение',resale:'Продажа оборудования',goodsPurchase:'Закупка товаров',goodsSale:'Продажа товаров',goodsSalary:'Зарплата магазина и кафе',goodsMaintenance:'Содержание магазина и кафе',goodsCapital:'Открытие и развитие',purchaseRefund:'Возврат за топливо',goodsRefund:'Возврат за товары'};
+const expenseKinds:FinanceKind[]=['lighting','pumpElectricity','tankMaintenance','pumping','equipmentRepair','goodsSalary','goodsMaintenance'];
+const labels:Record<FinanceKind,string>={sale:'Продажа топлива',lighting:'Освещение',pumpElectricity:'Электроэнергия ТРК',tankMaintenance:'Обслуживание резервуаров',pumping:'Прокачка топлива',purchase:'Закупка топлива',construction:'Строительство',upgrade:'Модернизация',technicianSalary:'Исторический расход',equipmentRepair:'Ремонт оборудования',technicianStaff:'Исторический расход',resale:'Продажа оборудования',goodsPurchase:'Закупка товаров',goodsSale:'Продажа товаров',goodsSalary:'Зарплата магазина и кафе',goodsMaintenance:'Содержание магазина и кафе',goodsCapital:'Открытие и развитие',purchaseRefund:'Возврат за топливо',goodsRefund:'Возврат за товары'};
 const periods=[['День',86400],['Неделя',604800],['Месяц',2592000],['Всё время',Infinity]] as const;
 interface Props {state:GameState;onClose:()=>void;onBack:()=>void}
 export function FinancePanel({state,onClose,onBack}:Props){

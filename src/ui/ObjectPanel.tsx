@@ -72,7 +72,7 @@ export function ObjectPanel({id,state,prices,vehicles,onPrice,onBuildPump,onUpgr
   }).find(Boolean)|| (orderCost>station.balanceKopeks?'Недостаточно денег для заказа.':'');
   const name=slot>=0?pump?`Колонка №${slot+1}`:`Монтажное место №${slot+1}`:
     id==='price-sign'?'Стела с ценами':id==='tank'?'Резервуары':id==='delivery'?'Зона разгрузки':id==='shop'?'Магазин':'Строительство';
-  const act=(success:boolean,message:string)=>{if(success){toast(message,'success');}else toast('Действие недоступно. Проверьте баланс, занятость и наличие бригады.','error');};
+  const act=(success:boolean,message:string)=>{if(success){toast(message,'success');}else toast('Действие недоступно. Проверьте баланс и доступность объекта.','error');};
   return <section className="full-screen" role="dialog" aria-label={name}>
     <header className="screen-header"><button type="button" onClick={onBack}>← Меню</button><div><h2>{name}</h2><small>АЗС Simulator · v{currentVersion}</small></div><button type="button" onClick={onClose} aria-label="Вернуться к игре">×</button></header>
     <div className={`screen-content object-panel object-${id}`}>

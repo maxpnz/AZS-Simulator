@@ -12,6 +12,6 @@ describe('price comparison', () => {
   it('does not invent a comparison for a missing or zero reference', () => {
     expect(priceDifference(100, 0)).toBeNull();
     expect(priceDifference(100, undefined)).toBeNull();
-    expect(formatPriceDifference(null)).toBe('—');
+    expect(formatPriceDifference(null)).toBe('Нет данных');
   });
 });

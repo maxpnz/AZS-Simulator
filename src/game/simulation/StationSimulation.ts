@@ -14,9 +14,9 @@ import { advanceCompetition, competitionVisitFactor, createCompetition, enforceC
 import type { CompetitionState } from '../domain/competitors';
 import type { MarketState } from '../domain/market';
 import type { ConstructionJob, DeliveryTrip, ExpenseTotals, FinanceEvent, FinanceKind, FuelId, GameState, Pump, Sale, StationState, TrafficStats, Vehicle } from '../domain/types';
-import { getTrafficMultiplier, INITIAL_GAME_SECONDS } from './time';
-import { condition, contractorPose, CONTRACTORS, createTechnicalState, estimateRepair, LEVELS, proportionalDraw, resaleKopeks, SERVICE_ENTRANCE, TECH_NAMES, wearPump, wearTank } from '../domain/technical';
-import type { AutomationMode, EquipmentKind, RepairTask, Technician, TechnicalState } from '../domain/technical';
+import { INITIAL_GAME_SECONDS } from './time';
+import { condition, contractorPose, CONTRACTORS, createTechnicalState, estimateRepair, proportionalDraw, resaleKopeks, SERVICE_ENTRANCE, wearPump, wearTank } from '../domain/technical';
+import type { AutomationMode, EquipmentKind, RepairTask, TechnicalState } from '../domain/technical';
 import { SKU, PRODUCTS, RECIPES, VENUES, STAFF_SPEED, TRAIN_COST, SUPPLIERS as GOODS_SUPPLIERS, buyPrice, usedSpace, addStock, consume, createCommerce } from '../domain/commerce';
 import type { CommerceState, Venue, Sku, Product, Supplier } from '../domain/commerce';
 import { createVehicle, passengerTrafficMultiplier, priceForVolume, purchaseLimitMl, RandomSource, truckTrafficMultiplier } from './traffic';
@@ -146,7 +146,7 @@ export class StationSimulation {
     const save=raw as {version?:string;state?:GameState;rngState?:number;nextVehicleId?:number;nextSpawnSeconds?:number;nextJobId?:number;nextDeliveryId?:number};
     const state=(save.state??raw) as GameState;
     if(!state.station||!Number.isFinite(state.station.balanceKopeks)||!Number.isFinite(state.gameSeconds)||!Array.isArray(state.vehicles)||!Array.isArray(state.queueIds)||!state.station.fuels||!Array.isArray(state.station.tanks)||!Array.isArray(state.station.pumps))throw new Error('Invalid save state');
-    const station=['0.2.8','0.3.0','0.3.1','0.3.2','0.4.0','0.5.0','0.5.1','0.5.2','0.6.0','0.7.0','0.7.3','0.7.4',version].includes(save.version??'')?cloneInitialStation():cloneLegacyStation();
+    const station=['0.2.8','0.3.0','0.3.1','0.3.2','0.4.0','0.5.0','0.5.1','0.5.2','0.6.0','0.7.0','0.7.3','0.7.4','0.7.5',version].includes(save.version??'')?cloneInitialStation():cloneLegacyStation();
     station.name=normalizeStationName(state.station.name);
     if(Number.isFinite(state.station.balanceKopeks))station.balanceKopeks=state.station.balanceKopeks;
     for(const id of FUEL_IDS)if(state.station.fuels?.[id])station.fuels[id]={...station.fuels[id],...state.station.fuels[id]};
@@ -157,11 +157,11 @@ export class StationSimulation {
     sim.gameSeconds=state.gameSeconds;
     if(state.commerce){const c=state.commerce;if(!c.stock||!c.venues||!Array.isArray(c.orders)||!Array.isArray(c.parking)||Object.values(c.stock).some(stock=>!stock||!Number.isFinite(stock.quantity)||stock.quantity<0||!Number.isFinite(stock.valueKopeks)||stock.valueKopeks<0))throw new Error('Invalid commerce save');Object.assign(sim.commerce,c);sim.commerce.stock={...createCommerce().stock,...c.stock};sim.commerce.prices={...createCommerce().prices,...c.prices};sim.commerce.venues={shop:{...createCommerce().venues.shop,...c.venues?.shop,queue:[...(c.venues?.shop?.queue??[])]},cafe:{...createCommerce().venues.cafe,...c.venues?.cafe,queue:[...(c.venues?.cafe?.queue??[])]}};sim.commerce.parking=[...createCommerce().parking];sim.commerce.customers={...(c.customers??{})};}
     Object.assign(sim.technical,createTechnicalState(state.gameSeconds),state.technical??{});
-    sim.technical.technicians=(state.technical?.technicians??[]).map(t=>({...t,salaryRemainder:t.salaryRemainder??0,salarySeconds:t.salarySeconds??0,salaryAccrualNumerator:t.salaryAccrualNumerator??0}));
-    sim.technical.tasks=(state.technical?.tasks??[]).map(t=>({...t}));
+    sim.technical.mode='manual';sim.technical.technicians=[];sim.technical.notice=undefined;
+    sim.technical.tasks=(state.technical?.tasks??[]).filter(t=>!!t.paid).map((t,index)=>({...t,contractor:t.contractor??'standard' as const,technicianId:undefined,source:'manual' as const,parkingSlot:t.parkingSlot??index})).filter((task,index,tasks)=>tasks.findIndex(other=>other.equipmentId===task.equipmentId)===index);
     sim.technical.history=(state.technical?.history??[]).map(h=>({...h}));
     sim.technical.cooldown={...(state.technical?.cooldown??{})};
-    sim.technical.departing=(state.technical?.departing??[]).map(d=>({...d}));
+    sim.technical.departing=(state.technical?.departing??[]).filter(d=>d.kind==='contractor').map(d=>({...d}));
     sim.market=state.market??createMarket(state.gameSeconds);
     if(!sim.market.warehouses.nefteopt)sim.market.warehouses.nefteopt=createMarket(state.gameSeconds).warehouses.nefteopt;
     sim.competition=state.competition??createCompetition(state.gameSeconds,sim.market.baseKopeks);
@@ -175,7 +175,7 @@ export class StationSimulation {
       if(v.status==='fueling'){
         copy.servicePhase=v.deliveredMl>0||v.servicePhase==='dispensing'?'dispensing':'preparing';
         copy.phaseRemainingSeconds=copy.servicePhase==='preparing'?Math.min(20,Math.max(0,v.phaseRemainingSeconds??20)):0;
-      }else if(!['0.5.1','0.5.2','0.6.0','0.7.0','0.7.3','0.7.4',version].includes(save.version??'')){delete copy.servicePhase;delete copy.phaseRemainingSeconds;}
+      }else if(!['0.5.1','0.5.2','0.6.0','0.7.0','0.7.3','0.7.4','0.7.5',version].includes(save.version??'')){delete copy.servicePhase;delete copy.phaseRemainingSeconds;}
       return copy;
     }));
     if(state.stats?.departed===undefined)sim.stats.departed=Math.max(0,sim.stats.visited-sim.vehicles.filter(v=>v.status!=='road').length);
@@ -184,12 +184,12 @@ export class StationSimulation {
     for(const [oldSlot,id] of (state.commerce?.parking??[]).entries()){
       if(id===null||sim.commerce.parking.includes(id))continue;
       const vehicle=sim.vehicles.find(v=>v.id===id);if(!vehicle)continue;
-      const slot=['0.7.3','0.7.4',version].includes(save.version??'')&&oldSlot<sim.commerce.parking.length&&sim.commerce.parking[oldSlot]===null?oldSlot:sim.commerce.parking.indexOf(null);
+      const slot=oldSlot<sim.commerce.parking.length&&sim.commerce.parking[oldSlot]===null?oldSlot:sim.commerce.parking.indexOf(null);
       if(slot<0){vehicle.parkSlot=undefined;delete sim.commerce.customers[id];for(const venue of ['shop','cafe'] as Venue[]){const v=sim.commerce.venues[venue];v.queue=v.queue.filter(customer=>customer!==id);if(v.serving===id)v.serving=undefined;}sim.setRoute(vehicle,[...EXIT_ROUTE],'leaving');continue;}
       sim.commerce.parking[slot]=id;vehicle.parkSlot=slot;
-      if(vehicle.status==='toParking'&&save.version!==version)sim.setRoute(vehicle,['parking_entry',`parking_access_${slot}`,`parking_${slot}`],'toParking');
-      else if(vehicle.status==='parked'&&save.version!==version){const node=ROAD_NODES.find(n=>n.id===`parking_${slot}`)!;vehicle.x=node.x;vehicle.y=node.y;vehicle.angle=PARKING_SLOTS[slot].angle;}
-      else if(vehicle.status==='leaving'&&save.version!==version){
+      if(vehicle.status==='toParking'&&!['0.7.5',version].includes(save.version??''))sim.setRoute(vehicle,['parking_entry',`parking_access_${slot}`,`parking_${slot}`],'toParking');
+      else if(vehicle.status==='parked'&&!['0.7.5',version].includes(save.version??'')){const node=ROAD_NODES.find(n=>n.id===`parking_${slot}`)!;vehicle.x=node.x;vehicle.y=node.y;vehicle.angle=PARKING_SLOTS[slot].angle;}
+      else if(vehicle.status==='leaving'&&!['0.7.5',version].includes(save.version??'')){
         vehicle.parkSlot=undefined;sim.commerce.parking[slot]=null;
       }
     }
@@ -249,7 +249,7 @@ export class StationSimulation {
         if(active.reduce((sum,x)=>sum+Math.max(0,x.reservedMl-x.deliveredMl),0)<=stock)break;
       }
     }
-    if(!['0.2.7','0.2.8','0.3.0','0.3.1','0.3.2','0.4.0','0.5.0','0.5.1','0.5.2','0.6.0','0.7.0','0.7.3','0.7.4',version].includes(save.version??''))for(const v of sim.vehicles){
+    if(!['0.2.7','0.2.8','0.3.0','0.3.1','0.3.2','0.4.0','0.5.0','0.5.1','0.5.2','0.6.0','0.7.0','0.7.3','0.7.4','0.7.5',version].includes(save.version??''))for(const v of sim.vehicles){
       const pump=v.pumpId&&sim.station.pumps.find(p=>p.id===v.pumpId);
       if(v.status==='fueling'||v.status==='finishing'){
         if(pump){const point=PUMP_SLOTS[pump.slot];v.x=point.stopX;v.y=point.stopY;v.angle=Math.PI;}
@@ -274,7 +274,7 @@ export class StationSimulation {
         v.routeIndex=0;
       }
     }
-    if(!['0.5.1','0.5.2','0.6.0','0.7.0','0.7.3','0.7.4',version].includes(save.version??'')){
+    if(!['0.5.1','0.5.2','0.6.0','0.7.0','0.7.3','0.7.4','0.7.5',version].includes(save.version??'')){
       // The old shared queue had no dispenser assignment. Move each waiting
       // customer to a marked bay and repair vehicles trapped at the entrance.
       const redirected=new Set<number>();
@@ -341,65 +341,7 @@ export class StationSimulation {
     return true;
   }
   setAutomation(mode:AutomationMode):boolean {
-    if(!['automatic','critical','manual'].includes(mode))return false;
-    this.technical.mode=mode;return true;
-  }
-  hireTechnician(inputName?:string):boolean {
-    if(this.technical.technicians.length>=3)return false;
-    const id=`tech-${this.technical.nextId++}`;
-    const used=new Set(this.technical.technicians.map(t=>t.name));
-    const availableNames=TECH_NAMES.filter(name=>!used.has(name));
-    const suggestion=availableNames[Math.floor(this.rng.next()*availableNames.length)]??`Техник ${id}`;
-    const name=inputName===undefined?suggestion:inputName.trim();
-    if(!name||[...name].length>24)return false;
-    if(!this.debit('technicianStaff',200_000,`hire-${id}`))return false;
-    this.technical.technicians.push({id,name,level:1,phase:'inside',x:SERVICE_ENTRANCE.x,y:SERVICE_ENTRANCE.y,
-      phaseRemaining:0,trainingRemaining:0,salaryRemainder:0,salarySeconds:0,salaryAccrualNumerator:0});
-    return true;
-  }
-  renameTechnician(id:string,name:string):boolean {
-    const technician=this.technical.technicians.find(t=>t.id===id);
-    const trimmed=name.trim();if(!technician||!trimmed||[...trimmed].length>24)return false;
-    technician.name=trimmed;return true;
-  }
-  fireTechnician(id:string):boolean {
-    const index=this.technical.technicians.findIndex(t=>t.id===id);
-    if(index<0)return false;
-    const technician=this.technical.technicians[index];
-    if(technician.phase==='training'||this.technical.tasks.some(t=>t.technicianId===id&&t.paid))return false;
-    if(technician.salarySeconds>0)this.settleSalary(technician,this.gameSeconds);
-    for(const task of [...this.technical.tasks].filter(t=>t.technicianId===id))this.cancelRepair(task.equipmentId,false);
-    this.technical.departing.push({id:`departure-${id}`,kind:'technician',x:technician.x,y:technician.y,fromX:technician.x,fromY:technician.y,remaining:60});
-    this.technical.technicians.splice(index,1);return true;
-  }
-  trainTechnician(id:string):boolean {
-    const tech=this.technical.technicians.find(t=>t.id===id);
-    if(!tech||tech.level>=5||tech.phase==='training'||tech.trainingTarget)return false;
-    const task=this.technical.tasks.find(t=>t.technicianId===id);
-    if(task?.paid)return false;
-    const next=LEVELS[tech.level];
-    if(this.station.balanceKopeks<next.training*100)return false;
-    if(task)this.cancelRepair(task.equipmentId,false);
-    if(!this.debit('technicianStaff',next.training*100,`training-${id}-${tech.level+1}`))return false;
-    tech.trainingTarget=tech.level+1;tech.trainingRemaining=next.seconds;
-    if(tech.phase!=='inside'){tech.returnStartX=tech.x;tech.returnStartY=tech.y;}
-    tech.phase=tech.phase==='inside'?'training':'returning';
-    tech.phaseRemaining=tech.phase==='training'?0:60;
-    return true;
-  }
-  assignRepair(equipmentId:string,technicianId:string,source:'manual'|'automatic'='manual'):boolean {
-    const equipment=this.equipment(equipmentId);
-    const tech=this.technical.technicians.find(t=>t.id===technicianId);
-    if(!equipment||!tech||equipment.item.status==='building'||equipment.item.status==='upgrading'||condition(equipment.item)>=100||tech.phase==='training'||tech.trainingTarget)return false;
-    const prior=this.technical.tasks.find(t=>t.technicianId===technicianId);
-    if(this.technical.tasks.some(t=>t.equipmentId===equipmentId))return false;
-    if(prior){if(prior.paid||source==='automatic'||prior.source==='manual')return false;this.cancelRepair(prior.equipmentId,false);}
-    const id=`repair-${this.technical.nextId++}`;
-    this.technical.tasks.push({id,equipmentId,kind:equipment.kind,technicianId,source,phase:'travel',phaseRemaining:60,
-      paid:false,blocked:true,partsKopeks:0,callKopeks:0,conditionBefore:condition(equipment.item),durationSeconds:0,executorName:tech.name,startX:tech.x,startY:tech.y});
-    tech.phase='travel';tech.phaseRemaining=60;
-    this.redirectQueue(equipmentId);
-    return true;
+    return mode==='manual';
   }
   callContractor(equipmentId:string,type:keyof typeof CONTRACTORS):boolean {
     const equipment=this.equipment(equipmentId),contractor=CONTRACTORS[type];
@@ -408,7 +350,7 @@ export class StationSimulation {
     const id=`repair-${this.technical.nextId++}`;
     const callKopeks=contractor.call*100;
     if(!this.debit('equipmentRepair',estimate.partsKopeks+callKopeks,`payment-${id}`,equipmentId))return false;
-    const occupied=new Set(this.technical.tasks.filter(t=>t.contractor).map(t=>t.parkingSlot));
+    const occupied=new Set([...this.technical.tasks.filter(t=>t.contractor).map(t=>t.parkingSlot),...this.technical.departing.filter(d=>d.kind==='contractor').map(d=>d.slot)]);
     let parkingSlot=0;while(occupied.has(parkingSlot))parkingSlot++;
     this.technical.tasks.push({id,equipmentId,kind:equipment.kind,contractor:type,source:'manual',phase:'travel',phaseRemaining:contractor.arrival,
       paid:true,blocked:true,partsKopeks:estimate.partsKopeks,callKopeks,conditionBefore:condition(equipment.item),durationSeconds:estimate.durationSeconds,
@@ -463,41 +405,7 @@ export class StationSimulation {
     const tank=this.station.tanks.find(t=>t.id===task.equipmentId);if(!tank)return false;
     return this.vehicles.some(v=>v.status==='fueling'&&v.tankIds?.includes(tank.id))||this.deliveries.some(d=>d.status==='unloading'&&d.unloadingTankId===tank.id);
   }
-  private settleSalary(tech:Technician,at:number):void {
-    const numerator=tech.salaryRemainder+(tech.salaryAccrualNumerator??0);
-    const kopeks=Math.floor(numerator/86400+1e-10);
-    tech.salaryRemainder=numerator-kopeks*86400;
-    tech.salaryAccrualNumerator=0;tech.salarySeconds=0;
-    this.station.balanceKopeks-=kopeks;
-    if(kopeks)this.financeEvents.push({id:`salary-${tech.id}-${at}`,gameSeconds:Math.max(0,at-0.001),kind:'technicianSalary',amountKopeks:kopeks,objectId:tech.id});
-  }
-  private advanceTechnical(seconds:number,from:number):void {
-    for(const tech of this.technical.technicians){
-      let remaining=seconds,cursor=from;
-      while(remaining>1e-9){
-        const phaseEnd=tech.phase==='returning'?Math.max(0,tech.phaseRemaining):tech.phase==='training'?Math.max(0,tech.trainingRemaining):Infinity;
-        const untilPay=Math.max(0,60-tech.salarySeconds);
-        const slice=Math.min(remaining,phaseEnd,untilPay);
-        if(slice>0){
-          tech.salaryAccrualNumerator=(tech.salaryAccrualNumerator??0)+LEVELS[tech.level-1].salary*100*slice;
-          tech.salarySeconds+=slice;
-          if(tech.phase==='returning'){
-            tech.phaseRemaining=Math.max(0,tech.phaseRemaining-slice);
-            const ratio=tech.phaseRemaining/60;
-            tech.x=SERVICE_ENTRANCE.x+((tech.returnStartX??tech.x)-SERVICE_ENTRANCE.x)*ratio;
-            tech.y=SERVICE_ENTRANCE.y+((tech.returnStartY??tech.y)-SERVICE_ENTRANCE.y)*ratio;
-          }else if(tech.phase==='training')tech.trainingRemaining=Math.max(0,tech.trainingRemaining-slice);
-          remaining-=slice;cursor+=slice;
-        }
-        if(tech.salarySeconds>=60-1e-9)this.settleSalary(tech,cursor);
-        if(tech.phase==='returning'&&tech.phaseRemaining<=1e-9){tech.phase=tech.trainingTarget?'training':'inside';tech.x=SERVICE_ENTRANCE.x;tech.y=SERVICE_ENTRANCE.y;}
-        else if(tech.phase==='training'&&tech.trainingRemaining<=1e-9){
-          tech.level=tech.trainingTarget??tech.level;tech.trainingTarget=undefined;tech.phase='inside';
-          this.technical.notice=`${tech.name}: обучение завершено — ${LEVELS[tech.level-1].name}`;this.technical.noticeId=(this.technical.noticeId??0)+1;
-        }
-        if(slice<=1e-9&&phaseEnd>1e-9&&untilPay>1e-9)break;
-      }
-    }
+  private advanceTechnical(seconds:number,_from:number):void {
     for(const task of [...this.technical.tasks]){
       const tech=this.technical.technicians.find(t=>t.id===task.technicianId);
       let workSeconds=seconds;
@@ -521,26 +429,7 @@ export class StationSimulation {
       if(task.phase==='waiting'){
         const item=this.equipment(task.equipmentId)?.item;
         if(!item){this.technical.tasks.splice(this.technical.tasks.indexOf(task),1);continue;}
-        if(task.blocked===false&&this.station.balanceKopeks>=estimateRepair(task.kind,condition(item),LEVELS[(tech?.level??1)-1].speed).partsKopeks){
-          task.blocked=true;this.redirectQueue(task.equipmentId);
-        }
         if(this.equipmentBusy(task))continue;
-        if(!task.paid){
-          const estimate=estimateRepair(task.kind,condition(item),LEVELS[(tech?.level??1)-1].speed);
-          if(estimate.durationSeconds<=0){this.technical.tasks.splice(this.technical.tasks.indexOf(task),1);if(tech)tech.phase='returning';continue;}
-          if(!this.debit('equipmentRepair',estimate.partsKopeks,`payment-${task.id}`,task.equipmentId)){
-            task.blocked=condition(item)<=0;
-            const waiting=this.technical.tasks.filter(t=>!t.paid);
-            const needed=waiting.reduce((sum,t)=>{const target=this.equipment(t.equipmentId);return sum+(target?estimateRepair(t.kind,condition(target.item)).partsKopeks:0);},0);
-            const message=`Недостаточно денег: ${waiting.length} ремонтов ожидают, требуется ${(needed/100).toLocaleString('ru-RU')} ₽`;
-            if(this.technical.notice!==message){this.technical.notice=message;this.technical.noticeId=(this.technical.noticeId??0)+1;}
-            continue;
-          }
-          task.paid=true;task.blocked=true;task.partsKopeks=estimate.partsKopeks;task.conditionBefore=condition(item);
-          if(tech)task.executorName=tech.name;
-          task.durationSeconds=estimate.durationSeconds;task.paymentEventId=`payment-${task.id}`;
-          this.redirectQueue(task.equipmentId);
-        }
         task.phase='working';task.phaseRemaining=task.durationSeconds;task.startedAt=this.gameSeconds;
         if(tech)tech.phase='working';
       }
@@ -552,8 +441,7 @@ export class StationSimulation {
           conditionBefore:task.conditionBefore,partsKopeks:task.partsKopeks,callKopeks:task.callKopeks,durationSeconds:task.durationSeconds,
           executorName:task.executorName,technicianId:task.technicianId,source:task.source});
         this.technical.tasks.splice(this.technical.tasks.indexOf(task),1);
-        this.technical.notice=`${task.equipmentId}: ремонт завершён, состояние 100%`;this.technical.noticeId=(this.technical.noticeId??0)+1;
-        if(tech){tech.phase='returning';tech.phaseRemaining=60;tech.returnStartX=tech.x;tech.returnStartY=tech.y;}
+        this.technical.notice=`Ремонт ${task.kind==='pump'?`ТРК №${this.station.pumps.find(p=>p.id===task.equipmentId)?.slot!==undefined?(this.station.pumps.find(p=>p.id===task.equipmentId)!.slot+1):task.equipmentId.split('-').at(-1)}`:`резервуара №${this.station.tanks.findIndex(t=>t.id===task.equipmentId)+1}`} завершён`;this.technical.noticeId=(this.technical.noticeId??0)+1;
         if(task.contractor){const park=contractorPose(task.parkingSlot??0,0,'departure');this.technical.departing.push({id:`departure-${task.id}`,kind:'contractor',slot:task.parkingSlot,x:park.x,y:park.y,fromX:park.x,fromY:park.y,remaining:600});}
       }
     }
@@ -571,42 +459,7 @@ export class StationSimulation {
       departing.remaining=nextRemaining;
       if(departing.remaining===0)this.technical.departing.splice(this.technical.departing.indexOf(departing),1);
     }
-    this.planRepairs();
-  }
-  private planRepairs():void {
-    if(this.technical.mode==='manual')return;
-    const free=this.technical.technicians.filter(t=>['inside','returning'].includes(t.phase)&&!t.trainingTarget&&!this.technical.tasks.some(task=>task.technicianId===t.id));
-    const category=(value:number)=>value===0?0:value<=20?1:2;
-    const candidates=[...this.station.pumps,...this.station.tanks].filter(item=>item.status!== 'building'&&item.status!=='upgrading'&&condition(item)<100&&
-      !this.technical.tasks.some(t=>t.equipmentId===item.id)&&(condition(item)===0||!this.technical.cooldown[item.id]||this.technical.cooldown[item.id]<=this.gameSeconds))
-      .sort((a,b)=>{
-        const impact=(item:Pump|import('../domain/types').FuelTank)=>'slot' in item?
-          this.station.pumps.filter(p=>p.id!==item.id&&p.fuels.some(f=>item.fuels.includes(f))&&this.usablePump(p)).length:
-          this.station.tanks.filter(t=>t.id!==item.id&&t.fuel===item.fuel&&this.usableTank(t)).length;
-        return category(condition(a))-category(condition(b))||impact(a)-impact(b)||condition(a)-condition(b);
-      });
-    if(candidates.some(item=>condition(item)<=20)&&this.technical.technicians.length===0){
-      const message='Критический износ: наймите техника или вызовите подрядчика';
-      if(this.technical.notice!==message){this.technical.notice=message;this.technical.noticeId=(this.technical.noticeId??0)+1;}
-    }
-    for(const item of candidates){
-      if(condition(item)>20&&(this.queueIds.length>0||getTrafficMultiplier(this.gameSeconds)>1.25))continue;
-      if(free.length===0){
-        const eligibleTask=this.technical.tasks.find(task=>task.source==='automatic'&&!task.paid&&category(condition(item))<category(condition(this.equipment(task.equipmentId)?.item??{condition:100} as Pump))&&
-          this.technical.technicians.some(t=>t.id===task.technicianId&&!t.trainingTarget&&condition(item)<=(this.technical.mode==='critical'?20:LEVELS[t.level-1].threshold)));
-        if(eligibleTask){const technician=this.technical.technicians.find(t=>t.id===eligibleTask.technicianId)!;this.cancelRepair(eligibleTask.equipmentId,false);free.push(technician);}
-      }
-      const eligible=free.filter(t=>condition(item)<= (this.technical.mode==='critical'?20:LEVELS[t.level-1].threshold));
-      if(!eligible.length)continue;
-      const best=eligible.sort((a,b)=>{
-        const score=(t:typeof a)=>{
-          const duration=estimateRepair('slot' in item?'pump':'tank',condition(item),LEVELS[t.level-1].speed).durationSeconds;
-          return category(condition(item))===2?LEVELS[t.level-1].salary*100*duration/86400+duration*.1:duration;
-        };
-        return score(a)-score(b)||a.id.localeCompare(b.id);
-      })[0];
-      if(this.assignRepair(item.id,best.id,'automatic'))free.splice(free.indexOf(best),1);
-    }
+    // External masters are called by the player only.
   }
   private addJob(kind:ConstructionJob['kind'],targetId:string,duration:number,fuels?:FuelId[]):void {
     (this.station.jobs??=[]).push({id:`job-${this.nextJobId++}`,kind,targetId,totalSeconds:duration,remainingSeconds:duration,status:'queued',fuels});
@@ -1020,7 +873,7 @@ export class StationSimulation {
   }
   private decideVisit(vehicle:Vehicle):void {
     if(vehicle.laneId!=='west_lane_1')return;
-    if(vehicle.category!=='truck'&&(this.commerce.venues.shop.level||this.commerce.venues.cafe.level)&&this.rng.next()<Math.min(.85,.7+.05*(Math.max(this.commerce.venues.shop.level,this.commerce.venues.cafe.level)-1))*(this.gameSeconds%86400<21600||this.gameSeconds%86400>79200?.55:1)){const slot=this.commerce.parking.indexOf(null);vehicle.wantsShop=!!this.commerce.venues.shop.level&&this.rng.next()<Math.min(.9,.75+.05*(this.commerce.venues.shop.level-1));vehicle.wantsCafe=!!this.commerce.venues.cafe.level&&this.rng.next()<Math.min(.8,.6+.05*(this.commerce.venues.cafe.level-1));if(!vehicle.wantsShop&&!vehicle.wantsCafe)vehicle.wantsShop=!!this.commerce.venues.shop.level;if(slot>=0){this.commerce.parking[slot]=vehicle.id;vehicle.parkSlot=slot;this.stats.visited++;this.setRoute(vehicle,['entrance_curve','entrance','queue_split','parking_entry',`parking_access_${slot}`,`parking_${slot}`],'toParking');return;}vehicle.refusalReason='Нет места на парковке';this.commerce.venues.shop.lost+=Number(!!vehicle.wantsShop);this.commerce.venues.cafe.lost+=Number(!!vehicle.wantsCafe);return;}
+    if(modelById(vehicle.modelId).length<=4.8&&(this.commerce.venues.shop.level||this.commerce.venues.cafe.level)&&this.rng.next()<Math.min(.85,.7+.05*(Math.max(this.commerce.venues.shop.level,this.commerce.venues.cafe.level)-1))*(this.gameSeconds%86400<21600||this.gameSeconds%86400>79200?.55:1)){const slot=this.commerce.parking.indexOf(null);vehicle.wantsShop=!!this.commerce.venues.shop.level&&this.rng.next()<Math.min(.9,.75+.05*(this.commerce.venues.shop.level-1));vehicle.wantsCafe=!!this.commerce.venues.cafe.level&&this.rng.next()<Math.min(.8,.6+.05*(this.commerce.venues.cafe.level-1));if(!vehicle.wantsShop&&!vehicle.wantsCafe)vehicle.wantsShop=!!this.commerce.venues.shop.level;if(slot>=0){this.commerce.parking[slot]=vehicle.id;vehicle.parkSlot=slot;this.stats.visited++;this.setRoute(vehicle,['entrance_curve','entrance','queue_split','parking_entry',`parking_access_${slot}`,`parking_${slot}`],'toParking');return;}vehicle.refusalReason='Нет места на парковке';this.commerce.venues.shop.lost+=Number(!!vehicle.wantsShop);this.commerce.venues.cafe.lost+=Number(!!vehicle.wantsCafe);return;}
     const compatiblePumps=this.station.pumps.filter(pump=>this.usablePump(pump)&&pump.fuels.includes(vehicle.fuel)&&
       (vehicle.category==='truck'?pump.slot%2===0:modelById(vehicle.modelId).length<=(pump.slot%2===1?4.7:5.4)));
     const compatible=compatiblePumps.length>0&&this.station.tanks.some(t=>t.fuel===vehicle.fuel&&this.usableTank(t));
@@ -1035,7 +888,7 @@ export class StationSimulation {
       Math.max(.2,1-queue*demand.queuePenalty)*demand.attractiveness*(this.market.modifiers.demandBps??10000)/10000));
     if(this.rng.next()>=probability){const average=marketAverage(this.competition,vehicle.fuel);
       vehicle.refusalReason=average!==undefined&&this.station.fuels[vehicle.fuel].retailKopeks>average+100?'Слишком высокая цена':'Выбрана другая АЗС';return;}
-    if(vehicle.category!=='truck'&&(this.commerce.venues.shop.level||this.commerce.venues.cafe.level)){vehicle.wantsShop=!!this.commerce.venues.shop.level&&this.rng.next()<.28;vehicle.wantsCafe=!!this.commerce.venues.cafe.level&&this.rng.next()<.22;}
+    if(modelById(vehicle.modelId).length<=4.8&&(this.commerce.venues.shop.level||this.commerce.venues.cafe.level)){vehicle.wantsShop=!!this.commerce.venues.shop.level&&this.rng.next()<.28;vehicle.wantsCafe=!!this.commerce.venues.cafe.level&&this.rng.next()<.22;}
     const free=compatiblePumps.filter(p=>!this.isOccupied(p)&&!this.isIslandBusy(p)&&!this.queueIds.some(id=>this.vehicles.some(v=>v.id===id&&v.pumpId===p.id)));
     // Long vehicles enter only when a dispenser and the turning corridor are
     // free. They cannot safely wait side by side at the narrow entrance.
@@ -1198,7 +1051,7 @@ export class StationSimulation {
     vehicle.servicePhase=undefined;vehicle.phaseRemainingSeconds=0;
     const servedNode=vehicle.route.find(id=>/^pump_\d+$/.test(id))??'pump_1';
     const wants=vehicle.wantsShop||vehicle.wantsCafe;
-    const free=vehicle.category==='truck'?(this.commerce.truckParking===undefined?TRUCK_PARKING_SLOT:-1):this.commerce.parking.indexOf(null);
+    const free=vehicle.category==='truck'?(this.commerce.truckParking===undefined?TRUCK_PARKING_SLOT:-1):modelById(vehicle.modelId).length<=4.8?this.commerce.parking.indexOf(null):-1;
     if(wants&&free>=0){
       vehicle.parkSlot=free;
       if(free===TRUCK_PARKING_SLOT){

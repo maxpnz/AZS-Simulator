@@ -29,19 +29,11 @@ export interface TechnicalState {
   noticeId?: number;
   departing: {id:string;x:number;y:number;remaining:number;fromX:number;fromY:number;kind:'technician'|'contractor';slot?:number}[];
 }
-export const LEVELS = [
-  { name: 'Стажёр', salary: 800, speed: 1, training: 0, seconds: 0, threshold: 30 },
-  { name: 'Механик', salary: 1200, speed: 1.5, training: 5000, seconds: 4*3600, threshold: 45 },
-  { name: 'Опытный техник', salary: 1800, speed: 2, training: 12000, seconds: 8*3600, threshold: 60 },
-  { name: 'Инженер', salary: 2600, speed: 3, training: 25000, seconds: 16*3600, threshold: 75 },
-  { name: 'Главный инженер', salary: 3800, speed: 4, training: 50000, seconds: 24*3600, threshold: 85 },
-] as const;
 export const CONTRACTORS = {
-  budget: { name: 'Бюджетный подрядчик', call: 1000, arrival: 120*60, speed: 1 },
-  standard: { name: 'Стандартный подрядчик', call: 3000, arrival: 60*60, speed: 2 },
-  urgent: { name: 'Срочный подрядчик', call: 8000, arrival: 15*60, speed: 4 },
+  budget: { name: 'Эконом', call: 1000, arrival: 120*60, speed: 1 },
+  standard: { name: 'Стандарт', call: 3000, arrival: 60*60, speed: 2 },
+  urgent: { name: 'Эксперт', call: 8000, arrival: 15*60, speed: 4 },
 } as const;
-export const TECH_NAMES = ['Алексей','Иван','Дмитрий','Сергей','Андрей','Михаил','Павел','Николай','Максим','Егор','Артём','Виктор','Роман','Олег','Антон','Кирилл'];
 export const SERVICE_ENTRANCE = { x: 1100, y: 420 };
 export function contractorPose(slot:number,progress:number,direction:'arrival'|'departure'):{x:number;y:number}{
   const park={x:1750-slot*54,y:350};
@@ -57,7 +49,7 @@ export function contractorPose(slot:number,progress:number,direction:'arrival'|'
   return points.at(-1)!;
 }
 export function createTechnicalState(_gameSeconds: number): TechnicalState {
-  return { mode: 'automatic', technicians: [], tasks: [], history: [], cooldown: {}, nextId: 1,
+  return { mode: 'manual', technicians: [], tasks: [], history: [], cooldown: {}, nextId: 1,
     noticeId:0, departing:[] };
 }
 export function condition(item: Pump | FuelTank): number { return Math.max(0, Math.min(100, Number.isFinite(item.condition) ? item.condition! : 100)); }
