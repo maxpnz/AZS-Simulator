@@ -19,8 +19,12 @@ import { StationCanvas } from './scene/StationCanvas';
 import type { ObjectId } from './scene/createStationScene';
 import { useUiStore } from './store';
 import { InteractionGate } from './interactionGate';
+import { App as CapacitorApp } from '@capacitor/app';
+import { audio } from '../audio/AudioManager';
+import { GameAudioEvents } from '../audio/GameAudioEvents';
 const engine=new GameEngine();
 const interactionGate=new InteractionGate();
+const gameAudio=new GameAudioEvents(audio);
 useUiStore.setState({speed:engine.getSpeed()});
 type Screen='menu'|'overview'|'finances'|'competitors'|'technical'|'settings'|'start'|ObjectId|null;
 export function App() {
@@ -36,7 +40,23 @@ export function App() {
   const constructionJobs=useRef(gameState.station.jobs??[]);
   const manualPause=useUiStore((s)=>s.paused),backgroundPause=useUiStore((s)=>s.backgroundPause),interfacePause=useUiStore((s)=>s.interfacePause),speed=useUiStore((s)=>s.speed);
   const togglePause=useUiStore((s)=>s.togglePause),cycleSpeed=useUiStore((s)=>s.cycleSpeed),resetControls=useUiStore((s)=>s.resetControls);
-  useEffect(()=>{if(engine.getLoadError())toast('Не удалось загрузить сохранение. Проверьте хранилище браузера.','error');const unsubscribe=engine.subscribeState(setGameState);engine.start();return()=>{unsubscribe();engine.stop();};},[]);
+  useEffect(()=>{if(engine.getLoadError())toast('Не удалось загрузить сохранение. Проверьте хранилище браузера.','error');gameAudio.rebase(engine.getState());const unsubscribe=engine.subscribeState(state=>{gameAudio.update(state);setGameState(state);});engine.start();return()=>{unsubscribe();engine.stop();audio.dispose();};},[]);
+  useEffect(()=>{
+    const activate=()=>audio.activate();
+    const click=(event:PointerEvent)=>{if((event.target as Element).closest('button'))audio.play('ui_click');};
+    document.addEventListener('pointerdown',activate,{passive:true});document.addEventListener('keydown',activate);document.addEventListener('pointerdown',click,{passive:true});
+    return()=>{document.removeEventListener('pointerdown',activate);document.removeEventListener('keydown',activate);document.removeEventListener('pointerdown',click);};
+  },[]);
+  useEffect(()=>{audio.setModalOpen(screen!==null);},[screen]);
+  useEffect(()=>{
+    const sync=()=>audio.setSuspended(document.visibilityState==='hidden'||!document.hasFocus());
+    const onPause=()=>audio.setSuspended(true),onResume=()=>audio.setSuspended(document.visibilityState==='hidden'||!document.hasFocus());
+    document.addEventListener('visibilitychange',sync);window.addEventListener('blur',onPause);window.addEventListener('focus',sync);
+    window.addEventListener('azs-audio-focus-lost',onPause);window.addEventListener('azs-audio-focus-gained',onResume);
+    let live=true;let nativeListener:{remove:()=>Promise<void>}|undefined;
+    void CapacitorApp.addListener('appStateChange',({isActive})=>audio.setSuspended(!isActive)).then(listener=>{if(live)nativeListener=listener;else void listener.remove();}).catch(()=>{});
+    return()=>{live=false;void nativeListener?.remove();document.removeEventListener('visibilitychange',sync);window.removeEventListener('blur',onPause);window.removeEventListener('focus',sync);window.removeEventListener('azs-audio-focus-lost',onPause);window.removeEventListener('azs-audio-focus-gained',onResume);};
+  },[]);
   useEffect(()=>interactionGate.attach(document),[]);
   useEffect(()=>installWakeLock(),[]);
   useEffect(()=>{
@@ -60,20 +80,25 @@ export function App() {
     constructionJobs.current=current;
   },[gameState.station.jobs]);
   const loadSlot=(slot:number)=>{
+    gameAudio.suppressNext();
     const ok=engine.loadSlot(slot);
     if(ok){
       const loaded=engine.getState();
+      gameAudio.rebase(loaded);
       lastTechnicalNotice.current=loaded.technical?.noticeId;
       constructionJobs.current=loaded.station.jobs??[];
       setGameState(loaded);
       setSceneKey(k=>k+1);
     }
+    else gameAudio.rebase(engine.getState());
     return ok;
   };
   const resetGame=()=>{
+    gameAudio.suppressNext();
     engine.reset();
     resetControls();
     const state=engine.getState();
+    gameAudio.rebase(state);
     lastTechnicalNotice.current=state.technical?.noticeId;
     constructionJobs.current=state.station.jobs??[];
     setGameState(state);
@@ -100,7 +125,7 @@ export function App() {
       onPause={togglePause} onSpeed={cycleSpeed} onFuel={()=>setFuelOpen(v=>!v)} onFinance={()=>{setFuelOpen(false);setScreen('finances');}} onMenu={()=>{setFuelOpen(false);setScreen(current=>current==='menu'?null:'menu');}} />
     <main className="game-stage" aria-label="Территория АЗС">
       <StationCanvas key={sceneKey} resetCameraVersion={cameraVersion} stationName={gameState.station.name??'АЗС'} pumps={gameState.station.pumps} jobs={gameState.station.jobs??[]} tanks={gameState.station.tanks} deliveries={gameState.deliveries??[]} technical={gameState.technical!} stocks={Object.fromEntries(FUEL_IDS.map(id=>[id,gameState.station.fuels[id].stockMl])) as Record<FuelId,number>} gameSeconds={gameState.gameSeconds} prices={prices} engine={engine}
-        onObject={setScreen} onVehicle={setSelectedVehicle} onTechnician={id=>{setSelectedTechnician(id);setScreen('technical');}} />
+        onObject={setScreen} onVehicle={setSelectedVehicle} onTechnician={id=>{setSelectedTechnician(id);setScreen('technical');}} onCamera={camera=>audio.setCamera(camera)} />
     </main>
     {screen==='start'&&<section className="full-screen" role="dialog" aria-label="Стартовый экран"><div className="start-content"><img src="/icon-app-192.png" alt="AZS Simulator" width="128" height="128" /><h1>AZS Simulator</h1><button className="panel-action" onClick={()=>setScreen(null)}>Продолжить игру</button><button className="panel-action" onClick={()=>{if(window.confirm('Начать новую игру? Текущий прогресс будет сброшен.')){resetGame();setScreen(null);}}}>Новая игра</button></div></section>}
     {screen==='menu'&&<GameMenu onClose={()=>setScreen(null)} onSection={openSection} onSaveSlot={slot=>engine.saveSlot(slot)} onLoadSlot={loadSlot} getSlot={slot=>engine.getSlot(slot)} onExit={()=>{engine.save();setScreen('start');}} onReset={resetGame} />}
@@ -112,11 +137,11 @@ export function App() {
     {screen==='competitors'&&<CompetitorsPanel state={gameState} onClose={()=>setScreen(null)} onBack={()=>setScreen('menu')} />}
     {objectId&&<ObjectPanel key={objectId} id={objectId} state={gameState} prices={prices} vehicles={gameState.vehicles}
       onPrice={(fuel,kopeks)=>{engine.setRetailPrice(fuel,kopeks);setGameState(engine.getState());}}
-      onBuildPump={(slot)=>{const ok=engine.buildPump(slot);setGameState(engine.getState());return ok;}}
-      onUpgradePump={(id)=>{const ok=engine.upgradePump(id);setGameState(engine.getState());return ok;}}
+      onBuildPump={(slot)=>{const ok=engine.buildPump(slot);if(ok)audio.play('ui_purchase');setGameState(engine.getState());return ok;}}
+      onUpgradePump={(id)=>{const ok=engine.upgradePump(id);if(ok)audio.play('ui_purchase');setGameState(engine.getState());return ok;}}
       onSetPumpFuels={(id,fuels)=>{const ok=engine.setPumpFuels(id,fuels);setGameState(engine.getState());return ok;}}
-      onBuildTank={(fuel)=>{const ok=engine.buildTank(fuel);setGameState(engine.getState());return ok;}}
-      onUpgradeTank={(id)=>{const ok=engine.upgradeTank(id);setGameState(engine.getState());return ok;}}
+      onBuildTank={(fuel)=>{const ok=engine.buildTank(fuel);if(ok)audio.play('ui_purchase');setGameState(engine.getState());return ok;}}
+      onUpgradeTank={(id)=>{const ok=engine.upgradeTank(id);if(ok)audio.play('ui_purchase');setGameState(engine.getState());return ok;}}
       onDelivery={(supplier,cargo)=>{const ok=engine.orderTrip(supplier,cargo);setGameState(engine.getState());return ok;}}
       onSetPumpEnabled={(id,enabled)=>{const ok=engine.setPumpEnabled(id,enabled);setGameState(engine.getState());return ok;}}
       onCompetitors={()=>setScreen('competitors')}

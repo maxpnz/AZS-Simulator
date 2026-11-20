@@ -9,11 +9,13 @@ import menuStationArt from '../assets/menu-station-v072.webp';
 import commerceArt from '../assets/commerce-interior-v072.webp';
 import workshopArt from '../assets/workshop-v072.webp';
 import priceSignArt from '../assets/v025/price-sign.webp';
+import { audio, type AudioBus } from '../audio/AudioManager';
 interface Props { onClose:()=>void; onSection:(name:string)=>void; onReset:()=>void; settings?:boolean; onBack?:()=>void; stationName?:string; onStationName?:(value:string)=>void;onCameraReset?:()=>void;onSaveSlot?:(slot:number)=>boolean;onLoadSlot?:(slot:number)=>boolean;getSlot?:(slot:number)=>SlotMetadata|null;onExit?:()=>void }
 export function GameMenu({onClose,onSection,onReset,settings=false,onBack,stationName='АЗС',onStationName,onCameraReset,onSaveSlot,onLoadSlot,getSlot,onExit}:Props){
   const [,refreshSlots]=useState(0);
   const [confirmReset,setConfirmReset]=useState(false);
   const [draftName,setDraftName]=useState(stationName);
+  const [volumes,setVolumes]=useState<Record<AudioBus,number>>({music:audio.getVolume('music'),effects:audio.getVolume('effects'),ambient:audio.getVolume('ambient')});
   return <section className="full-screen" role="dialog" aria-label={settings?'Настройки':'Главное меню'}>
     <header className="screen-header">{settings?<button type="button" onClick={onBack}>← Меню</button>:<span/>}<div><h2>{settings?'Настройки':'Главное меню'}</h2><small>АЗС Simulator · v{currentVersion}</small></div><button type="button" onClick={onClose} aria-label="Вернуться к игре"><Icon name="close" /></button></header>
     <div className="screen-content menu-content">{settings?<div className="settings-layout"><div className="settings-visual" aria-hidden="true"><img src={menuStationArt} alt="" /><span>АЗС Simulator</span></div><div className="settings-fields">
@@ -23,6 +25,9 @@ export function GameMenu({onClose,onSection,onReset,settings=false,onBack,statio
           <button type="submit">Сохранить название</button>
         </form></div>
       <div className="settings-card"><h3>Управление камерой</h3><p>Сдвигайте сцену одним пальцем или мышью. Масштабируйте двумя пальцами или колесом мыши.</p><button type="button" className="panel-action" onClick={onCameraReset}>Сброс камеры</button></div>
+      <div className="settings-card"><h3>Звук</h3><p>Уровни сохраняются автоматически. 0% отключает соответствующую шину.</p>
+        {([['music','Музыка'],['effects','Интерфейс и эффекты'],['ambient','Окружение']] as const).map(([bus,label])=><label className="audio-volume" key={bus}><span>{label}<strong>{volumes[bus]}%</strong></span><input type="range" min="0" max="100" step="1" value={volumes[bus]} aria-label={label} onChange={event=>{const value=Number(event.target.value);audio.setVolume(bus,value);setVolumes(current=>({...current,[bus]:value}));}} /></label>)}
+      </div>
       <div className="settings-card"><h3>Версия</h3><p>v{currentVersion}</p></div>
       <div className="settings-card"><h3>Прогресс</h3><div className="slot-grid">{[1,2,3].map(slot=>{
         const metadata=getSlot?.(slot);
