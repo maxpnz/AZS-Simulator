@@ -16,6 +16,7 @@ export class GameEngine {
   private lastDiagnostic=0;
   private saveHealthy=true;
   private loadError=false;
+  private priceSaveTimer:ReturnType<typeof setTimeout>|undefined;
   constructor(){
     if(typeof localStorage!=='undefined'){let found=false;for(const key of ['azs-simulator-save','azs-simulator-save-previous']){try{const data=localStorage.getItem(key);if(data){this.simulation=StationSimulation.importSave(JSON.parse(decodeStoredSave(data)));found=true;break;}}catch{this.loadError=true;}}if(found)this.loadError=false;else if(this.loadError)this.saveHealthy=false;}
     if(typeof localStorage!=='undefined')try{const speed=Number(localStorage.getItem('azs-simulator-speed'));if([1,2,4,5,10].includes(speed))this.speed=speed as TimeSpeed;}catch{/* storage unavailable */}
@@ -42,7 +43,15 @@ export class GameEngine {
   openVenue(venue:Venue):boolean {return this.action(this.simulation.openVenue(venue));}
   upgradeVenue(venue:Venue):boolean {return this.action(this.simulation.upgradeVenue(venue));}
   trainVenue(venue:Venue):boolean {return this.action(this.simulation.trainVenue(venue));}
-  setGoodsPrice(product:Product,price:number):boolean {return this.action(this.simulation.setGoodsPrice(product,price));}
+  setGoodsPrice(product:Product,price:number):boolean {
+    const changed=this.simulation.setGoodsPrice(product,price);
+    if(changed){this.publishState();this.schedulePriceSave();}
+    return changed;
+  }
+  private schedulePriceSave():void {
+    if(this.priceSaveTimer)clearTimeout(this.priceSaveTimer);
+    this.priceSaveTimer=setTimeout(()=>{this.priceSaveTimer=undefined;this.save();},350);
+  }
   orderGoods(supplier:Supplier,request:Partial<Record<Sku,number>>):boolean {return this.action(this.simulation.orderGoods(supplier,request));}
   saveSlot(slot:number):boolean {if(![1,2,3].includes(slot))return false;try{localStorage.setItem(`azs-simulator-slot-${slot}`,encodeStoredSave(JSON.stringify({...this.simulation.exportSave(),savedAt:Date.now()})));return true;}catch{return false;}}
   loadSlot(slot:number):boolean {if(![1,2,3].includes(slot))return false;try{const data=localStorage.getItem(`azs-simulator-slot-${slot}`);if(!data)return false;this.importSave(data);this.save();return true;}catch{return false;}}
@@ -72,7 +81,7 @@ export class GameEngine {
   sellTank(id:string):boolean {return this.action(this.simulation.sellTank(id));}
   exportSave():string {return JSON.stringify(this.simulation.exportSave());}
   importSave(json:string):void {this.simulation=StationSimulation.importSave(JSON.parse(decodeStoredSave(json)));this.saveHealthy=true;this.loadError=false;this.publishState();}
-  save():void {if(this.saveHealthy&&typeof localStorage!=='undefined')try{
+  save():void {if(this.priceSaveTimer){clearTimeout(this.priceSaveTimer);this.priceSaveTimer=undefined;}if(this.saveHealthy&&typeof localStorage!=='undefined')try{
     const old=localStorage.getItem('azs-simulator-save');
     if(old)try{
       const version=(JSON.parse(decodeStoredSave(old)) as {version?:string}).version;
@@ -90,6 +99,7 @@ export class GameEngine {
   }catch{/* A transient storage error must not disable later autosaves. */}}
   loadSaved():boolean {if(typeof localStorage==='undefined')return false;const data=localStorage.getItem('azs-simulator-save');if(!data)return false;try{this.importSave(data);return true;}catch{return false;}}
   reset():void {
+    if(this.priceSaveTimer){clearTimeout(this.priceSaveTimer);this.priceSaveTimer=undefined;}
     this.simulation=new StationSimulation();this.accumulator=0;this.paused=false;this.speed=1;this.saveHealthy=true;
     this.lastRealTime=performance.now();
     try{localStorage.removeItem('azs-simulator-save');localStorage.removeItem('azs-simulator-save-previous');localStorage.removeItem('azs-simulator-save-pending');}catch{/* storage unavailable */}
@@ -108,7 +118,7 @@ export class GameEngine {
     this.lastRealTime=performance.now();this.lastPublished=this.lastRealTime;this.lastSaved=this.lastRealTime;
     this.timer=setInterval(()=>this.pulse(performance.now()),25);
   }
-  stop():void {if(this.timer) clearInterval(this.timer);this.timer=undefined;}
+  stop():void {if(this.timer) clearInterval(this.timer);this.timer=undefined;if(this.priceSaveTimer)this.save();}
   pulse(now:number):void {
     const elapsed=Math.min(100,Math.max(0,now-this.lastRealTime));this.lastRealTime=now;
     if(!this.paused) {
@@ -126,8 +136,11 @@ export class GameEngine {
     }
     if(now-this.lastSaved>=60000){this.lastSaved=now;this.save();}
     if(import.meta.env.DEV&&now-this.lastDiagnostic>=5000){this.lastDiagnostic=now;for(const issue of this.simulation.trafficDiagnostics())console.debug('[AZS traffic]',issue);}
+    let publishedState:GameState|undefined;
     for(const [listener,meta] of this.stateListeners) if(now-meta.last>=meta.interval) {
-      meta.last=now;listener(this.simulation.snapshot());
+      meta.last=now;
+      publishedState??=this.simulation.snapshot();
+      listener(publishedState);
     }
   }
 }

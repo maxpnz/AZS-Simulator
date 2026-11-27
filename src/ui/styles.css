@@ -357,3 +357,10 @@ button:focus-visible{outline:2px solid #8cb8ff;outline-offset:2px}
 .audio-volume strong{color:var(--green);font-variant-numeric:tabular-nums}
 .audio-volume input{width:100%;margin:8px 0 0;accent-color:#56db86;min-height:28px}
 .technical-content>select{display:block;width:min(100%,420px);min-height:44px;padding:8px 12px;border:1px solid #45736b;border-radius:8px;background:#17353c;color:#fff;margin:10px 0 18px}.technical-content>.tech-grid{grid-template-columns:repeat(3,minmax(0,1fr));max-width:900px}.technical-content>.tech-grid button{min-height:75px;padding:10px;border:1px solid #45736b;border-radius:10px;background:#18343b;color:#fff}.technical-content>.tech-grid button.selected{border-color:#39ff65;background:#194b39}.technical-content>.technical-art{margin:0 0 18px}.venue-price-list span small{display:block;margin-top:4px;color:#a9c5c7;font-size:11px}@media(max-width:600px){.technical-content>.tech-grid{grid-template-columns:1fr}}
+
+/* Keep the ordered volume and its unit between touch-sized controls. */
+.order-quantity{min-width:0;gap:8px}
+.order-quantity button{flex:0 0 55px}
+.order-quantity strong{min-width:0;white-space:nowrap;text-align:center;font-size:clamp(16px,3vw,26px)}
+@media(max-width:500px){.order-quantity button{flex-basis:44px;width:44px;height:44px}.order-quantity strong{font-size:clamp(14px,4vw,20px)}}
+.finance-line-chart{display:block;width:100%;height:auto;min-height:180px;border:1px solid #3e5965;border-radius:12px;background:#12252b}.finance-line-chart circle{cursor:pointer}.finance-line-chart circle:focus{outline:2px solid #fff}
