@@ -1,4 +1,4 @@
-"""Original procedural audio for AZS Simulator v0.8.1. CC0-1.0."""
+"""Original procedural effects for AZS Simulator. CC0-1.0."""
 from pathlib import Path
 import math, random, struct, subprocess, wave
 ROOT=Path(__file__).resolve().parents[1]/'public/audio'
@@ -37,10 +37,6 @@ def music(name,notes,seed):
     subprocess.run(['ffmpeg','-loglevel','error','-y','-i',str(temp),'-c:a','libvorbis','-q:a','4',str(temp.with_suffix('.ogg'))],check=True)
     temp.unlink()
 
-music('daylight_flow',[[110,164.81,220],[98,146.83,196],[130.81,196,261.63],[110,164.81,220]],1)
-music('evening_glow',[[87.31,130.81,174.61],[98,146.83,196],[82.41,123.47,164.81],[87.31,130.81,174.61]],2)
-music('night_shift',[[73.42,110,146.83],[65.41,98,130.81],[82.41,123.47,164.81],[73.42,110,146.83]],3)
-
 sounds={
  'ui_select':(.12,560,'tone'),'ui_open':(.18,470,'up'),'ui_close':(.16,440,'down'),
  'construction':(.55,310,'click'),'upgrade_complete':(.45,780,'up'),
@@ -50,7 +46,8 @@ sounds={
  'pump_nozzle_pickup':(.23,400,'click'),'pump_nozzle_return':(.23,320,'click'),
  'pump_complete':(.4,540,'up'),'pump_fueling':(2,115,'hum'),'repair_tools':(.5,410,'click'),
  'vehicle_start':(.8,95,'hum'),'vehicle_idle':(2,75,'hum'),'vehicle_pass':(1.2,110,'hum'),
- 'vehicle_stop':(.75,85,'down'),'truck_arrival':(1.5,65,'hum'),'truck_brake':(.55,145,'noise'),
+ 'vehicle_stop':(.75,85,'down'),'vehicle_horn_1':(.35,440,'tone'),'vehicle_horn_2':(.45,370,'tone'),
+ 'truck_arrival':(1.5,65,'hum'),'truck_brake':(.55,145,'noise'),'truck_idle':(2,58,'hum'),'truck_drive':(2,72,'hum'),
  'fuel_unloading':(2,120,'hum'),'goods_unloading':(.7,280,'click'),
  'store_door':(.4,620,'click'),'cafe_door':(.4,510,'click'),'ambient_station':(3,65,'noise')}
 for name,(duration,freq,kind) in sounds.items():
@@ -70,4 +67,7 @@ for name,(duration,freq,kind) in sounds.items():
         if kind=='hum':return (.075*wave+.055*smooth)*env
         if kind=='click':return (.13*wave+.12*smooth)*env
         return .16*wave*env
-    write(ROOT/'sfx'/f'{name}.wav',duration,synth)
+    temp=ROOT/'sfx'/f'{name}.wav'
+    write(temp,duration,synth)
+    subprocess.run(['ffmpeg','-v','error','-y','-i',str(temp),'-c:a','libvorbis','-b:a','48k','-ac','1',str(temp.with_suffix('.ogg'))],check=True)
+    temp.unlink()

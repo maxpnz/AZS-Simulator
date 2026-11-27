@@ -1,15 +1,13 @@
-import { getHour } from '../game/simulation/time';
-
-export type AudioBus = 'music' | 'effects' | 'ambient';
-export type SoundEvent = 'cash_register' | 'pump_complete' | 'pump_nozzle_pickup' | 'pump_nozzle_return' | 'repair_complete' | 'ui_select' | 'ui_open' | 'ui_close' | 'construction' | 'upgrade_complete' | 'ui_click' | 'ui_confirm' | 'ui_error' | 'ui_notification' | 'ui_purchase' | 'ui_warning' | 'pump_fueling' | 'repair_tools' | 'vehicle_start' | 'vehicle_idle' | 'vehicle_pass' | 'vehicle_stop' | 'truck_arrival' | 'truck_brake' | 'fuel_unloading' | 'goods_unloading' | 'store_door' | 'cafe_door' | 'ambient_station';
-export type Theme = 'daylight_flow' | 'evening_glow' | 'night_shift';
-const available = new Set<SoundEvent>(['ui_select','ui_open','ui_close','construction','upgrade_complete','cash_register','pump_complete','pump_nozzle_pickup','pump_nozzle_return','repair_complete','ui_click','ui_confirm','ui_error','ui_notification','ui_purchase','ui_warning','pump_fueling','repair_tools','vehicle_start','vehicle_idle','vehicle_pass','vehicle_stop','truck_arrival','truck_brake','fuel_unloading','goods_unloading','store_door','cafe_door','ambient_station']);
-const defaults: Record<AudioBus, number> = { music: 35, effects: 65, ambient: 45 };
+export type AudioBus = 'music' | 'effects' | 'ambient' | 'cars' | 'trucks' | 'notifications';
+export type SoundEvent = 'cash_register' | 'pump_complete' | 'pump_nozzle_pickup' | 'pump_nozzle_return' | 'repair_complete' | 'ui_select' | 'ui_open' | 'ui_close' | 'construction' | 'upgrade_complete' | 'ui_click' | 'ui_confirm' | 'ui_error' | 'ui_notification' | 'ui_purchase' | 'ui_warning' | 'pump_fueling' | 'repair_tools' | 'vehicle_start' | 'vehicle_idle' | 'vehicle_pass' | 'vehicle_stop' | 'vehicle_horn_1' | 'vehicle_horn_2' | 'truck_arrival' | 'truck_brake' | 'truck_idle' | 'truck_drive' | 'fuel_unloading' | 'goods_unloading' | 'store_door' | 'cafe_door' | 'ambient_station';
+export type Theme = 'Funky_Boxstep_64k';
+const available = new Set<SoundEvent>(['ui_select','ui_open','ui_close','construction','upgrade_complete','cash_register','pump_complete','pump_nozzle_pickup','pump_nozzle_return','repair_complete','ui_click','ui_confirm','ui_error','ui_notification','ui_purchase','ui_warning','pump_fueling','repair_tools','vehicle_start','vehicle_idle','vehicle_pass','vehicle_stop','vehicle_horn_1','vehicle_horn_2','truck_arrival','truck_brake','truck_idle','truck_drive','fuel_unloading','goods_unloading','store_door','cafe_door','ambient_station']);
+const defaults: Record<AudioBus, number> = { music: 65, effects: 10, ambient: 15, cars: 20, trucks: 25, notifications: 20 };
+const soundBus=(event:SoundEvent):AudioBus=>event.startsWith('truck_')?'trucks':event.startsWith('vehicle_')?'cars':event==='cash_register'||event==='ui_notification'||event==='ui_warning'?'notifications':event.startsWith('ui_')?'effects':'ambient';
 const storageKey = (bus: AudioBus) => `azs-simulator-${bus}Volume`;
 const clamp = (value: number, fallback: number) => Number.isFinite(value) ? Math.max(0, Math.min(100, Math.round(value))) : fallback;
-export function themeForTime(seconds: number): Theme {
-  const hour = getHour(seconds);
-  return hour >= 6 && hour < 18 ? 'daylight_flow' : hour >= 18 && hour < 22 ? 'evening_glow' : 'night_shift';
+export function themeForTime(_seconds: number): Theme {
+  return 'Funky_Boxstep_64k';
 }
 export class AudioManager {
   private volumes: Record<AudioBus, number> = { ...defaults };
@@ -18,7 +16,7 @@ export class AudioManager {
   private gamePaused = false;
   private music = new Map<Theme, HTMLAudioElement>();
   private current: Theme | undefined;
-  private wanted: Theme = 'daylight_flow';
+  private wanted: Theme = 'Funky_Boxstep_64k';
   private fadeId = 0;
   private fadeTimer: ReturnType<typeof setInterval> | undefined;
   private effects = new Map<SoundEvent, HTMLAudioElement[]>();
@@ -26,6 +24,7 @@ export class AudioManager {
   private lastPlayed = new Map<SoundEvent, number>();
   private warned = new Set<SoundEvent>();
   private loops = new Map<string, HTMLAudioElement>();
+  private engineLoops = new Map<string,SoundEvent>();
   private loopPositions = new Map<string, { x: number; y: number }>();
   private modalOpen = false;
   private camera: { scale: number; x: number; y: number; width: number; height: number } | undefined;
@@ -83,9 +82,9 @@ export class AudioManager {
   }
   play(event: SoundEvent, context?: { gain?: number; position?: { x: number; y: number } }): void {
     if (!available.has(event)) { this.warnMissing(event); return; }
-    if (!this.enabled || this.suspended) return;
+    if (!this.enabled || this.suspended || this.gamePaused&&!event.startsWith('ui_')) return;
     const now = performance.now();
-    const cooldown = event === 'ui_click' ? 90 : event === 'cash_register' ? 180 : 0;
+    const cooldown = event.startsWith('ui_') ? 120 : event === 'cash_register' ? 350 : event.startsWith('vehicle_horn')?1500:0;
     if (now - (this.lastPlayed.get(event) ?? -Infinity) < cooldown) return;
     this.lastPlayed.set(event, now);
     let pool = this.effects.get(event);
@@ -93,13 +92,13 @@ export class AudioManager {
     let sound = pool.find(item => item.paused || item.ended);
     const allocated=[...this.effects.values()].reduce((sum,items)=>sum+items.length,0);
     if (!sound && allocated < 16 && pool.length < (event.startsWith('ui_') ? 3 : 4)) {
-      sound = new Audio(`/audio/sfx/${event}.wav`); sound.preload = 'auto'; pool.push(sound);
+      sound = new Audio(`/audio/sfx/${event}.ogg`); sound.preload = 'metadata'; pool.push(sound);
     }
     if (!sound) return;
     let gain = context?.gain ?? 1;
     gain *= this.spatialGain(context?.position);
     this.effectGains.set(sound, Math.max(0, Math.min(1, gain)));
-    sound.volume = this.volumes.effects / 100 * this.effectGains.get(sound)!;
+    sound.volume = this.volumes[soundBus(event)] / 100 * this.effectGains.get(sound)!;
     sound.currentTime = 0;
     void sound.play().catch(() => {});
   }
@@ -108,9 +107,9 @@ export class AudioManager {
     const key = `${event}:${entityId}`;
     if(position)this.loopPositions.set(key,position);
     if (this.loops.has(key)) {this.updateVolumes();return;}
-    if(this.loops.size>=6)return;
-    const sound = new Audio(`/audio/sfx/${event}.wav`);
-    sound.loop = true; sound.volume = this.volumes.ambient / 100*this.spatialGain(position);
+    if(this.loops.size>=12)return;
+    const sound = new Audio(`/audio/sfx/${event}.ogg`);
+    sound.loop = true; sound.volume = this.volumes[soundBus(event)] / 100*this.spatialGain(position);
     this.loops.set(key, sound);
     if (this.enabled && !this.suspended && !this.gamePaused) void sound.play().catch(() => {});
   }
@@ -119,7 +118,23 @@ export class AudioManager {
     if (sound) { sound.pause(); sound.src = ''; this.loops.delete(key); }
     this.loopPositions.delete(key);
   }
-  stopAllLoops():void {for(const key of [...this.loops.keys()]){const [event,...parts]=key.split(':');this.stopLoop(event as SoundEvent,parts.join(':'));}}
+  stopAllLoops():void {for(const key of [...this.loops.keys()]){const [event,...parts]=key.split(':');this.stopLoop(event as SoundEvent,parts.join(':'));}this.engineLoops.clear();}
+  syncEngineSounds(vehicles:readonly {id:number;category:string;status:string;speed?:number;x:number;y:number}[]):void {
+    const candidates=vehicles.filter(v=>!['fueling','finishing','parked'].includes(v.status))
+      .map(v=>({vehicle:v,gain:this.spatialGain(v)})).sort((a,b)=>b.gain-a.gain).slice(0,3);
+    const wanted=new Set<string>();
+    for(const {vehicle} of candidates){
+      const id=String(vehicle.id),truck=vehicle.category==='truck';
+      const moving=(vehicle.speed??0)>.5;
+      const event:SoundEvent=truck?(moving?'truck_drive':'truck_idle'):(moving?'vehicle_pass':'vehicle_idle');
+      wanted.add(id);
+      const previous=this.engineLoops.get(id);
+      if(previous&&previous!==event)this.stopLoop(previous,id);
+      this.engineLoops.set(id,event);
+      this.startLoop(event,id,vehicle);
+    }
+    for(const [id,event] of this.engineLoops)if(!wanted.has(id)){this.stopLoop(event,id);this.engineLoops.delete(id);}
+  }
   private warnMissing(event: SoundEvent): void {
     if (this.warned.has(event)) return;
     this.warned.add(event);
@@ -127,7 +142,7 @@ export class AudioManager {
   }
   private track(theme: Theme): HTMLAudioElement {
     let track = this.music.get(theme);
-    if (!track) { track = new Audio(`/audio/music/${theme}.ogg`); track.loop = true; track.preload = 'auto'; this.music.set(theme, track); }
+    if (!track) { track = new Audio(`/audio/music/${theme}.ogg`); track.loop = true; track.preload = 'metadata'; this.music.set(theme, track); }
     return track;
   }
   private musicGain(): number { return this.volumes.music / 100 * (this.modalOpen ? .82 : 1); }
@@ -159,8 +174,13 @@ export class AudioManager {
       this.track(this.current).volume = this.musicGain() * this.fadeProgress;
       if (this.fadeTimer) for (const [theme,track] of this.music) if (theme !== this.current && !track.paused) track.volume = this.musicGain() * this.fadePreviousStart * (1-this.fadeProgress);
     }
-    for (const pool of this.effects.values()) for (const sound of pool) sound.volume = this.volumes.effects / 100 * (this.effectGains.get(sound) ?? 1);
-    for (const [key,sound] of this.loops) sound.volume = this.volumes.ambient / 100*this.spatialGain(this.loopPositions.get(key));
+    for (const [event,pool] of this.effects) for (const sound of pool) sound.volume = this.volumes[soundBus(event)] / 100 * (this.effectGains.get(sound) ?? 1);
+    for (const [key,sound] of this.loops){
+      const bus=soundBus(key.split(':')[0] as SoundEvent);
+      sound.volume=this.volumes[bus]/100*this.spatialGain(this.loopPositions.get(key))*(this.modalOpen?.5:1);
+      if(sound.volume===0)sound.pause();
+      else if(sound.paused&&this.enabled&&!this.suspended&&!this.gamePaused)void sound.play().catch(()=>{});
+    }
   }
   dispose(): void {
     this.stopFade();
@@ -168,7 +188,7 @@ export class AudioManager {
     for (const track of this.music.values()) { track.pause(); track.src = ''; }
     for (const pool of this.effects.values()) for (const sound of pool) { sound.pause(); sound.src = ''; }
     for (const sound of this.loops.values()) { sound.pause(); sound.src = ''; }
-    this.music.clear(); this.effects.clear(); this.loops.clear(); this.loopPositions.clear(); this.enabled = false;
+    this.music.clear(); this.effects.clear(); this.loops.clear(); this.loopPositions.clear();this.engineLoops.clear(); this.enabled = false;
   }
 }
 export const audio = new AudioManager();
