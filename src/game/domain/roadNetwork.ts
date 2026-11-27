@@ -1,11 +1,11 @@
 import { PUMP_SLOTS } from './world';
 import { GOODS_PAD } from './stationGeometry';
 
-export const PARKING_X = [365, 445, 525, 605, 685] as const;
-export const PARKING_AISLE_Y = 777;
-export const PARKING_SLOTS = [702, 852].flatMap(y=>PARKING_X.map(x=>({
-  x,y,angle:y<PARKING_AISLE_Y?-Math.PI/2:Math.PI/2,width:78,length:112,type:'car' as const,
-})));
+export const PARKING_X = [340,420,500,580,660,740,820,900,980,1060] as const;
+export const PARKING_AISLE_Y = 730;
+export const PARKING_SLOTS = PARKING_X.map(x=>({
+  x,y:852,angle:Math.PI/2,width:78,length:112,type:'car' as const,
+}));
 export const TRUCK_BAY = { x: 208, y: 590, angle: Math.PI, width: 64, length: 355, type:'truck' as const };
 export function pumpQueuePoint(slot:number):{x:number;y:number}{
   const pump=PUMP_SLOTS[slot];

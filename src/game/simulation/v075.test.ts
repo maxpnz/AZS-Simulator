@@ -71,7 +71,7 @@ describe('v0.7.5', () => {
     }
   });
 
-  it('fills both rows without overlap and exits a reserved bay after reloading', () => {
+  it('fills all ten bays without overlap and exits a reserved bay after reloading', () => {
     const sim = new StationSimulation(15, cloneLegacyStation());
     sim.openVenue('shop');
     const save = sim.exportSave();

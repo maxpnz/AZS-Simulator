@@ -141,7 +141,7 @@ export async function createStationScene(initialPumps:readonly Pump[]):Promise<S
   const roadSurface=new TilingSprite({texture:asphaltTexture,width:SCENE_WIDTH,height:SCENE_HEIGHT});
   roadSurface.tileScale.set(.46);roadSurface.mask=roadMask;ground.addChild(roadSurface,roadMask);
   // Two lanes each way. The uncovered grass strip is the physical median.
-  shape(ground,g=>g.rect(0,900,2000,4).fill(0xc1c6ba).rect(0,1036,2000,4).fill(0xc1c6ba)
+  shape(ground,g=>g.rect(0,900,55,4).rect(315,900,1425,4).rect(1950,900,50,4).fill(0xc1c6ba).rect(0,1036,2000,4).fill(0xc1c6ba)
     .rect(0,1080,2000,4).fill(0xc1c6ba).rect(0,1196,2000,4).fill(0xc1c6ba));
   for(const y of [970,1145]){
     const dash=new Graphics();for(let x=15;x<2000;x+=82)dash.rect(x,y,43,4).fill({color:0xe8e3c8,alpha:.85});ground.addChild(dash);
@@ -150,7 +150,7 @@ export async function createStationScene(initialPumps:readonly Pump[]):Promise<S
     .rect(0,896,50,4).fill(0xa9afa5).rect(300,896,1380,4).fill(0xa9afa5)
     .rect(1940,896,60,4).fill(0xa9afa5));
   const parkingLayer=new Container();ground.addChild(parkingLayer);
-  const parkingSurface=new TilingSprite({texture:asphaltTexture,width:416,height:266});
+  const parkingSurface=new TilingSprite({texture:asphaltTexture,width:820,height:150});
   parkingSurface.position.set(316,642);parkingSurface.tileScale.set(.46);
   parkingLayer.addChild(parkingSurface);
   const markingLayer=new Container();ground.addChild(markingLayer);
@@ -158,16 +158,23 @@ export async function createStationScene(initialPumps:readonly Pump[]):Promise<S
     const head=y+Math.sign(angle)*length/2, open=y-Math.sign(angle)*length/2;
     shape(parkingLayer,g=>g.moveTo(x-width/2,open).lineTo(x-width/2,head).lineTo(x+width/2,head).lineTo(x+width/2,open).stroke({color:0xf1f5ed,width:2,alpha:.9}));
   });
-  shape(parkingLayer,g=>g.roundRect(302,752,30,30,5).fill(0x1474a5).stroke({color:0xffffff,width:2}));
-  parkingLayer.addChild(label('P',317,767,21,0xffffff));
+  shape(parkingLayer,g=>g.roundRect(302,690,30,30,5).fill(0x1474a5).stroke({color:0xffffff,width:2}));
+  parkingLayer.addChild(label('P',317,705,21,0xffffff));
   shape(parkingLayer,g=>g.rect(TRUCK_BAY.x-TRUCK_BAY.length/2,TRUCK_BAY.y-TRUCK_BAY.width/2,TRUCK_BAY.length,TRUCK_BAY.width).stroke({color:0xe9e4d1,width:2}));
   parkingLayer.addChild(label('P · ФУРЫ',TRUCK_BAY.x,TRUCK_BAY.y+22,17));
   shape(parkingLayer,g=>{
     g.rect(30,537,356,4).fill(0x899892);
     for(let x=32;x<=386;x+=24)g.rect(x,529,3,16).fill(0x62746e);
   });
-  for(const x of [430,510,590,670])shape(parkingLayer,g=>g.rect(x,PARKING_AISLE_Y-1,27,2).fill({color:0xe9e4d1,alpha:.55}));
+  for(const x of PARKING_SLOTS.slice(0,-1).map(slot=>slot.x+40))shape(parkingLayer,g=>g.rect(x,PARKING_AISLE_Y-1,27,2).fill({color:0xe9e4d1,alpha:.55}));
   for(const x of [350,1860]) ground.addChild(label(x<1000?'ВЫЕЗД':'ВЪЕЗД',x,x<1000?682:865,18));
+  // Roadside fuel signs sit off both vehicle corridors and remain legible as the camera zooms.
+  for(const [x,y] of [[85,772],[1890,810]]){
+    shape(ground,g=>g.roundRect(x-23,y-32,46,50,5).fill(0x1675a0).stroke({color:0xe8f3ed,width:2})
+      .rect(x-8,y-23,14,26).fill(0xffffff).rect(x-5,y-19,8,9).fill(0x1675a0)
+      .moveTo(x+6,y-17).lineTo(x+14,y-12).lineTo(x+14,y+2).stroke({color:0xffffff,width:3})
+      .rect(x-12,y+3,26,3).fill(0xffffff).rect(x-2,y+18,4,13).fill(0x64746d));
+  }
   for(const x of [570,820,1070,1320,1570]) shape(ground,g=>g.poly([x,653,x-16,645,x,637]).fill({color:0xe9e8d4,alpha:.48}));
   shape(ground,g=>g.poly([1845,753,1834,773,1856,773]).fill({color:0xe9e8d4,alpha:.65})
     .poly([208,806,228,806,219,824]).fill({color:0xe9e8d4,alpha:.65}));

@@ -98,6 +98,7 @@ export class StationSimulation {
   private nextVehicleId=0;
   private nextSpawnSeconds=INITIAL_GAME_SECONDS;
   private finishedIds=new Set<number>();
+  private stepBlockers:Vehicle[]|undefined;
   private stallInfo=new Map<number,{x:number;y:number;seconds:number}>();
 
   constructor(seed:number=TRAFFIC_CONFIG.seed,station:StationState=cloneInitialStation()) {
@@ -138,12 +139,12 @@ export class StationSimulation {
       if(event.costKopeks!==undefined||event.fuel!==undefined||event.volumeMl!==undefined||event.objectId!==undefined||event.id!==undefined||event.productId!==undefined)row.push(event.costKopeks??null,event.fuel?FUEL_IDS.indexOf(event.fuel):null,event.volumeMl??null,event.objectId??null,event.id??null,event.productId??null);
       return row;
     })};
-    return {version,state,rngState:this.rng.getState(),nextVehicleId:this.nextVehicleId,
+    return {version,parkingLayout:'single-fence',state,rngState:this.rng.getState(),nextVehicleId:this.nextVehicleId,
       nextSpawnSeconds:this.nextSpawnSeconds,nextJobId:this.nextJobId,nextDeliveryId:this.nextDeliveryId};
   }
   static importSave(raw:unknown):StationSimulation {
     if(!raw||typeof raw!=='object')throw new Error('Invalid save');
-    const save=raw as {version?:string;state?:GameState;rngState?:number;nextVehicleId?:number;nextSpawnSeconds?:number;nextJobId?:number;nextDeliveryId?:number};
+    const save=raw as {version?:string;parkingLayout?:string;state?:GameState;rngState?:number;nextVehicleId?:number;nextSpawnSeconds?:number;nextJobId?:number;nextDeliveryId?:number};
     const state=(save.state??raw) as GameState;
     if(!state.station||!Number.isFinite(state.station.balanceKopeks)||!Number.isFinite(state.gameSeconds)||!Array.isArray(state.vehicles)||!Array.isArray(state.queueIds)||!state.station.fuels||!Array.isArray(state.station.tanks)||!Array.isArray(state.station.pumps))throw new Error('Invalid save state');
     const station=['0.2.8','0.3.0','0.3.1','0.3.2','0.4.0','0.5.0','0.5.1','0.5.2','0.6.0','0.7.0','0.7.3','0.7.4','0.7.5','0.7.6','0.8.0',version].includes(save.version??'')?cloneInitialStation():cloneLegacyStation();
@@ -179,17 +180,18 @@ export class StationSimulation {
       return copy;
     }));
     if(state.stats?.departed===undefined)sim.stats.departed=Math.max(0,sim.stats.visited-sim.vehicles.filter(v=>v.status!=='road').length);
-    // Older saves had ten bays in front of the building. Move active reservations
-    // into the four physical exit-side bays and send overflow customers home.
+    // Old two-row saves keep all ten reservations and current orders. Active
+    // customers are moved to their new bay once, before traffic resumes.
+    const migrateParking=save.parkingLayout!=='single-fence'||save.version!==version;
     for(const [oldSlot,id] of (state.commerce?.parking??[]).entries()){
       if(id===null||sim.commerce.parking.includes(id))continue;
       const vehicle=sim.vehicles.find(v=>v.id===id);if(!vehicle)continue;
       const slot=oldSlot<sim.commerce.parking.length&&sim.commerce.parking[oldSlot]===null?oldSlot:sim.commerce.parking.indexOf(null);
       if(slot<0){vehicle.parkSlot=undefined;delete sim.commerce.customers[id];for(const venue of ['shop','cafe'] as Venue[]){const v=sim.commerce.venues[venue];v.queue=v.queue.filter(customer=>customer!==id);if(v.serving===id)v.serving=undefined;}sim.setRoute(vehicle,[...EXIT_ROUTE],'leaving');continue;}
       sim.commerce.parking[slot]=id;vehicle.parkSlot=slot;
-      if(vehicle.status==='toParking'&&!['0.7.5','0.7.6','0.8.0',version].includes(save.version??''))sim.setRoute(vehicle,['parking_entry',`parking_access_${slot}`,`parking_${slot}`],'toParking');
-      else if(vehicle.status==='parked'&&!['0.7.5','0.7.6','0.8.0',version].includes(save.version??'')){const node=ROAD_NODES.find(n=>n.id===`parking_${slot}`)!;vehicle.x=node.x;vehicle.y=node.y;vehicle.angle=PARKING_SLOTS[slot].angle;}
-      else if(vehicle.status==='leaving'&&!['0.7.5','0.7.6','0.8.0',version].includes(save.version??'')){
+      if(vehicle.status==='toParking'&&migrateParking)sim.setRoute(vehicle,['parking_entry',`parking_access_${slot}`,`parking_${slot}`],'toParking');
+      else if(vehicle.status==='parked'&&migrateParking){const node=ROAD_NODES.find(n=>n.id===`parking_${slot}`)!;vehicle.x=node.x;vehicle.y=node.y;vehicle.angle=PARKING_SLOTS[slot].angle;}
+      else if(vehicle.status==='leaving'&&migrateParking){
         vehicle.parkSlot=undefined;sim.commerce.parking[slot]=null;
       }
     }
@@ -619,6 +621,7 @@ export class StationSimulation {
     return {id:-100000-(Number(id.split('-').at(-1))||0),modelId:'delivery-van',category:'van',x,y,angle:0,status:'road'} as Vehicle;
   }
   private trafficBlockers():Vehicle[] {
+    if(this.stepBlockers)return this.stepBlockers;
     const trip=this.deliveries.find(d=>d.status&&d.status!=='enroute'&&d.status!=='waiting');
     const blockers=trip?[...this.vehicles,this.deliveryVehicle(trip)]:[...this.vehicles];
     const goods=this.commerce.orders.find(goodsDeliveryActive);
@@ -774,7 +777,9 @@ export class StationSimulation {
       const priority=(v:Vehicle)=>v.status==='leaving'&&v.route[v.routeIndex]==='exit_lane'?2:v.status==='leaving'?1:0;
       return priority(b)-priority(a)||((a.westbound?-1:1)*(b.x-a.x));
     });
+    this.stepBlockers=this.trafficBlockers();
     for(const vehicle of ordered) this.advance(vehicle,seconds);
+    this.stepBlockers=undefined;
     this.advanceTechnical(seconds,technicalFrom);
     this.dispatchQueue();
     for(let i=this.vehicles.length-1;i>=0;i--) if(this.finishedIds.has(this.vehicles[i].id)){const v=this.vehicles[i];this.releaseParking(v);this.vehicles.splice(i,1);}

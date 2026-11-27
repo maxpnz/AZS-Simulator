@@ -10,7 +10,7 @@ describe('v0.7.3 regression checks',()=>{
   it('keeps the shop and cafe facade hit areas disjoint and the exit bays on asphalt',()=>{
     expect(hitTest(600,250)).toBe('shop');
     expect(hitTest(1000,250)).toBe('cafe');
-    expect(PARKING_X).toHaveLength(5);
+    expect(PARKING_X).toHaveLength(10);
     for(const x of PARKING_X)expect(roadContainsPoint(x,740)).toBe(true);
     expect(ROAD_NODES.find(n=>n.id==='entrance')!.x).toBeLessThan(1833);
   });
