@@ -10,13 +10,13 @@ export interface SupplierConfig {
   availability: number; specialties?: Partial<Record<FuelId, {priceOffsetKopeks?: number; availability?: number}>>;
 }
 export const SUPPLIERS: readonly SupplierConfig[] = [
-  {id:'reserve',name:'ПетроРезерв',profile:'Надёжный опт',priceOffsetKopeks:350,etaHours:[24,72],capacityLitres:32000,initialRatio:.9,demandLitresPerHour:95,restockHours:24,batchLitres:12000,availability:.98},
-  {id:'discount',name:'ДисконтНефть',profile:'Низкая цена',priceOffsetKopeks:-175,etaHours:[8,24],capacityLitres:6500,initialRatio:.32,demandLitresPerHour:180,restockHours:8,batchLitres:1800,availability:.34},
-  {id:'express',name:'ЭкспрессОйл',profile:'Срочная доставка',priceOffsetKopeks:250,etaHours:[2,6],capacityLitres:12000,initialRatio:.7,demandLitresPerHour:110,restockHours:12,batchLitres:5000,availability:.75},
-  {id:'distant',name:'ДальНефтеТранс',profile:'Дешёвый дальний опт',priceOffsetKopeks:-75,etaHours:[48,120],capacityLitres:28000,initialRatio:.8,demandLitresPerHour:100,restockHours:30,batchLitres:13000,availability:.78},
-  {id:'regional',name:'РегионТопливо',profile:'Регулярные поставки',priceOffsetKopeks:0,etaHours:[8,18],capacityLitres:18000,initialRatio:.8,demandLitresPerHour:100,restockHours:16,batchLitres:7000,availability:.88},
-  {id:'north',name:'СеверОйл',profile:'Специалист по ДТ',priceOffsetKopeks:80,etaHours:[12,36],capacityLitres:14000,initialRatio:.4,demandLitresPerHour:115,restockHours:20,batchLitres:5500,availability:.4,specialties:{diesel:{priceOffsetKopeks:-100,availability:.95}}},
-  {id:'prime',name:'ПраймПетрол',profile:'Премиальные марки',priceOffsetKopeks:80,etaHours:[10,30],capacityLitres:9000,initialRatio:.4,demandLitresPerHour:100,restockHours:18,batchLitres:3500,availability:.4,specialties:{ai95plus:{priceOffsetKopeks:-65,availability:.9},ai98:{priceOffsetKopeks:-75,availability:.9},ai100:{priceOffsetKopeks:-85,availability:.9}}},
+  {id:'reserve',name:'ПетроРезерв',profile:'Надёжный опт',priceOffsetKopeks:130,etaHours:[20,48],capacityLitres:32000,initialRatio:.9,demandLitresPerHour:95,restockHours:24,batchLitres:12000,availability:.98},
+  {id:'discount',name:'ДисконтНефть',profile:'Низкая цена · малые партии',priceOffsetKopeks:-220,etaHours:[10,26],capacityLitres:6500,initialRatio:.32,demandLitresPerHour:180,restockHours:8,batchLitres:1800,availability:.34},
+  {id:'express',name:'ЭкспрессОйл',profile:'Срочная доставка',priceOffsetKopeks:250,etaHours:[2,5],capacityLitres:12000,initialRatio:.7,demandLitresPerHour:110,restockHours:12,batchLitres:5000,availability:.75},
+  {id:'distant',name:'ДальНефтеТранс',profile:'Дешёвый дальний опт',priceOffsetKopeks:-140,etaHours:[48,108],capacityLitres:28000,initialRatio:.8,demandLitresPerHour:100,restockHours:30,batchLitres:13000,availability:.78},
+  {id:'regional',name:'РегионТопливо',profile:'Регулярные поставки нескольких сортов',priceOffsetKopeks:-10,etaHours:[8,18],capacityLitres:18000,initialRatio:.8,demandLitresPerHour:100,restockHours:16,batchLitres:7000,availability:.88},
+  {id:'north',name:'СеверОйл',profile:'Специалист по ДТ',priceOffsetKopeks:80,etaHours:[12,36],capacityLitres:14000,initialRatio:.4,demandLitresPerHour:115,restockHours:20,batchLitres:5500,availability:.4,specialties:{diesel:{priceOffsetKopeks:-175,availability:.95}}},
+  {id:'prime',name:'ПраймПетрол',profile:'Премиальные марки',priceOffsetKopeks:80,etaHours:[10,30],capacityLitres:9000,initialRatio:.4,demandLitresPerHour:100,restockHours:18,batchLitres:3500,availability:.4,specialties:{ai95plus:{priceOffsetKopeks:-120,availability:.9},ai98:{priceOffsetKopeks:-130,availability:.9},ai100:{priceOffsetKopeks:-140,availability:.9}}},
   {id:'nefteopt',name:'НефтеОпт',profile:'Крупный оптовик · от 5 000 л',priceOffsetKopeks:0,etaHours:[72,120],capacityLitres:50000,initialRatio:.85,demandLitresPerHour:70,restockHours:72,batchLitres:28000,availability:.95},
 ];
 export const NEFTEOPT = {minLitres:5000,maxLitres:30000,maxFuels:3,tiers:[{from:5000,discount:.02},{from:10000,discount:.04},{from:20000,discount:.06}]} as const;

@@ -53,13 +53,16 @@ export function createTechnicalState(_gameSeconds: number): TechnicalState {
     noticeId:0, departing:[] };
 }
 export function condition(item: Pump | FuelTank): number { return Math.max(0, Math.min(100, Number.isFinite(item.condition) ? item.condition! : 100)); }
+export const PUMP_LIFETIME_ML = 60_000_000;
+export const TANK_LIFETIME_ML = 400_000_000;
 export function wearPump(pump: Pump, ml: number): void {
-  const previous=pump.pumpedMlSinceRepair??Math.round((100-condition(pump))*1_500_000);
-  pump.pumpedMlSinceRepair=Math.min(150_000_000,previous+Math.max(0,Math.floor(ml)));
-  pump.condition=100*(1-pump.pumpedMlSinceRepair/150_000_000);
+  const previous=pump.pumpedMlSinceRepair??Math.round((100-condition(pump))*PUMP_LIFETIME_ML/100);
+  pump.pumpedMlSinceRepair=Math.min(PUMP_LIFETIME_ML,previous+Math.max(0,Math.floor(ml)));
+  pump.condition=100*(1-pump.pumpedMlSinceRepair/PUMP_LIFETIME_ML);
 }
 export function wearTank(tank: FuelTank, ml: number): void {
-  if(ml>0 && tank.capacityMl>0) tank.condition = Math.max(0, condition(tank) - ml/(tank.capacityMl*500)*100);
+  // Inbound and outbound transfers each consume half a cycle of the same fuel.
+  if(ml>0) tank.condition = Math.max(0, condition(tank) - ml/(2*TANK_LIFETIME_ML)*100);
 }
 export function estimateRepair(kind: EquipmentKind, currentCondition: number, speed = 1) {
   const wear = Math.max(0, Math.min(1, (100-currentCondition)/100));

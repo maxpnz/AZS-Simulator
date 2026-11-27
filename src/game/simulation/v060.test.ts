@@ -8,9 +8,9 @@ function quietSim(){const sim=new StationSimulation(6,cloneLegacyStation());sim.
 
 describe('v0.6 equipment and technical service',()=>{
   it('applies the specified operating wear and conserves proportional stock',()=>{
-    const pump=quietSim().station.pumps[0];wearPump(pump,1_500_000);expect(condition(pump)).toBeCloseTo(99,8);
-    const tank=quietSim().station.tanks[0];wearTank(tank,tank.capacityMl);wearTank(tank,tank.capacityMl);expect(condition(tank)).toBeCloseTo(99.6,8);
-    tank.capacityMl*=2;wearTank(tank,tank.capacityMl);expect(condition(tank)).toBeCloseTo(99.4,8);
+    const pump=quietSim().station.pumps[0];wearPump(pump,1_500_000);expect(condition(pump)).toBeCloseTo(97.5,8);
+    const tank=quietSim().station.tanks[0];wearTank(tank,tank.capacityMl);wearTank(tank,tank.capacityMl);expect(condition(tank)).toBeCloseTo(99.375,8);
+    tank.capacityMl*=2;wearTank(tank,tank.capacityMl);expect(condition(tank)).toBeCloseTo(98.75,8);
     const shares=proportionalDraw([{stockMl:1},{stockMl:1},{stockMl:1}],2);
     expect(shares.reduce((a,b)=>a+b,0)).toBe(2);expect(shares.every(n=>n>=0&&n<=1)).toBe(true);
   });

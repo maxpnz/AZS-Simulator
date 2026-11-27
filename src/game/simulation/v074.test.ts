@@ -41,7 +41,7 @@ describe('v0.7.4 release acceptance',()=>{
     expect(restored.commerce.parking).toEqual(sim.commerce.parking);
     expect(restored.station.balanceKopeks).toBe(sim.station.balanceKopeks);
     expect(restored.financeEvents).toEqual(sim.financeEvents);
-    expect(restored.exportSave().version).toBe('0.8.0');
+    expect(restored.exportSave().version).toBe('0.8.1');
   },30000);
   it('keeps reservations unique and vehicles on valid routes during a busy day and after reload',()=>{
     let sim=new StationSimulation(47,cloneLegacyStation());

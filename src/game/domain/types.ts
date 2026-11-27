@@ -17,6 +17,7 @@ export interface Pump {
   status?: 'ready' | 'building' | 'upgrading';
   flowMultiplier?: number;
   enabled?: boolean;
+  pendingAction?: 'disable' | 'upgrade';
   lastDisplayMl?: number;
   lastDisplayKopeks?: number;
   condition?: number;

@@ -4,12 +4,22 @@ import { GameAudioEvents } from './GameAudioEvents';
 import { StationSimulation } from '../game/simulation/StationSimulation';
 
 describe('Sound Update', () => {
+  it('pauses local loops with the game and resumes them once',()=>{
+    const instances:{paused:boolean;plays:number;volume:number;src:string;loop:boolean;pause:()=>void;play:()=>Promise<void>}[]=[];
+    vi.stubGlobal('Audio',class {
+      paused=true;plays=0;volume=1;src:string;loop=false;
+      constructor(src:string){this.src=src;instances.push(this)}
+      pause(){this.paused=true}
+      play(){this.paused=false;this.plays++;return Promise.resolve()}
+    });
+    try{const manager=new AudioManager();manager.startLoop('pump_fueling','car');manager.activate();const pump=instances.find(s=>s.src.includes('pump_fueling'))!;expect(pump.plays).toBe(1);manager.setGamePaused(true);expect(pump.paused).toBe(true);manager.setGamePaused(false);expect(pump.plays).toBe(2);manager.dispose()}finally{vi.unstubAllGlobals()}
+  });
   it('selects themes at all three game-time boundaries, including subsequent days', () => {
-    expect(themeForTime(5 * 3600 + 59 * 60)).toBe('midnight_pump_demo');
-    expect(themeForTime(6 * 3600)).toBe('morning_fuel_demo');
-    expect(themeForTime(18 * 3600)).toBe('golden_hour_station_demo');
-    expect(themeForTime(22 * 3600)).toBe('midnight_pump_demo');
-    expect(themeForTime(86400 + 6 * 3600)).toBe('morning_fuel_demo');
+    expect(themeForTime(5 * 3600 + 59 * 60)).toBe('night_shift');
+    expect(themeForTime(6 * 3600)).toBe('daylight_flow');
+    expect(themeForTime(18 * 3600)).toBe('evening_glow');
+    expect(themeForTime(22 * 3600)).toBe('night_shift');
+    expect(themeForTime(86400 + 6 * 3600)).toBe('daylight_flow');
   });
   it('uses defaults for old saves and clamps persisted settings', () => {
     const storage = new Map<string,string>([['azs-simulator-musicVolume','999'],['azs-simulator-effectsVolume','bad']]);
@@ -35,11 +45,11 @@ describe('Sound Update', () => {
     bridge.update({...initial,vehicles:[{...vehicle,status:'fueling'}]});
     bridge.update({...initial,vehicles:[{...vehicle,status:'finishing'}]});
     bridge.update({...initial,vehicles:[{...vehicle,status:'leaving'}]});
-    expect(played).toEqual(['pump_nozzle_pickup','pump_complete','pump_nozzle_return']);
-    expect(started).toEqual(['1']);
+    expect(played).toEqual(['pump_nozzle_pickup','pump_complete','vehicle_start','pump_nozzle_return']);
+    expect(started).toEqual(['station','1']);
     expect(stopped).toEqual(['1']);
     bridge.rebase({...initial,vehicles:[vehicle]});
-    expect(played).toHaveLength(3);
+    expect(played).toHaveLength(4);
   });
   it('imports an existing 0.7.6 save without changing station finances', () => {
     const sim = new StationSimulation();
@@ -47,6 +57,6 @@ describe('Sound Update', () => {
     const restored = StationSimulation.importSave(old);
     expect(restored.station.balanceKopeks).toBe(sim.station.balanceKopeks);
     expect(restored.station.pumps).toEqual(sim.station.pumps);
-    expect(restored.exportSave().version).toBe('0.8.0');
+    expect(restored.exportSave().version).toBe('0.8.1');
   });
 });

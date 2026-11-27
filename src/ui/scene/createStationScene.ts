@@ -295,7 +295,7 @@ export async function createStationScene(initialPumps:readonly Pump[]):Promise<S
     }
   }
   function drawPumps(){
-    const signature=pumps.map(p=>`${p.id}:${p.slot}:${p.status}:${p.fuels.join(',')}`).join('|')+'@'+Object.keys(stocks).map(k=>`${k}:${stocks[k as FuelId]>0}`).join(',')+'#'+jobs.map(j=>`${j.targetId}:${Math.round(j.remainingSeconds)}`).join(',');
+    const signature=pumps.map(p=>`${p.id}:${p.slot}:${p.status}:${p.fuels.join(',')}`).join('|')+'@'+Object.keys(stocks).map(k=>`${k}:${stocks[k as FuelId]>0}`).join(',')+'#'+jobs.map(j=>`${j.targetId}:${Math.round(j.remainingSeconds)}`).join(',')+'#'+tanks.map(t=>`${t.id}:${t.fuel}:${t.status}`).join(',');
     if(signature!==pumpSignature){
       pumpSignature=signature;drawRoadMarkings();displays.clear();pumpLayer.removeChildren().forEach(child=>child.destroy({children:true}));
       for(const slot of PUMP_SLOTS){
@@ -358,7 +358,7 @@ export async function createStationScene(initialPumps:readonly Pump[]):Promise<S
       if(item.status==='building')continue;
       const task=technical.tasks.find(t=>t.equipmentId===item.id&&t.blocked!==false);
       const broken=condition(item)<=0;
-      const critical=condition(item)<=20;
+      const critical=condition(item)<20;
       if(!task&&!critical)continue;
       const point='slot' in item?{x:PUMP_SLOTS[item.slot].x,y:PUMP_SLOTS[item.slot].y-99}:tankHatchPoint(tanks.indexOf(item));
       const y='slot' in item?point.y:point.y-48;

@@ -47,7 +47,8 @@ export function App() {
     document.addEventListener('pointerdown',activate,{passive:true});document.addEventListener('keydown',activate);document.addEventListener('pointerdown',click,{passive:true});
     return()=>{document.removeEventListener('pointerdown',activate);document.removeEventListener('keydown',activate);document.removeEventListener('pointerdown',click);};
   },[]);
-  useEffect(()=>{audio.setModalOpen(screen!==null);},[screen]);
+  useEffect(()=>{audio.setModalOpen(screen!==null);if(screen)audio.play('ui_open');else audio.play('ui_close');},[screen]);
+  useEffect(()=>{audio.setGamePaused(manualPause||backgroundPause);},[manualPause,backgroundPause]);
   useEffect(()=>{
     const sync=()=>audio.setSuspended(document.visibilityState==='hidden'||!document.hasFocus());
     const onPause=()=>audio.setSuspended(true),onResume=()=>audio.setSuspended(document.visibilityState==='hidden'||!document.hasFocus());
@@ -125,7 +126,7 @@ export function App() {
       onPause={togglePause} onSpeed={cycleSpeed} onFuel={()=>setFuelOpen(v=>!v)} onFinance={()=>{setFuelOpen(false);setScreen('finances');}} onMenu={()=>{setFuelOpen(false);setScreen(current=>current==='menu'?null:'menu');}} />
     <main className="game-stage" aria-label="Территория АЗС">
       <StationCanvas key={sceneKey} resetCameraVersion={cameraVersion} stationName={gameState.station.name??'АЗС'} pumps={gameState.station.pumps} jobs={gameState.station.jobs??[]} tanks={gameState.station.tanks} deliveries={gameState.deliveries??[]} technical={gameState.technical!} stocks={Object.fromEntries(FUEL_IDS.map(id=>[id,gameState.station.fuels[id].stockMl])) as Record<FuelId,number>} gameSeconds={gameState.gameSeconds} prices={prices} engine={engine}
-        onObject={setScreen} onVehicle={setSelectedVehicle} onTechnician={id=>{setSelectedTechnician(id);setScreen('technical');}} onCamera={camera=>audio.setCamera(camera)} />
+        onObject={id=>{audio.play('ui_select');setScreen(id);}} onVehicle={setSelectedVehicle} onTechnician={id=>{setSelectedTechnician(id);setScreen('technical');}} onCamera={camera=>audio.setCamera(camera)} />
     </main>
     {screen==='start'&&<section className="full-screen" role="dialog" aria-label="Стартовый экран"><div className="start-content"><img src="/icon-app-192.png" alt="AZS Simulator" width="128" height="128" /><h1>AZS Simulator</h1><button className="panel-action" onClick={()=>setScreen(null)}>Продолжить игру</button><button className="panel-action" onClick={()=>{if(window.confirm('Начать новую игру? Текущий прогресс будет сброшен.')){resetGame();setScreen(null);}}}>Новая игра</button></div></section>}
     {screen==='menu'&&<GameMenu onClose={()=>setScreen(null)} onSection={openSection} onSaveSlot={slot=>engine.saveSlot(slot)} onLoadSlot={loadSlot} getSlot={slot=>engine.getSlot(slot)} onExit={()=>{engine.save();setScreen('start');}} onReset={resetGame} />}

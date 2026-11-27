@@ -1,4 +1,5 @@
 /** Displayed whole percent controls the tank and fuel popover scales. */
+export const FUEL_FILL_THRESHOLDS = { healthy: 50, low: 20 } as const;
 export function fuelFillColor(percent:number):string {
-  return percent>50?'#39d879':percent>25?'#e3cf41':percent>10?'#f29837':'#e65151';
+  return percent>FUEL_FILL_THRESHOLDS.healthy?'#39d879':percent>=FUEL_FILL_THRESHOLDS.low?'#e3cf41':'#e65151';
 }
