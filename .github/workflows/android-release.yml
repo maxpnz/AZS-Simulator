@@ -86,10 +86,13 @@ jobs:
         run: |
           apk="android/app/build/outputs/apk/release/app-release.apk"
           test -s "$apk"
+          compact_version="${GITHUB_REF_NAME//./}"
+          notes="docs/${compact_version}/RELEASE_NOTES.md"
+          test -s "$notes" || { echo "Missing release notes: $notes"; exit 1; }
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME already exists; refusing to overwrite it"
+            exit 1
+          fi
           cp "$apk" "AZS-Simulator-${GITHUB_REF_NAME}.apk"
           tar -czf "AZS-Simulator-${GITHUB_REF_NAME}-web.tar.gz" -C dist .
-          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" "AZS-Simulator-${GITHUB_REF_NAME}.apk" "AZS-Simulator-${GITHUB_REF_NAME}-web.tar.gz" --clobber
-          else
-            gh release create "$GITHUB_REF_NAME" "AZS-Simulator-${GITHUB_REF_NAME}.apk" "AZS-Simulator-${GITHUB_REF_NAME}-web.tar.gz" --title "АЗС Simulator $GITHUB_REF_NAME — Sound Update" --notes-file docs/v080/RELEASE_NOTES.md
-          fi
+          gh release create "$GITHUB_REF_NAME" "AZS-Simulator-${GITHUB_REF_NAME}.apk" "AZS-Simulator-${GITHUB_REF_NAME}-web.tar.gz" --verify-tag --title "АЗС Simulator $GITHUB_REF_NAME" --notes-file "$notes"
