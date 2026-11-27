@@ -90,6 +90,7 @@ export interface FinanceEvent {
   gameSeconds: number;
   kind: FinanceKind;
   amountKopeks: number;
+  aggregated?: number;
   costKopeks?: number;
   fuel?: FuelId;
   volumeMl?: number;

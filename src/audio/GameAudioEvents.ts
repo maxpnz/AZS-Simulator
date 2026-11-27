@@ -5,20 +5,19 @@ import { AudioManager } from './AudioManager';
 export class GameAudioEvents {
   private previous: GameState | undefined;
   private suppressNextUpdate = false;
-  private lastFinanceCount = 0;
   private lastWorkSound = 0;
   private trafficWait=new Map<number,{x:number;y:number;since:number;next:number}>();
   private lastHonk=0;
   constructor(private readonly audio: AudioManager) {}
   suppressNext(): void { this.suppressNextUpdate = true; }
-  rebase(state: GameState): void { this.suppressNextUpdate = false; this.previous = state;this.lastFinanceCount=state.financeEvents?.length??0;this.lastWorkSound=0;this.trafficWait.clear(); this.audio.stopAllLoops?.();this.audio.startLoop('ambient_station','station');for(const vehicle of state.vehicles)if(vehicle.status==='fueling')this.audio.startLoop('pump_fueling',String(vehicle.id),vehicle);for(const trip of state.deliveries??[])if(trip.status==='unloading')this.audio.startLoop('fuel_unloading',trip.id,{x:1822,y:256});this.audio.syncEngineSounds?.(state.vehicles);this.audio.setGameTime(state.gameSeconds); }
+  rebase(state: GameState): void { this.suppressNextUpdate = false; this.previous = state;this.lastWorkSound=0;this.trafficWait.clear(); this.audio.stopAllLoops?.();this.audio.startLoop('ambient_station','station');for(const vehicle of state.vehicles)if(vehicle.status==='fueling')this.audio.startLoop('pump_fueling',String(vehicle.id),vehicle);for(const trip of state.deliveries??[])if(trip.status==='unloading')this.audio.startLoop('fuel_unloading',trip.id,{x:1822,y:256});this.audio.syncEngineSounds?.(state.vehicles);this.audio.setGameTime(state.gameSeconds); }
   update(state: GameState): void {
     if (this.suppressNextUpdate) { this.rebase(state); return; }
     const old = this.previous;
     this.previous = state;
     this.audio.setGameTime(state.gameSeconds);
     this.audio.syncEngineSounds?.(state.vehicles);
-    if (!old){this.lastFinanceCount=state.financeEvents?.length??0;return;}
+    if (!old)return;
     const nowReal=performance.now();
     const seen=new Set<number>();
     for(const vehicle of state.vehicles){
@@ -32,10 +31,7 @@ export class GameAudioEvents {
       }
     }
     for(const id of this.trafficWait.keys())if(!seen.has(id))this.trafficWait.delete(id);
-    const finance=state.financeEvents??[];
-    if(finance.length<this.lastFinanceCount)this.lastFinanceCount=finance.length;
-    if(finance.slice(this.lastFinanceCount).some(event=>event.kind==='goodsSale'))this.audio.play('cash_register',{gain:.7});
-    this.lastFinanceCount=finance.length;
+    if((state.financeEvents??[]).some(event=>event.kind==='goodsSale'&&!event.aggregated&&event.gameSeconds>old.gameSeconds))this.audio.play('cash_register',{gain:.7});
     const vehicles = new Map(old.vehicles.map(vehicle => [vehicle.id, vehicle]));
     for (const vehicle of state.vehicles) {
       const before = vehicles.get(vehicle.id);

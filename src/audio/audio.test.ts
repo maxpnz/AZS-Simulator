@@ -66,8 +66,8 @@ describe('Sound Update', () => {
     const bridge=new GameAudioEvents(manager);
     const initial=new StationSimulation().snapshot();
     bridge.rebase(initial);
-    bridge.update({...initial,financeEvents:[{gameSeconds:initial.gameSeconds,kind:'goodsSale',amountKopeks:500}]});
-    bridge.update({...initial,financeEvents:[{gameSeconds:initial.gameSeconds,kind:'goodsSale',amountKopeks:500}]});
+    bridge.update({...initial,gameSeconds:initial.gameSeconds+1,financeEvents:[{gameSeconds:initial.gameSeconds+1,kind:'goodsSale',amountKopeks:500}]});
+    bridge.update({...initial,gameSeconds:initial.gameSeconds+1,financeEvents:[{gameSeconds:initial.gameSeconds+1,kind:'goodsSale',amountKopeks:500}]});
     expect(played).toEqual(['cash_register']);
   });
   it('limits engine loops to three nearby vehicles and clears them on pause',()=>{

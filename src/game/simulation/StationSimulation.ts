@@ -100,6 +100,7 @@ export class StationSimulation {
   private finishedIds=new Set<number>();
   private stepBlockers:Vehicle[]|undefined;
   private stallInfo=new Map<number,{x:number;y:number;seconds:number}>();
+  private lastFinanceCompactDay=-1;
 
   constructor(seed:number=TRAFFIC_CONFIG.seed,station:StationState=cloneInitialStation()) {
     this.rng=new RandomSource(seed);
@@ -111,6 +112,28 @@ export class StationSimulation {
   }
   private record(kind:FinanceKind,amountKopeks:number,fuel?:FuelId,volumeMl?:number,objectId?:string):void {
     if(amountKopeks>0)this.financeEvents.push({gameSeconds:this.gameSeconds,kind,amountKopeks,fuel,volumeMl,objectId});
+  }
+  private compactFinanceHistory():void {
+    const day=Math.floor(this.gameSeconds/86400);
+    if(day===this.lastFinanceCompactDay)return;
+    this.lastFinanceCompactDay=day;
+    const recentCutoff=this.gameSeconds-31*86400;
+    const oldestVisibleWeek=Math.floor(this.gameSeconds/604800)-11;
+    const rollable=new Set<FinanceKind>(['sale','goodsSale','lighting','pumpElectricity','tankMaintenance','pumping']);
+    const grouped=new Map<string,FinanceEvent>();
+    const detailed:FinanceEvent[]=[];
+    for(const event of this.financeEvents){
+      if(event.gameSeconds>=recentCutoff||!rollable.has(event.kind)){detailed.push(event);continue;}
+      const week=Math.floor(event.gameSeconds/604800);
+      const bucketSeconds=week<oldestVisibleWeek?0:week*604800;
+      const key=JSON.stringify([bucketSeconds,event.kind,event.fuel,event.objectId]);
+      const existing=grouped.get(key);
+      if(existing){existing.amountKopeks+=event.amountKopeks;existing.costKopeks=(existing.costKopeks??0)+(event.costKopeks??0);existing.volumeMl=(existing.volumeMl??0)+(event.volumeMl??0);existing.aggregated=(existing.aggregated??1)+(event.aggregated??1);}
+      else grouped.set(key,{gameSeconds:bucketSeconds,kind:event.kind,amountKopeks:event.amountKopeks,costKopeks:event.costKopeks,fuel:event.fuel,volumeMl:event.volumeMl,objectId:event.objectId,aggregated:event.aggregated??1});
+    }
+    if(grouped.size===0)return;
+    this.financeEvents.splice(0,this.financeEvents.length,...grouped.values(),...detailed);
+    this.financeEvents.sort((a,b)=>a.gameSeconds-b.gameSeconds);
   }
   snapshot(): GameState {
     return {
@@ -136,7 +159,7 @@ export class StationSimulation {
   exportSave() {
     const state={...this.snapshot(),financeEvents:this.financeEvents.map(event=>{
       const row:(number|string|null)[]=[event.gameSeconds,FINANCE_KINDS.indexOf(event.kind),event.amountKopeks];
-      if(event.costKopeks!==undefined||event.fuel!==undefined||event.volumeMl!==undefined||event.objectId!==undefined||event.id!==undefined||event.productId!==undefined)row.push(event.costKopeks??null,event.fuel?FUEL_IDS.indexOf(event.fuel):null,event.volumeMl??null,event.objectId??null,event.id??null,event.productId??null);
+      if(event.costKopeks!==undefined||event.fuel!==undefined||event.volumeMl!==undefined||event.objectId!==undefined||event.id!==undefined||event.productId!==undefined||event.aggregated!==undefined)row.push(event.costKopeks??null,event.fuel?FUEL_IDS.indexOf(event.fuel):null,event.volumeMl??null,event.objectId??null,event.id??null,event.productId??null,event.aggregated??null);
       return row;
     })};
     return {version,parkingLayout:'single-fence',state,rngState:this.rng.getState(),nextVehicleId:this.nextVehicleId,
@@ -206,11 +229,12 @@ export class StationSimulation {
     if(state.financeEvents!==undefined){
       if(!Array.isArray(state.financeEvents))throw new Error('Invalid finance history');
       for(const rawEvent of state.financeEvents){
-        const event=Array.isArray(rawEvent)?{gameSeconds:rawEvent[0],kind:FINANCE_KINDS[rawEvent[1]],amountKopeks:rawEvent[2],...(rawEvent[3]===null||rawEvent[3]===undefined?{}:{costKopeks:rawEvent[3]}),fuel:rawEvent[4]===null||rawEvent[4]===undefined?undefined:FUEL_IDS[rawEvent[4]],volumeMl:rawEvent[5]??undefined,objectId:rawEvent[6]??undefined,id:rawEvent[7]??undefined,productId:rawEvent[8]??undefined}:rawEvent as FinanceEvent;
+        const event=Array.isArray(rawEvent)?{gameSeconds:rawEvent[0],kind:FINANCE_KINDS[rawEvent[1]],amountKopeks:rawEvent[2],...(rawEvent[3]===null||rawEvent[3]===undefined?{}:{costKopeks:rawEvent[3]}),fuel:rawEvent[4]===null||rawEvent[4]===undefined?undefined:FUEL_IDS[rawEvent[4]],volumeMl:rawEvent[5]??undefined,objectId:rawEvent[6]??undefined,id:rawEvent[7]??undefined,productId:rawEvent[8]??undefined,aggregated:rawEvent[9]??undefined}:rawEvent as FinanceEvent;
         if(!Number.isFinite(event.gameSeconds)||!Number.isFinite(event.amountKopeks)||!FINANCE_KINDS.includes(event.kind))throw new Error('Invalid finance event');
         sim.financeEvents.push({...event});
       }
     }
+    sim.compactFinanceHistory();
     for(const pump of station.pumps)if(pump.paidUpgradeKopeks===undefined){
       const recorded=sim.financeEvents.filter(e=>e.kind==='upgrade'&&e.objectId===pump.id).reduce((sum,e)=>sum+e.amountKopeks,0);
       const inferred=recorded||Math.max(0,pumpLevel(pump)-1)*1_200_000;
@@ -766,6 +790,7 @@ export class StationSimulation {
     }
     this.advanceDeliveries(seconds);
     this.advanceCommerce(seconds,technicalFrom);
+    this.compactFinanceHistory();
     advanceMarket(this.market,this.gameSeconds);
     advanceCompetition(this.competition,this.gameSeconds,this.market.baseKopeks,Object.fromEntries(FUEL_IDS.map(id=>[id,this.station.fuels[id].retailKopeks])) as Record<FuelId,number>);
     while(this.nextSpawnSeconds<=this.gameSeconds) {
@@ -1116,6 +1141,10 @@ export class StationSimulation {
       if(!pump)continue;
       if(this.isOccupied(pump)||this.isIslandBusy(pump)||!this.usablePump(pump)||(this.station.jobs??[]).some(j=>j.kind==='rewire'&&j.targetId===pump.id))continue;
       const bay=pumpQueuePoint(pump.slot);
+      // A departing car crosses the queue-bay approach on the shared exit
+      // lane. Let it pass before releasing the next car from that bay.
+      if(this.vehicles.some(other=>other.status==='leaving'&&other.y>=600&&other.y<=750&&
+        other.x>bay.x-90&&other.x<bay.x+190))continue;
       if(this.vehicles.some(other=>other.id!==head.id&&other.status==='toPump'&&other.pumpId&&
         Number(other.pumpId.split('-')[1])-1<pump.slot&&other.y>=640&&other.y<800&&
         other.x>bay.x-100&&other.x<bay.x+200))continue;

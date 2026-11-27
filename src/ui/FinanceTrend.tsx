@@ -42,7 +42,12 @@ export function FinanceTrend({events,gameSeconds}:{events:readonly FinanceEvent[
     <div className="periods" role="group" aria-label="Показатель финансового графика">{([['revenue','Выручка'],['profit','Прибыль'],['expense','Расходы']] as const).map(([id,name])=><button type="button" key={id} className={measure===id?'active':''} onClick={()=>{setMeasure(id);setSelected(null);}}>{name}</button>)}</div>
     <svg className="finance-line-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`Финансовая динамика: ${measure==='profit'?'прибыль':measure==='revenue'?'выручка':'расходы'} по игровому времени`}>
       {[min,0,max].map((value,index)=><g key={index}><line x1={left} x2={width-right} y1={y(value)} y2={y(value)} stroke={value===0?'#8ca6ad':'#36525d'} strokeDasharray={value===0?undefined:'3 4'}/><text x={left-7} y={y(value)+4} textAnchor="end" fill="#bdcdd0" fontSize="11">{money(value)}</text></g>)}
-      <polyline points={points} fill="none" stroke={color} strokeWidth="3" strokeLinejoin="round"/>
+      {measure==='profit'?values.slice(1).map((value,index)=>{
+        const previous=values[index],start=x(index),end=x(index+1),a=y(previous),b=y(value);
+        if((previous<0)===(value<0))return <line key={index} x1={start} y1={a} x2={end} y2={b} stroke={previous<0?'#e34c4c':color} strokeWidth="3"/>;
+        const crossing=start+(end-start)*previous/(previous-value);
+        return <g key={index}><line x1={start} y1={a} x2={crossing} y2={y(0)} stroke={previous<0?'#e34c4c':color} strokeWidth="3"/><line x1={crossing} y1={y(0)} x2={end} y2={b} stroke={value<0?'#e34c4c':color} strokeWidth="3"/></g>;
+      }):<polyline points={points} fill="none" stroke={color} strokeWidth="3" strokeLinejoin="round"/>}
       {buckets.map((bucket,index)=><circle key={index} cx={x(index)} cy={y(bucket[measure])} r="7" fill={bucket.profit<0&&measure==='profit'?'#e34c4c':color} stroke="#12252b" strokeWidth="2" tabIndex={0} role="button" aria-label={`${label(bucket.from,scale)}: ${money(bucket[measure])}`} onClick={()=>setSelected(index)} onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();setSelected(index);}}}/>)}
       <text x={left} y={height-5} fill="#bdcdd0" fontSize="11">{label(buckets[0].from,scale)}</text><text x={width-right} y={height-5} textAnchor="end" fill="#bdcdd0" fontSize="11">{label(buckets.at(-1)!.from,scale)}</text>
     </svg>
