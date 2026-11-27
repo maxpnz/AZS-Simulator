@@ -43,7 +43,7 @@ export function App() {
   useEffect(()=>{if(engine.getLoadError())toast('Не удалось загрузить сохранение. Проверьте хранилище браузера.','error');gameAudio.rebase(engine.getState());const unsubscribe=engine.subscribeState(state=>{gameAudio.update(state);setGameState(state);});engine.start();return()=>{unsubscribe();engine.stop();audio.dispose();};},[]);
   useEffect(()=>{
     const activate=()=>audio.activate();
-    const click=(event:PointerEvent)=>{if((event.target as Element).closest('button'))audio.play('ui_click');};
+    const click=(event:PointerEvent)=>{const target=event.target as Element;if(target.closest('button')&&!target.closest('.venue-price-list'))audio.play('ui_click');};
     document.addEventListener('pointerdown',activate,{passive:true});document.addEventListener('keydown',activate);document.addEventListener('pointerdown',click,{passive:true});
     return()=>{document.removeEventListener('pointerdown',activate);document.removeEventListener('keydown',activate);document.removeEventListener('pointerdown',click);};
   },[]);

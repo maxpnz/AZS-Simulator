@@ -50,7 +50,7 @@ export function CommercePanel({state,engine,venue,refresh,onClose,onBack,onVenue
   const fail=(ok:boolean,success:string)=>{if(ok)audio.play('ui_purchase');toast(ok?success:'Действие недоступно. Проверьте баланс и условия.',ok?'success':'error');refresh();};
   const changePrice=(product:Product,delta:number|null)=>{
     const price=delta===null?retailMarketPrice(product,state.gameSeconds):Math.max(100,engine.getState().commerce!.prices[product]+delta);
-    if(engine.setGoodsPrice(product,price))refresh();
+    engine.setGoodsPrice(product,price);
   };
   const order=()=>{
     if(ordering.current||!cartLines.length)return;
