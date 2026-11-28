@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { audio } from '../audio/AudioManager';
 
 type ToastKind = 'success' | 'error' | 'info';
 interface ToastMessage { id: number; text: string; kind: ToastKind }
@@ -8,8 +7,6 @@ const listeners = new Set<(message: ToastMessage) => void>();
 
 export function toast(text: string, kind: ToastKind = 'info') {
   const message = { id: ++nextId, text, kind };
-  if(kind==='error')audio.play('ui_error');
-  else if(kind==='success')audio.play('ui_confirm');
   for (const listener of listeners) listener(message);
 }
 

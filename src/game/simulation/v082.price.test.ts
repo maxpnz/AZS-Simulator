@@ -2,6 +2,30 @@ import {describe,it,expect,vi} from 'vitest';
 import {GameEngine} from './GameEngine';
 
 describe('price update persistence',()=>{
+ it('prepares ordinary price saves in a worker before writing storage',()=>{
+  vi.useFakeTimers();
+  const data=new Map<string,string>();
+  const jobs:Array<{id:number;save:unknown}>=[];
+  class FakeWorker {
+   onmessage:((event:MessageEvent<{id:number;data:string}>)=>void)|null=null;
+   onerror:((event:ErrorEvent)=>void)|null=null;
+   postMessage(job:{id:number;save:unknown}){jobs.push(job);}
+   terminate(){}
+  }
+  vi.stubGlobal('Worker',FakeWorker);
+  vi.stubGlobal('localStorage',{getItem:(key:string)=>data.get(key)??null,setItem:(key:string,value:string)=>data.set(key,value),removeItem:(key:string)=>data.delete(key)});
+  try{
+   const engine=new GameEngine();
+   expect(engine.setRetailPrice('ai92',engine.getState().station.fuels.ai92.retailKopeks+100)).toBe(true);
+   expect(data.has('azs-simulator-save')).toBe(false);
+   vi.advanceTimersByTime(1000);
+   expect(jobs).toHaveLength(1);
+   expect(data.has('azs-simulator-save')).toBe(false);
+   (engine as unknown as {saveWorker:FakeWorker}).saveWorker.onmessage?.({data:{id:jobs[0].id,data:JSON.stringify(jobs[0].save)}} as MessageEvent<{id:number;data:string}>);
+   expect(data.has('azs-simulator-save')).toBe(true);
+   expect(new GameEngine().getState().station.fuels.ai92.retailKopeks).toBe(engine.getState().station.fuels.ai92.retailKopeks);
+  }finally{vi.useRealTimers();vi.unstubAllGlobals()}
+ });
  it('publishes each rapid change and coalesces synchronous writes',()=>{
   vi.useFakeTimers();
   const data=new Map<string,string>();let writes=0;

@@ -6,9 +6,9 @@ import type { TechnicalState } from '../../game/domain/technical';
 import { createStationScene, hitTest, type ObjectId, SCENE_HEIGHT, SCENE_WIDTH } from './createStationScene';
 import { cameraTransform, INITIAL_CAMERA, limitPan, zoomAround, type Camera, type Point } from './camera';
 
-interface Props { stationName:string; resetCameraVersion:number; pumps: readonly Pump[]; stocks: Record<FuelId,number>; jobs: readonly ConstructionJob[]; tanks: readonly FuelTank[]; deliveries: readonly DeliveryTrip[]; technical:TechnicalState; gameSeconds: number; prices: Record<FuelId,number>; engine: GameEngine; onObject: (id: ObjectId) => void; onVehicle:(id:number)=>void;onTechnician:(id:string)=>void;onCamera?:(camera:{scale:number;x:number;y:number;width:number;height:number})=>void }
+interface Props { stationName:string; resetCameraVersion:number; pumps: readonly Pump[]; stocks: Record<FuelId,number>; jobs: readonly ConstructionJob[]; tanks: readonly FuelTank[]; deliveries: readonly DeliveryTrip[]; technical:TechnicalState; gameSeconds: number; prices: Record<FuelId,number>; engine: GameEngine; onObject: (id: ObjectId) => void; onVehicle:(id:number)=>void;onTechnician:(id:string)=>void }
 
-export function StationCanvas({ stationName,resetCameraVersion,pumps, stocks, jobs, tanks, deliveries, technical, gameSeconds, prices, engine, onObject,onVehicle,onTechnician,onCamera }: Props) {
+export function StationCanvas({ stationName,resetCameraVersion,pumps, stocks, jobs, tanks, deliveries, technical, gameSeconds, prices, engine, onObject,onVehicle,onTechnician }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const updateTimeRef = useRef<(seconds: number) => void>(() => undefined);
   const updatePricesRef = useRef<(prices: Record<FuelId,number>) => void>(() => undefined);
@@ -21,11 +21,9 @@ export function StationCanvas({ stationName,resetCameraVersion,pumps, stocks, jo
   const onObjectRef = useRef(onObject);
   const onVehicleRef=useRef(onVehicle);
   const onTechnicianRef=useRef(onTechnician);
-  const onCameraRef=useRef(onCamera);
   useEffect(() => { onObjectRef.current = onObject; }, [onObject]);
   useEffect(() => { onVehicleRef.current = onVehicle; }, [onVehicle]);
   useEffect(() => { onTechnicianRef.current = onTechnician; }, [onTechnician]);
-  useEffect(() => { onCameraRef.current = onCamera; }, [onCamera]);
 
   useEffect(() => { updateTimeRef.current(gameSeconds); }, [gameSeconds]);
   useEffect(() => { updatePricesRef.current(prices); }, [prices]);
@@ -80,7 +78,6 @@ export function StationCanvas({ stationName,resetCameraVersion,pumps, stocks, jo
         const transform = cameraTransform(camera, baseScale(), viewport(), sceneSize);
         scene.root.scale.set(transform.scale);
         scene.root.position.set(transform.x, transform.y);
-        onCameraRef.current?.({...transform,width:host.clientWidth,height:host.clientHeight});
       };
       resetCameraRef.current=()=>{camera=initialCamera();applyCamera();};
       const resize = () => {

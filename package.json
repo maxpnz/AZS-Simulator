@@ -1,7 +1,7 @@
 {
   "name": "azs-simulator",
   "private": true,
-  "version": "0.8.2",
+  "version": "0.8.4",
   "description": "Изометрический симулятор автозаправочной станции",
   "author": "AZS Simulator",
   "type": "module",
@@ -15,7 +15,6 @@
   },
   "dependencies": {
     "@capacitor/android": "^8.6.0",
-    "@capacitor/app": "^8.1.2",
     "@capacitor/browser": "^8.0.5",
     "@capacitor/core": "^8.6.0",
     "lz-string": "^1.5.0",

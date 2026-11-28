@@ -8,7 +8,6 @@ import type {Venue,Sku,Product,Supplier} from '../game/domain/commerce';
 import type {GameState} from '../game/domain/types';
 import type {GameEngine} from '../game/simulation/GameEngine';
 import {ProductArt} from './ProductArt';
-import {audio} from '../audio/AudioManager';
 
 const money=(n:number)=>(n/100).toLocaleString('ru-RU',{maximumFractionDigits:2})+' ₽';
 const quantity=(sku:Sku,n:number)=>sku==='coffee'?(n/1000).toLocaleString('ru-RU',{maximumFractionDigits:2})+' кг':sku==='milk'?(n/1000).toLocaleString('ru-RU',{maximumFractionDigits:2})+' л':n.toLocaleString('ru-RU')+' шт.';
@@ -47,7 +46,7 @@ export function CommercePanel({state,engine,venue,refresh,onClose,onBack,onVenue
   const sum=(kind:string)=>events.filter(event=>event.kind===kind).reduce((n,event)=>n+event.amountKopeks,0);
   const sales=events.filter(event=>event.kind==='goodsSale');
   const revenue=sum('goodsSale'),cost=sales.reduce((n,event)=>n+(event.costKopeks??0),0);
-  const fail=(ok:boolean,success:string)=>{if(ok)audio.play('ui_purchase');toast(ok?success:'Действие недоступно. Проверьте баланс и условия.',ok?'success':'error');refresh();};
+  const fail=(ok:boolean,success:string)=>{toast(ok?success:'Действие недоступно. Проверьте баланс и условия.',ok?'success':'error');refresh();};
   const changePrice=(product:Product,delta:number|null)=>{
     const price=delta===null?retailMarketPrice(product,state.gameSeconds):Math.max(100,engine.getState().commerce!.prices[product]+delta);
     engine.setGoodsPrice(product,price);

@@ -101,6 +101,8 @@ export class StationSimulation {
   private stepBlockers:Vehicle[]|undefined;
   private stallInfo=new Map<number,{x:number;y:number;seconds:number}>();
   private lastFinanceCompactDay=-1;
+  private hourlyExpenseEvents=new Map<string,FinanceEvent>();
+  private hourlyExpenseHour=-1;
 
   constructor(seed:number=TRAFFIC_CONFIG.seed,station:StationState=cloneInitialStation()) {
     this.rng=new RandomSource(seed);
@@ -111,7 +113,17 @@ export class StationSimulation {
     for(const id of FUEL_IDS)this.expenses.stockValueKopeks[id]=priceForVolume(station.fuels[id].stockMl,station.fuels[id].wholesaleKopeks);
   }
   private record(kind:FinanceKind,amountKopeks:number,fuel?:FuelId,volumeMl?:number,objectId?:string):void {
-    if(amountKopeks>0)this.financeEvents.push({gameSeconds:this.gameSeconds,kind,amountKopeks,fuel,volumeMl,objectId});
+    if(amountKopeks<=0)return;
+    if(['lighting','pumpElectricity','tankMaintenance','pumping'].includes(kind)){
+      const hour=Math.floor(this.gameSeconds/3600);
+      if(hour!==this.hourlyExpenseHour){this.hourlyExpenseEvents.clear();this.hourlyExpenseHour=hour;}
+      const key=`${kind}:${hour}`;
+      const existing=this.hourlyExpenseEvents.get(key);
+      if(existing){existing.amountKopeks+=amountKopeks;existing.aggregated=(existing.aggregated??1)+1;return;}
+      const event:FinanceEvent={gameSeconds:hour*3600,kind,amountKopeks,fuel,volumeMl,objectId};
+      this.financeEvents.push(event);this.hourlyExpenseEvents.set(key,event);return;
+    }
+    this.financeEvents.push({gameSeconds:this.gameSeconds,kind,amountKopeks,fuel,volumeMl,objectId});
   }
   private compactFinanceHistory():void {
     const day=Math.floor(this.gameSeconds/86400);
@@ -134,6 +146,25 @@ export class StationSimulation {
     if(grouped.size===0)return;
     this.financeEvents.splice(0,this.financeEvents.length,...grouped.values(),...detailed);
     this.financeEvents.sort((a,b)=>a.gameSeconds-b.gameSeconds);
+  }
+  private compactLegacyExpenses():void {
+    const byHour=new Map<string,FinanceEvent>();
+    const compacted:FinanceEvent[]=[];
+    for(const event of this.financeEvents){
+      if(!['lighting','pumpElectricity','tankMaintenance','pumping'].includes(event.kind)){compacted.push(event);continue;}
+      const hour=Math.floor(event.gameSeconds/3600);
+      const key=`${event.kind}:${hour}`;
+      const existing=byHour.get(key);
+      if(existing){existing.amountKopeks+=event.amountKopeks;existing.aggregated=(existing.aggregated??1)+(event.aggregated??1);}
+      else {const copy={...event,gameSeconds:hour*3600};byHour.set(key,copy);compacted.push(copy);}
+    }
+    this.financeEvents.splice(0,this.financeEvents.length,...compacted);
+  }
+  private restoreHourlyExpenseIndex():void {
+    this.hourlyExpenseEvents.clear();
+    const hour=Math.floor(this.gameSeconds/3600);
+    this.hourlyExpenseHour=hour;
+    for(const event of this.financeEvents)if(['lighting','pumpElectricity','tankMaintenance','pumping'].includes(event.kind)&&event.gameSeconds===hour*3600)this.hourlyExpenseEvents.set(`${event.kind}:${hour}`,event);
   }
   snapshot(): GameState {
     return {
@@ -170,12 +201,12 @@ export class StationSimulation {
     const save=raw as {version?:string;parkingLayout?:string;state?:GameState;rngState?:number;nextVehicleId?:number;nextSpawnSeconds?:number;nextJobId?:number;nextDeliveryId?:number};
     const state=(save.state??raw) as GameState;
     if(!state.station||!Number.isFinite(state.station.balanceKopeks)||!Number.isFinite(state.gameSeconds)||!Array.isArray(state.vehicles)||!Array.isArray(state.queueIds)||!state.station.fuels||!Array.isArray(state.station.tanks)||!Array.isArray(state.station.pumps))throw new Error('Invalid save state');
-    const station=['0.2.8','0.3.0','0.3.1','0.3.2','0.4.0','0.5.0','0.5.1','0.5.2','0.6.0','0.7.0','0.7.3','0.7.4','0.7.5','0.7.6','0.8.0','0.8.1',version].includes(save.version??'')?cloneInitialStation():cloneLegacyStation();
+    const station=['0.2.8','0.3.0','0.3.1','0.3.2','0.4.0','0.5.0','0.5.1','0.5.2','0.6.0','0.7.0','0.7.3','0.7.4','0.7.5','0.7.6','0.8.0','0.8.1','0.8.2',version].includes(save.version??'')?cloneInitialStation():cloneLegacyStation();
     station.name=normalizeStationName(state.station.name);
     if(Number.isFinite(state.station.balanceKopeks))station.balanceKopeks=state.station.balanceKopeks;
     for(const id of FUEL_IDS)if(state.station.fuels?.[id])station.fuels[id]={...station.fuels[id],...state.station.fuels[id]};
     station.tanks=(state.station.tanks??station.tanks).map(t=>({...t,status:t.status??'active',condition:condition(t)}));
-    station.pumps=(state.station.pumps??station.pumps).filter(p=>Number.isInteger(p.slot)&&p.slot>=0&&p.slot<PUMP_SLOTS.length).map(p=>({...p,fuels:[...p.fuels],status:p.status??'ready',flowMultiplier:p.flowMultiplier??1,enabled:p.enabled??true,condition:condition(p),...(!['0.8.1',version].includes(save.version??'')&&condition(p)<100?{pumpedMlSinceRepair:Math.round((100-condition(p))*600_000)}:{})}));
+    station.pumps=(state.station.pumps??station.pumps).filter(p=>Number.isInteger(p.slot)&&p.slot>=0&&p.slot<PUMP_SLOTS.length).map(p=>({...p,fuels:[...p.fuels],status:p.status??'ready',flowMultiplier:p.flowMultiplier??1,enabled:p.enabled??true,condition:condition(p),...(!['0.8.1','0.8.2',version].includes(save.version??'')&&condition(p)<100?{pumpedMlSinceRepair:Math.round((100-condition(p))*600_000)}:{})}));
     station.jobs=(state.station.jobs??[]).map(j=>({...j,fuels:j.fuels?[...j.fuels]:undefined}));
     const sim=new StationSimulation(TRAFFIC_CONFIG.seed,station);
     sim.gameSeconds=state.gameSeconds;
@@ -199,13 +230,13 @@ export class StationSimulation {
       if(v.status==='fueling'){
         copy.servicePhase=v.deliveredMl>0||v.servicePhase==='dispensing'?'dispensing':'preparing';
         copy.phaseRemainingSeconds=copy.servicePhase==='preparing'?Math.min(20,Math.max(0,v.phaseRemainingSeconds??20)):0;
-      }else if(!['0.5.1','0.5.2','0.6.0','0.7.0','0.7.3','0.7.4','0.7.5','0.7.6','0.8.0','0.8.1',version].includes(save.version??'')){delete copy.servicePhase;delete copy.phaseRemainingSeconds;}
+      }else if(!['0.5.1','0.5.2','0.6.0','0.7.0','0.7.3','0.7.4','0.7.5','0.7.6','0.8.0','0.8.1','0.8.2',version].includes(save.version??'')){delete copy.servicePhase;delete copy.phaseRemainingSeconds;}
       return copy;
     }));
     if(state.stats?.departed===undefined)sim.stats.departed=Math.max(0,sim.stats.visited-sim.vehicles.filter(v=>v.status!=='road').length);
     // Old two-row saves keep all ten reservations and current orders. Active
     // customers are moved to their new bay once, before traffic resumes.
-    const migrateParking=save.parkingLayout!=='single-fence'||save.version!==version;
+    const migrateParking=save.parkingLayout!=='single-fence'||!['0.8.2',version].includes(save.version??'');
     for(const [oldSlot,id] of (state.commerce?.parking??[]).entries()){
       if(id===null||sim.commerce.parking.includes(id))continue;
       const vehicle=sim.vehicles.find(v=>v.id===id);if(!vehicle)continue;
@@ -235,6 +266,8 @@ export class StationSimulation {
       }
     }
     sim.compactFinanceHistory();
+    if(save.version==='0.8.2')sim.compactLegacyExpenses();
+    sim.restoreHourlyExpenseIndex();
     for(const pump of station.pumps)if(pump.paidUpgradeKopeks===undefined){
       const recorded=sim.financeEvents.filter(e=>e.kind==='upgrade'&&e.objectId===pump.id).reduce((sum,e)=>sum+e.amountKopeks,0);
       const inferred=recorded||Math.max(0,pumpLevel(pump)-1)*1_200_000;
@@ -275,7 +308,7 @@ export class StationSimulation {
         if(active.reduce((sum,x)=>sum+Math.max(0,x.reservedMl-x.deliveredMl),0)<=stock)break;
       }
     }
-    if(!['0.2.7','0.2.8','0.3.0','0.3.1','0.3.2','0.4.0','0.5.0','0.5.1','0.5.2','0.6.0','0.7.0','0.7.3','0.7.4','0.7.5','0.7.6','0.8.0',version].includes(save.version??''))for(const v of sim.vehicles){
+    if(!['0.2.7','0.2.8','0.3.0','0.3.1','0.3.2','0.4.0','0.5.0','0.5.1','0.5.2','0.6.0','0.7.0','0.7.3','0.7.4','0.7.5','0.7.6','0.8.0','0.8.2',version].includes(save.version??''))for(const v of sim.vehicles){
       const pump=v.pumpId&&sim.station.pumps.find(p=>p.id===v.pumpId);
       if(v.status==='fueling'||v.status==='finishing'){
         if(pump){const point=PUMP_SLOTS[pump.slot];v.x=point.stopX;v.y=point.stopY;v.angle=Math.PI;}
@@ -300,7 +333,7 @@ export class StationSimulation {
         v.routeIndex=0;
       }
     }
-    if(!['0.5.1','0.5.2','0.6.0','0.7.0','0.7.3','0.7.4','0.7.5','0.7.6','0.8.0',version].includes(save.version??'')){
+    if(!['0.5.1','0.5.2','0.6.0','0.7.0','0.7.3','0.7.4','0.7.5','0.7.6','0.8.0','0.8.2',version].includes(save.version??'')){
       // The old shared queue had no dispenser assignment. Move each waiting
       // customer to a marked bay and repair vehicles trapped at the entrance.
       const redirected=new Set<number>();
