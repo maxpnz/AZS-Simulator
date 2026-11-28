@@ -175,7 +175,7 @@ export class StationSimulation {
     if(Number.isFinite(state.station.balanceKopeks))station.balanceKopeks=state.station.balanceKopeks;
     for(const id of FUEL_IDS)if(state.station.fuels?.[id])station.fuels[id]={...station.fuels[id],...state.station.fuels[id]};
     station.tanks=(state.station.tanks??station.tanks).map(t=>({...t,status:t.status??'active',condition:condition(t)}));
-    station.pumps=(state.station.pumps??station.pumps).filter(p=>Number.isInteger(p.slot)&&p.slot>=0&&p.slot<PUMP_SLOTS.length).map(p=>({...p,fuels:[...p.fuels],status:p.status??'ready',flowMultiplier:p.flowMultiplier??1,enabled:p.enabled??true,condition:condition(p),...(save.version!=='0.8.1'&&condition(p)<100?{pumpedMlSinceRepair:Math.round((100-condition(p))*600_000)}:{})}));
+    station.pumps=(state.station.pumps??station.pumps).filter(p=>Number.isInteger(p.slot)&&p.slot>=0&&p.slot<PUMP_SLOTS.length).map(p=>({...p,fuels:[...p.fuels],status:p.status??'ready',flowMultiplier:p.flowMultiplier??1,enabled:p.enabled??true,condition:condition(p),...(!['0.8.1',version].includes(save.version??'')&&condition(p)<100?{pumpedMlSinceRepair:Math.round((100-condition(p))*600_000)}:{})}));
     station.jobs=(state.station.jobs??[]).map(j=>({...j,fuels:j.fuels?[...j.fuels]:undefined}));
     const sim=new StationSimulation(TRAFFIC_CONFIG.seed,station);
     sim.gameSeconds=state.gameSeconds;

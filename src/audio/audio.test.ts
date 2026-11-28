@@ -107,6 +107,6 @@ describe('Sound Update', () => {
     const restored = StationSimulation.importSave(old);
     expect(restored.station.balanceKopeks).toBe(sim.station.balanceKopeks);
     expect(restored.station.pumps).toEqual(sim.station.pumps);
-    expect(restored.exportSave().version).toBe('0.8.1');
+    expect(restored.exportSave().version).toBe('0.8.2');
   });
 });
