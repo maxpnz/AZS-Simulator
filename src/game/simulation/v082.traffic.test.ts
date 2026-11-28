@@ -6,6 +6,19 @@ import {createVehicle,RandomSource} from './traffic';
 import {footprintBlocked} from './collisions';
 
 describe('v0.8.2 pump dispatch',()=>{
+ it('keeps a full ten-pump station moving without prolonged approach stalls',()=>{
+  const station=cloneLegacyStation();
+  for(let slot=2;slot<10;slot++)station.pumps.push({id:`pump-${slot+1}`,slot,fuels:['ai92','ai95'],status:'ready',flowMultiplier:1,enabled:true});
+  for(const tank of station.tanks){
+   tank.capacityMl=1_000_000_000;tank.stockMl=1_000_000_000;
+   station.fuels[tank.fuel].capacityMl=1_000_000_000;station.fuels[tank.fuel].stockMl=1_000_000_000;
+  }
+  const sim=new StationSimulation(1,station);
+  for(let step=0;step<1000;step++){
+   sim.step(30);
+   expect(sim.trafficDiagnostics(1000),`step ${step}, game second ${sim.gameSeconds}`).toEqual([]);
+  }
+ });
  it('lets an exiting car enter the bend while through traffic ahead clears the merge',()=>{
   const sim=new StationSimulation(1,cloneLegacyStation());
   const exiting=createVehicle(100,sim.gameSeconds,new RandomSource(100));
