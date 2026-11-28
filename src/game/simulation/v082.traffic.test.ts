@@ -44,8 +44,8 @@ describe('v0.8.2 pump dispatch',()=>{
    if(i%100===0){
     const active=sim.vehicles.filter(v=>v.pumpId&&['toPump','fueling','finishing'].includes(v.status));
     expect(new Set(active.map(v=>v.pumpId)).size).toBe(active.length);
-    expect(sim.trafficDiagnostics(1800)).toEqual([]);
    }
+   expect(sim.trafficDiagnostics(1000)).toEqual([]);
   }
  });
 });
