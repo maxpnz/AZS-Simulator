@@ -3,8 +3,23 @@ import {cloneLegacyStation} from '../domain/config';
 import {StationSimulation} from './StationSimulation';
 import {pumpQueuePoint} from '../domain/roadNetwork';
 import {createVehicle,RandomSource} from './traffic';
+import {footprintBlocked} from './collisions';
 
 describe('v0.8.2 pump dispatch',()=>{
+ it('lets an exiting car enter the bend while through traffic ahead clears the merge',()=>{
+  const sim=new StationSimulation(1,cloneLegacyStation());
+  const exiting=createVehicle(100,sim.gameSeconds,new RandomSource(100));
+  Object.assign(exiting,{status:'leaving',pumpId:'pump-1',x:320,y:650,angle:Math.PI,route:['exit_lane','exit','exit_merge','west_lane_1_west'],routeIndex:0});
+  const through=createVehicle(101,sim.gameSeconds,new RandomSource(101));
+  Object.assign(through,{status:'road',laneId:'west_lane_1',westbound:true,x:300,y:940,angle:Math.PI,route:['west_lane_1_west'],routeIndex:0});
+  sim.vehicles.push(exiting,through);
+  sim.step(3);
+  expect(exiting.routeIndex).toBeGreaterThan(0);
+  for(let i=0;i<100&&sim.vehicles.includes(exiting)&&sim.vehicles.includes(through);i++){
+   expect(footprintBlocked(exiting,exiting.x,exiting.y,exiting.angle,[through])).toBe(false);
+   sim.step(3);
+  }
+ });
  it('holds a queue bay until a car on the crossing exit lane passes',()=>{
   const sim=new StationSimulation(1,cloneLegacyStation());
   const bay=pumpQueuePoint(0);

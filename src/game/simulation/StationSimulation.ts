@@ -890,7 +890,6 @@ export class StationSimulation {
       const stopTolerance=vehicle.category==='truck'&&/^pump_\d+$/.test(id)?38:3;
       if(Math.hypot(vehicle.x-node.x,vehicle.y-node.y)<stopTolerance) {
         if(viaApron)continue;
-        if(vehicle.status==='leaving'&&id==='exit_lane'&&this.vehicles.some(other=>other.status==='road'&&other.laneId==='west_lane_1'&&other.x<500))return;
         vehicle.routeIndex++;
         if(vehicle.status==='leaving'&&(id==='parking_exit'||id==='truck_parking_clear'))this.releaseParking(vehicle);
         // Keep the dispenser assigned until the vehicle has fully left the route.
