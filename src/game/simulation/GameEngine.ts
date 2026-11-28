@@ -50,7 +50,7 @@ export class GameEngine {
   }
   private schedulePriceSave():void {
     if(this.priceSaveTimer)clearTimeout(this.priceSaveTimer);
-    this.priceSaveTimer=setTimeout(()=>{this.priceSaveTimer=undefined;this.save();},350);
+    this.priceSaveTimer=setTimeout(()=>{this.priceSaveTimer=undefined;this.save();},10000);
   }
   orderGoods(supplier:Supplier,request:Partial<Record<Sku,number>>):boolean {return this.action(this.simulation.orderGoods(supplier,request));}
   saveSlot(slot:number):boolean {if(![1,2,3].includes(slot))return false;try{localStorage.setItem(`azs-simulator-slot-${slot}`,encodeStoredSave(JSON.stringify({...this.simulation.exportSave(),savedAt:Date.now()})));return true;}catch{return false;}}
